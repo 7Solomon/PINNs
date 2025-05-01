@@ -1,0 +1,5 @@
+.venv/
+heat/abaqus/*
+heat/models/*
+__pycache__/
+
