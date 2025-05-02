@@ -1,6 +1,5 @@
 import torch
-
-from vars import *
+from moisture.vars import *
 
 def S_e(h):
     return torch.where(
@@ -12,5 +11,5 @@ def WRC(h):
     return theta_r + (theta_s - theta_r)*S_e(h)
 def HC(h):
     S_e_h = S_e(h)
-    K_s * S_e_h**(1/2) * (1 - (1 - S_e_h**(1/m))**m)**2
-    pass
+    return K_s * S_e_h**(1/2) * (1 - (1 - S_e_h**(1/m))**m)**2
+    

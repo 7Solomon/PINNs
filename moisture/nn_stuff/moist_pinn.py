@@ -20,7 +20,6 @@ def residual(model, x):
     theta = WRC(h)
     K = HC(h)
     
-    # 
     theta_t = torch.autograd.grad(theta, x, grad_outputs=torch.ones_like(theta), create_graph=True)[0][:,2]
 
     grad_h = torch.autograd.grad(h, x, grad_outputs=torch.ones_like(theta), create_graph=True)[0]  # Alle Gradienten nach x, y, t
