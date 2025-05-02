@@ -8,10 +8,12 @@ T_max = 100.0
 T_min = 0.0
 
 layers = [2, 64, 64, 64, 1]
+lambda_ic = 1.0 # W IC loss
 lambda_bc = 1.0 # W bc loss
 lambda_pde = 1.0 # W PDE residual loss
 mse_loss = nn.MSELoss()
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+lr = 1e-3
+EPOCHS = 300
 
 MODEL_PATH = 'models'
 

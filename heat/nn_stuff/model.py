@@ -1,8 +1,9 @@
 import datetime
 import os
 from typing import List, Tuple
-from utils import CData
-from nn_stuff.temp_pinn import PINN, train_loop
+from utils import *
+from heat.nn_stuff.temp_pinn import SteadyHeatPINN, TransientHeatPINN
+from heat.nn_stuff.train import train_steady_loop, train_transient_loop
 
 import torch
 import numpy as np
@@ -10,50 +11,35 @@ import torch.nn as nn
 import time
 from tqdm import tqdm
 
-from vars import *
+from heat.vars import *
+from vars import device
 
 # Pinn stuff
-def create_model(domain, save_name=None) -> Tuple[PINN, CData]:
+def create_steady_model(domain, save_name=None) -> Tuple[SteadyHeatPINN, CData]:
+    model = SteadyHeatPINN(layers).to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
-    model = PINN(layers).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    data = train_steady_loop(model, optimizer, mse_loss, domain, epochs=EPOCHS)
+    save_data = create_save_data('steady_heat', MODEL_PATH, data['model'], optimizer, data['loss'], domain, save_name)
 
-    data = train_loop(model, optimizer, mse_loss, domain, epochs=500)
-    model = data['model']
-    Loss = data['loss']
+    return data['model'], save_data
+def create_transient_model(domain, save_name=None) -> Tuple[SteadyHeatPINN, CData]:
+    model = SteadyHeatPINN(layers).to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
-    if not save_name:
-        now = datetime.datetime.now()
-        save_name = now.strftime("%Y-%m-%d_%H-%M-%S")
+    data = train_transient_loop(model, optimizer, mse_loss, domain, epochs=EPOCHS)
+    save_data = create_save_data('transient_heat', MODEL_PATH, data['model'], optimizer, data['loss'], domain, save_name)
 
-    save_data = CData(
-        header={
-            'name': save_name,
-            'domain': domain.header
-        },
-        model=model.state_dict(),
-        optimizer=optimizer.state_dict(),
-        domain=domain,
-        loss=Loss
-    )
-    torch.save(save_data, os.path.join(MODEL_PATH, f'{save_name}.pth'))
-    return  model, save_data
+    return data['model'], save_data
+
   
-    
 def load_model_from_path(path):
     saved_cdata: CData = torch.load(path, map_location=device, weights_only=False)
     return saved_cdata
-    #print(f'Loaded Model:  Domain: {header}')
-    #return {
-    #    'header': header,
-    #    'model': model,
-    #    'domain': domain,
-    #    'loss': Loss
-    #}
 
-def load_model() -> Tuple[PINN, CData]:
-    if os.path.exists(MODEL_PATH):
-        os.makedirs(MODEL_PATH, exist_ok=True)
+def load_steady_model() -> Tuple[SteadyHeatPINN, CData]:
+    if not os.path.exists(MODEL_PATH):
+        os.makedirs(MODEL_PATH)
 
     for i, path in enumerate(os.listdir(MODEL_PATH)):
         print(f'{i}: {path}')
@@ -61,7 +47,21 @@ def load_model() -> Tuple[PINN, CData]:
     nr = int(input('Model nummer: '))
 
     loaded_cData = load_model_from_path(os.path.join(MODEL_PATH, os.listdir(MODEL_PATH)[nr]))
-    model = PINN(layers).to(device)
+    model = SteadyHeatPINN(layers).to(device)
     model.load_state_dict(loaded_cData.model)
-                          
     return model, loaded_cData
+
+def load_transient_model() -> Tuple[TransientHeatPINN, CData]:
+    if not os.path.exists(MODEL_PATH):
+        os.makedirs(MODEL_PATH)
+
+    for i, path in enumerate(os.listdir(MODEL_PATH)):
+        print(f'{i}: {path}')
+    print('----------')
+    nr = int(input('Model nummer: '))
+
+    loaded_cData = load_model_from_path(os.path.join(MODEL_PATH, os.listdir(MODEL_PATH)[nr]))
+    model = TransientHeatPINN(layers).to(device)
+    model.load_state_dict(loaded_cData.model)
+    return model, loaded_cData
+

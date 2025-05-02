@@ -1,6 +1,4 @@
 from matplotlib import pyplot as plt
-from nn_stuff.temp_pinn import PINN
-from utils import re_scale_temp
 import numpy as np
 import torch
 
@@ -17,42 +15,39 @@ def get_grid_matrix(device, x, y, n_grid_points):
   return X,Y,XY_tensor
 
 
-def get_T_pred_grid(model: PINN, device,x,y,t, n_grid_points=100):
+def get_pred_grid(model, device,x,y,t,rescale_function, n_grid_points=100):
   X,Y,XY_tensor = get_grid_matrix(device, x, y, n_grid_points)
   T = torch.full((XY_tensor.shape[0], 1), t, dtype=torch.float32).to(device)
   XYt_tensor = torch.cat((XY_tensor, T), dim=1)
  
   with torch.no_grad():
-    T_pred = model(XYt_tensor).cpu().numpy()
-    T_test = re_scale_temp(T_pred)
+    pred = model(XYt_tensor).cpu().numpy()
+    scaled = rescale_function(pred)
 
-  T_grid = T_test.reshape(X.shape)
+  output = scaled.reshape(X.shape)
   return{
       'X':X,
       'Y':Y,
       'T': T, 
-      'T_grid':T_grid,
+      'output':output,
   }
 
-def get_steady_T_pred_grid(model, device, x,y, n_grid_points=100):
+def get_steady_pred_grid(model, device, x,y,rescale_function, n_grid_points=100):
   X,Y,XY_tensor = get_grid_matrix(device, x, y, n_grid_points)
   with torch.no_grad():
-    T_pred = model(XY_tensor).cpu().numpy()
-    T_test = re_scale_temp(T_pred)
+    pred = model(XY_tensor).cpu().numpy()
+    scaled = rescale_function(pred)
 
-  T_grid = T_test.reshape(X.shape)
+  output = scaled.reshape(X.shape)
   return{
       'X':X,
       'Y':Y,
-      'T_grid':T_grid,
+      'T_grid':output,
   }
 
-def vis_plate(data):
+def vis_plate_2d(data):
   plt.figure(figsize=(10,10))
   plt.contourf(data['X'],data['Y'],data['T_grid'], levels=100,cmap='jet')
   plt.colorbar()
   plt.show()
-
-def vis_csv():
-  pass
 

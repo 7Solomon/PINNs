@@ -1,5 +1,7 @@
-from utils import Domain, norm_temp
-from vars import *
+from utils import Domain
+
+from heat.utils import norm_temp
+from heat.vars import *
 import numpy as np
 import torch
 
@@ -38,11 +40,13 @@ def generate_random_boundary(domain: Domain , n_points, x_min=0.0, x_max=2.0, y_
   
     #domain.header={'x_min': x_min, 'x_max': x_max, 'y_min': y_min, 'y_max': y_max}
     domain.header = {'x':{(x_min, x_max)}, 'y':{(y_min, y_max)}}
-    domain.keys = ['left', 'right']
-    domain.boundaries={'left': boundary_points_left_tensor, 'right': boundary_points_right_tensor}
-    domain.values={'left': scaled_temp_left, 'right': scaled_temp_right}
+    domain.boundarie_keys = ['left', 'right']
+    domain.boundarie_points={'left': boundary_points_left_tensor, 'right': boundary_points_right_tensor}
+    domain.boundarie_values={'left': scaled_temp_left, 'right': scaled_temp_right}
 
     return domain
+
+
 
 
 def generate_steady_domain():

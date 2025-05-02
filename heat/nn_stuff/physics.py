@@ -1,5 +1,5 @@
 import torch
-from vars import alpha
+from heat.vars import alpha
 
 def lp_residual(model, x: torch.Tensor):
     assert x.dim() == 3, f'3D tensor erwartet, aber ist {x.dim()}D tensor'
