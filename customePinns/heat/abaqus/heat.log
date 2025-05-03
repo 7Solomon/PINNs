@@ -1,0 +1,19 @@
+Analysis initiated from SIMULIA established products
+Abaqus JOB heat
+Abaqus Learning Edition 2024
+Begin Analysis Input File Processor
+28.04.2025 14:13:39
+Run pre.exe
+28.04.2025 14:13:41
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+28.04.2025 14:13:41
+Run standard.exe
+28.04.2025 14:13:44
+End Abaqus/Standard Analysis
+Begin SIM Wrap-up
+28.04.2025 14:13:44
+Run SMASimUtility.exe
+28.04.2025 14:13:44
+End SIM Wrap-up
+Abaqus JOB heat COMPLETED
