@@ -11,6 +11,9 @@ def manage_args(args: argparse.Namespace):
         elif args.type == 'transient_heat':
             from heat.manager import create_transient
             create = create_transient
+        elif args.type == 'moisture':
+            from moisture.manager import create
+            create = create
         else:
             print('Unbekannter Typ', file=sys.stderr)
             return
@@ -28,6 +31,10 @@ def manage_args(args: argparse.Namespace):
             print('Unbekannter Typ', file=sys.stderr)
             return
         model, cData = load()
+    elif args.command == 'vis':
+        if args.type == 'functions':
+            from moisture.manager import vis_functions
+            vis_functions()
     
     # Vis
     if model and args.vis:
@@ -38,9 +45,11 @@ def manage_args(args: argparse.Namespace):
             from vis.functions import visualize_field
             visualize_field(model, cData.domain)
         elif args.vis == 'all':
-            from vis.functions import visualize_loss, visualize_field, visualize_model
+            from vis.functions import visualize_loss, visualize_field
             visualize_loss(cData.loss)
             visualize_field(model, cData.domain)
+        
+
     elif model is None:
         print('beim Laden ist ein Fehler passiert', file=sys.stderr)
 

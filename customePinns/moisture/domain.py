@@ -1,7 +1,8 @@
 import torch
 import numpy as np
 
-from moisture.utils import Domain, Condition, ConditionType, norm_Stuff
+from utils import Domain, Condition, ConditionType
+
 
 def get_collocation(n_points=1000, x=[0,1], y=[0,2], t= [0,10]):
     x = torch.rand(n_points, 1, requires_grad=True) * (x[1] - x[0]) + x[0]
@@ -26,11 +27,10 @@ def get_initial_conditions(n_points=200, x=[0,1], y=[0,2], h_0=0.0):
 
 def get_boundary_condition(n_points=200, x=[0,1], y=[0,2], t= [0,10]):
     t = torch.rand(n_points, 1, requires_grad=True) * (t[1] - t[0]) + t[0]
-
     x_left = torch.full((n_points, 1), x[0])
     y_left = torch.rand(n_points,1, requires_grad=True) * (y[1] - y[0]) + y[0]
     bc_left = torch.cat([x_left,y_left,t], dim=1)
-    bc_left_values = torch.full_like(x_left, norm_Stuff(0.0), dtype=torch.float32)   # !!! anders lösen
+    bc_left_values = torch.full_like(x_left, 0.0, dtype=torch.float32)   # !!! anders lösen
     left = Condition(
         key='left',
         type=ConditionType.DIRICHTLETT,
@@ -41,7 +41,7 @@ def get_boundary_condition(n_points=200, x=[0,1], y=[0,2], t= [0,10]):
     x_right = torch.full((n_points, 1), x[1])
     y_right = torch.rand(n_points,1, requires_grad=True) * (y[1] - y[0]) + y[0]
     bc_right = torch.cat([x_right,y_right,t], dim=1)
-    bc_right_values = torch.full_like(x_right, norm_Stuff(0.0), dtype=torch.float32)  ## !!!
+    bc_right_values = torch.full_like(x_right, 0.0, dtype=torch.float32)  ## !!!
     right = Condition(
         key='right',
         type=ConditionType.DIRICHTLETT,
@@ -52,7 +52,7 @@ def get_boundary_condition(n_points=200, x=[0,1], y=[0,2], t= [0,10]):
     x_top = torch.rand(n_points, 1, requires_grad=True) * (x[1] - x[0]) + x[0]
     y_top = torch.full((n_points, 1), y[1])
     bc_top = torch.cat([x_top,y_top,t], dim=1)
-    bc_top_values = torch.full_like(x_top,  -norm_Stuff(30.0), dtype=torch.float32) ##!!
+    bc_top_values = torch.full_like(x_top,  -30.0, dtype=torch.float32) ##!!
     top = Condition(
         key='top',
         type=ConditionType.DIRICHTLETT,
@@ -63,7 +63,7 @@ def get_boundary_condition(n_points=200, x=[0,1], y=[0,2], t= [0,10]):
     x_bottom = torch.rand(n_points, 1, requires_grad=True) * (x[1] - x[0]) + x[0]
     y_bottom = torch.full((n_points, 1), y[0])
     bc_bottom = torch.cat([x_bottom,y_bottom,t], dim=1)
-    bc_bottom_values = torch.full_like(x_bottom, norm_Stuff(0.0), dtype=torch.float32) ##!!
+    bc_bottom_values = torch.full_like(x_bottom, 0.0, dtype=torch.float32) ##!!
     bottom = Condition(
         key='bottom',
         type=ConditionType.DIRICHTLETT,

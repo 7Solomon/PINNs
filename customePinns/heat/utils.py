@@ -5,11 +5,11 @@ import torch
 
 from heat.vars import *
 
-def norm_temp(T: torch.Tensor) -> torch.Tensor:
-  return (T - T_min) / (T_max - T_min)
-
-def re_scale_temp(T: torch.Tensor) -> torch.Tensor:
-  return T * (T_max - T_min) + T_min
+#def norm_temp(T: torch.Tensor) -> torch.Tensor:
+#  return (T - T_min) / (T_max - T_min)
+#
+#def re_scale_temp(T: torch.Tensor) -> torch.Tensor:
+#  return T * (T_max - T_min) + T_min
 
 #@dataclass
 #class Domain:

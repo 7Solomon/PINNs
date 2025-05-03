@@ -2,16 +2,17 @@ import datetime
 import os
 from typing import List, Tuple
 
-from nn_stuff.train import train_loop
+from moisture.nn_stuff.train import train_loop
 from utils import CData
-from nn_stuff.moist_pinn import MoisturePINN
+from moisture.nn_stuff.moist_pinn import MoisturePINN
 import torch
 import numpy as np
 import torch.nn as nn
 import time
 from tqdm import tqdm
 
-from vars import *
+from moisture.vars import *
+from vars import device
 
 # Pinn stuff
 def create_model(domain, save_name=None) -> Tuple[MoisturePINN, CData]:

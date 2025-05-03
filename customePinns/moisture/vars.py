@@ -14,11 +14,11 @@ K_s = 10e-9 # Niedrig da beton fast kein wasser leitet
 layers = [3, 64, 64, 64, 1]
 lambda_ic = 1.0 # W IC loss
 lambda_bc = 1.0 # W bc loss
-lambda_pde = 1e6 # W PDE residual loss
+lambda_pde = 1e9 # W PDE residual loss
 mse_loss = nn.MSELoss()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-lr = 5e-7
-EPOCHS = 1000
+lr = 5e-6
+EPOCHS = 20000
 MAX_NORM = 1.0
 
 MODEL_PATH = 'models'

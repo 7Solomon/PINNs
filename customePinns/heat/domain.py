@@ -1,6 +1,5 @@
-from utils import Domain
+from utils import Condition, ConditionType, Domain
 
-from heat.utils import norm_temp
 from heat.vars import *
 import numpy as np
 import torch
@@ -32,18 +31,28 @@ def generate_random_boundary(domain: Domain , n_points, x_min=0.0, x_max=2.0, y_
     boundary_points_right = np.hstack((x_coords_right, y_coords_right)) # [500,2]
     boundary_points_right_tensor = torch.tensor(boundary_points_right, dtype=torch.float32, requires_grad=True)
     
-    temp_values_left = np.full((n_points, 1), T_max) # [500,1] = 100
-    scaled_temp_left = norm_temp(temp_values_left)
-    temp_values_right = np.full((n_points, 1), T_min)
-    scaled_temp_right = norm_temp(temp_values_right)
+    temp_values_left = torch.full((n_points, 1), T_max)# [500,1] = 100
+    temp_values_right = torch.full((n_points, 1), T_min)
 
-  
-    #domain.header={'x_min': x_min, 'x_max': x_max, 'y_min': y_min, 'y_max': y_max}
-    domain.header = {'x':{(x_min, x_max)}, 'y':{(y_min, y_max)}}
-    domain.boundarie_keys = ['left', 'right']
-    domain.boundarie_points={'left': boundary_points_left_tensor, 'right': boundary_points_right_tensor}
-    domain.boundarie_values={'left': scaled_temp_left, 'right': scaled_temp_right}
+    domain.header = {'x':(x_min, x_max), 'y':(y_min, y_max)}
+    domain.condition_keys = ['left', 'right']
 
+    domain.conditions = {
+        'left': 
+            Condition(
+                        key='left',
+                        type=ConditionType.DIRICHTLETT,
+                        points=boundary_points_left_tensor,
+                        values=temp_values_left,
+                    ), 
+        'right': 
+            Condition(
+                        key='right',
+                        type=ConditionType.DIRICHTLETT,
+                        points=boundary_points_right_tensor,
+                        values=temp_values_right,
+                    ),
+        }
     return domain
 
 
