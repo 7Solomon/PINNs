@@ -17,7 +17,7 @@ def generate_random_collocation(domain: Domain, n_points, x_min=0.0, x_max=2.0, 
     domain.collocation = collocation_tensor
     return domain
 
-def generate_random_boundary(domain: Domain , n_points, x_min=0.0, x_max=2.0, y_min=0.0, y_max=1.0):
+def generate_random_boundary(domain: Domain, conf, n_points, x_min=0.0, x_max=2.0, y_min=0.0, y_max=1.0):
     """
     Auch gerade nur Steady State, aber boundary bleibt gleivh über zeit
     """
@@ -31,8 +31,8 @@ def generate_random_boundary(domain: Domain , n_points, x_min=0.0, x_max=2.0, y_
     boundary_points_right = np.hstack((x_coords_right, y_coords_right)) # [500,2]
     boundary_points_right_tensor = torch.tensor(boundary_points_right, dtype=torch.float32, requires_grad=True)
     
-    temp_values_left = torch.full((n_points, 1), T_max)# [500,1] = 100
-    temp_values_right = torch.full((n_points, 1), T_min)
+    temp_values_left = torch.full((n_points, 1), conf.T_max)# [500,1] = 100
+    temp_values_right = torch.full((n_points, 1), conf.T_min)
 
     domain.header = {'x':(x_min, x_max), 'y':(y_min, y_max)}
     domain.condition_keys = ['left', 'right']
@@ -58,12 +58,12 @@ def generate_random_boundary(domain: Domain , n_points, x_min=0.0, x_max=2.0, y_
 
 
 
-def generate_steady_domain():
+def generate_steady_domain(conf):
     num_collocation_points = 5000
     num_boundary_points = 1000
     
     domain = Domain()
     domain = generate_random_collocation(domain, num_collocation_points)
-    domain = generate_random_boundary(domain, num_boundary_points)
+    domain = generate_random_boundary(domain, conf, num_boundary_points)
     #domain = {**boundary, **{'domain_collocation_tensor': domain_collocation_tensor}}
     return domain
