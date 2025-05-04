@@ -20,8 +20,8 @@ def residual(model, x):
     theta = WRC(u_pred)
     K = HC(u_pred)
     
-    print(f'K: {K[0][0]}')
-    print(f'theta: {theta[0][0]}')
+    #print(f'K: {K[0][0]}')
+    #print(f'theta: {theta[0][0]}')
     
     theta_t = torch.autograd.grad(theta, x, grad_outputs=torch.ones_like(theta), create_graph=True)[0][:,2]
 
@@ -37,6 +37,33 @@ def residual(model, x):
     
     div_K_grad_h = d_Kh_dx + d_Kh_dy
     return theta_t - div_K_grad_h
+
+
+def test_split_residual(model, x):
+    u_pred = model(x)  # u is pressure head
+
+    theta = WRC(u_pred)
+    K = HC(u_pred)
+    
+    theta_t = torch.autograd.grad(theta, x, grad_outputs=torch.ones_like(theta), create_graph=True)[0][:,2]
+
+    grad_h = torch.autograd.grad(u_pred, x, grad_outputs=torch.ones_like(theta), create_graph=True)[0]  # Alle Gradienten nach x, y, t
+    h_x = grad_h[:, 0]
+    h_y = grad_h[:, 1]
+
+    K_h_x = K  * h_x
+    K_h_y = K  * h_y
+
+    d_Kh_dx = torch.autograd.grad(K_h_x, x, grad_outputs=torch.ones_like(K_h_x), create_graph=True)[0][:, 0]
+    d_Kh_dy = torch.autograd.grad(K_h_y, x, grad_outputs=torch.ones_like(K_h_y), create_graph=True)[0][:, 1]
+    
+    div_K_grad_h = d_Kh_dx + d_Kh_dy
+
+    loss_time = torch.mean(theta_t**2)
+    loss_space = torch.mean(div_K_grad_h**2)
+    return theta_t - div_K_grad_h
+
+
 
 def test_log_residual(model, x):
     h = model(x)
@@ -56,4 +83,5 @@ def test_log_residual(model, x):
     dot_grad_log_K_grad_h = grad_logK[:, 0] * h_x + grad_logK[:, 1] * h_y
     div_K_grad_h = K*(laplace_h + dot_grad_log_K_grad_h)
     theta_t = torch.autograd.grad(theta, x, grad_outputs=torch.ones_like(theta), create_graph=True)[0][:,2]
+    
     return theta_t - div_K_grad_h

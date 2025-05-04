@@ -13,7 +13,7 @@ def get_collocation(n_points=1000, x=[0,1], y=[0,2], t= [0,10]):
 def get_initial_conditions(n_points=200, x=[0,1], y=[0,2], h_0=0.0):
     x = torch.rand(n_points, 1) * (x[1] - x[0]) + x[0]
     y = torch.rand(n_points, 1) * (y[1] - y[0]) + y[0]
-    t = torch.full_like(x, h_0)
+    t = torch.full((n_points, 1), 0)
 
     XYT = torch.cat([x, y, t], dim=1)
     values = torch.full_like(x, h_0)

@@ -1,4 +1,5 @@
 import sys
+from vis.time_variant import draw_time_dependant_plot
 from utils import Domain
 from vis.basic import get_pred_grid, get_steady_pred_grid, plot_loss, vis_plate_2d
 from vars import device
@@ -13,7 +14,7 @@ def visualize_field(model, domain: Domain):
         if 't' in domain.header.keys():
             t = domain.header['t']
             data = get_pred_grid(model, device, x, y, t, domain.rescale_predictions, n_grid_points=100)
-            vis_plate_2d(data)
+            draw_time_dependant_plot(data)
             return
         data = get_steady_pred_grid(model, device, x, y, domain.rescale_predictions, n_grid_points=100)
         vis_plate_2d(data)
