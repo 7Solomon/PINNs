@@ -3,8 +3,24 @@ import numpy as np
 import torch
 
 def plot_loss(Loss):
-  plt.plot(Loss)
-  plt.show()
+  if isinstance(Loss, dict):
+    for element in Loss.keys():
+      if isinstance(Loss[element], dict):
+        for key in Loss[element].keys():
+          print(f'{element}[{key}]: {Loss[element][key][:5]} with {len(Loss[element][key])}')
+          plt.plot(Loss[element][key], label=f'{element}[{key}]')
+      else:
+        plt.plot(Loss[element], label=element)
+    plt.legend()
+    plt.grid(True, which="both", ls="--")
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.title('Loss (log)')
+    plt.yscale('log')
+    plt.show()
+  else:
+    plt.plot(Loss)
+    plt.show()
 
 def get_grid_matrix(device, x, y, n_grid_points):
   x_matrix = np.linspace(x[0],x[1],n_grid_points)
@@ -49,7 +65,6 @@ def get_steady_pred_grid(model, device, x,y,rescale_function, n_grid_points=100)
   }
 
 def vis_plate_2d(data):
-  print('data', data.keys())
   plt.figure(figsize=(10,10))
   plt.contourf(data['X'],data['Y'],data['T_grid'], levels=100,cmap='jet')
   plt.colorbar()

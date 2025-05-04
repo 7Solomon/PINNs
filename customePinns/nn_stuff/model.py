@@ -1,6 +1,6 @@
 import os
 from typing import Tuple
-from moisture.nn_stuff.train import train_loop
+#from moisture.nn_stuff.train import train_loop
 import torch
 import datetime
 from nn_stuff.pinn import PINN
@@ -16,7 +16,7 @@ def create_model(domain, conf, save_name=None) -> Tuple[PINN, CData]:
     model = PINN(conf.layers).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=conf.lr)
 
-    data = train_loop(model, optimizer, conf.mse_loss, domain, conf.epochs)
+    data = conf.train_loop(model, optimizer, domain, conf)
     model = data['model']
     Loss = data['loss']
 

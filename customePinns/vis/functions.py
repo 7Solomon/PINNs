@@ -30,4 +30,4 @@ def visualize_loss(loss_history):
     try:
         plot_loss(loss_history)
     except Exception as e:
-        print(f'ERROR: Plotting failed', file=sys.stderr)
+        print(f'ERROR: Plotting failed {e}', file=sys.stderr)
