@@ -12,9 +12,9 @@ def create_steady():
 def create_transient():
     raise NotImplementedError('Noch nicht implementiert, du kek')
     #domain = generate_transient_domain()
-    model, cData = create_transient(domain)
-    return model, cData
-
+    #model, cData = create_transient(domain)
+    #return model, cData
+    pass
 
 def load():
     try:

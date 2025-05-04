@@ -15,7 +15,7 @@ def manage_args(args: argparse.Namespace):
             from moisture.manager import create
             create = create
         else:
-            print('Unbekannter Typ', file=sys.stderr)
+            print(f'Unbekannter Typ: {args.type}', file=sys.stderr)
             return
         model, cData = create()
 
@@ -26,6 +26,9 @@ def manage_args(args: argparse.Namespace):
         elif args.type == 'transient_heat':
             from heat.manager import load
             print('HIER NICHT IMPLEMENTIERT, wahrscheinlich')
+            load = load
+        elif args.type == 'moisture':
+            from moisture.manager import load
             load = load
         else:
             print('Unbekannter Typ', file=sys.stderr)

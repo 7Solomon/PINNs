@@ -45,8 +45,8 @@ def train_loop(model, optimizer, mse_loss, domain: Domain, epochs):
         boundary_loss = sum([_ for _ in boundary_loss])
         # Residual loss
         coll_points = domain.collocation.detach().requires_grad_(True)
-        #res = residual(model, coll_points)
-        res = test_log_residual(model, coll_points)
+        res = residual(model, coll_points)
+        #res = test_log_residual(model, coll_points)
         loss_pde = mse_loss(res, torch.zeros_like(res))
 
         loss = lambda_bc * boundary_loss + lambda_pde * loss_pde + lambda_ic * loss_init
