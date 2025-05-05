@@ -1,26 +1,26 @@
 from tqdm import tqdm
-from moisture.nn_stuff.moist_pinn import residual, test_log_residual
+from moisture.normal_pinn_2d.nn_stuff.residual import residual, test_log_residual
 from utils import ConditionType, Domain
 import torch
 import torch.nn as nn
 
-from moisture.vars import *
+#from moisture.vars import *
 
-def train_loop(model, optimizer, mse_loss, domain: Domain, epochs):
+def train_loop(model, optimizer, domain: Domain, conf):
     Loss = []
 
     # scale conditions
     domain.scale_conditions()
 
     #print(f'req_grad: {domain_collocation_tensor.requires_grad}')
-    for epoch in tqdm(range(epochs), desc= 'Training ist im vollen gange'):
+    for epoch in tqdm(range(conf.epochs), desc= 'Training ist im vollen gange'):
         optimizer.zero_grad()
 
         # Init loss
         loss_init = 0
         inital_points = domain.initial_condition.points.detach()
         pred = model(inital_points)
-        loss_init = mse_loss(pred, domain.initial_condition.scaled_values)
+        loss_init = conf.mse_loss(pred, domain.initial_condition.scaled_values)
 
         # Boundary loss
         boundary_loss = []
@@ -28,7 +28,7 @@ def train_loop(model, optimizer, mse_loss, domain: Domain, epochs):
             current_points = domain.conditions[key].points.detach().requires_grad_(True)
             pred = model(current_points)
             if domain.conditions[key].type == ConditionType.DIRICHTLETT:
-                temp_condition_loss = mse_loss(pred,domain.conditions[key].scaled_values)
+                temp_condition_loss = conf.mse_loss(pred,domain.conditions[key].scaled_values)
             elif domain.conditions[key].type == ConditionType.NEUMANN:
                 grad_pred = torch.autograd.grad(pred, current_points, grad_outputs=torch.ones_like(pred), create_graph=True)[0]
                 # Verbose but okay for now
@@ -38,24 +38,24 @@ def train_loop(model, optimizer, mse_loss, domain: Domain, epochs):
                     dh_dn = grad_pred[:, 1]
                 else:
                     raise ValueError(f'Condition key ist weird: {domain.conditions[key].type}')
-                temp_condition_loss = mse_loss(dh_dn, domain.conditions[key].scaled_values)
+                temp_condition_loss = conf.mse_loss(dh_dn, domain.conditions[key].scaled_values)
             else:
                 raise ValueError(f'Condition type  ist weird: {domain.conditions[key].type}')
             boundary_loss.append(temp_condition_loss)
         boundary_loss = sum([_ for _ in boundary_loss])
         # Residual loss
         coll_points = domain.collocation.detach().requires_grad_(True)
-        res = residual(model, coll_points)
+        res = residual(model, coll_points, conf)
         #res = test_log_residual(model, coll_points)
-        loss_pde = mse_loss(res, torch.zeros_like(res))
+        loss_pde = conf.mse_loss(res, torch.zeros_like(res))
 
-        loss = lambda_bc * boundary_loss + lambda_pde * loss_pde + lambda_ic * loss_init
+        loss = conf.lambda_bc * boundary_loss + conf.lambda_pde * loss_pde + conf.lambda_ic * loss_init
         # ---
         if epoch % 100 == 0:
             print(f'epoch: {epoch}')
-            print(f'loss_pde: {loss_pde}, scaled: {loss_pde*lambda_pde}')
-            print(f'loss_init: {loss_init}, scaled: {loss_init*lambda_ic}')
-            print(f'boundary_loss: {boundary_loss}, scaled: {boundary_loss*lambda_bc}')
+            print(f'loss_pde: {loss_pde}, scaled: {loss_pde*conf.lambda_pde}')
+            print(f'loss_init: {loss_init}, scaled: {loss_init*conf.lambda_ic}')
+            print(f'boundary_loss: {boundary_loss}, scaled: {boundary_loss*conf.lambda_bc}')
 
             print('---')
             print(f'loss: {loss}')
@@ -66,7 +66,7 @@ def train_loop(model, optimizer, mse_loss, domain: Domain, epochs):
         # --
         
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=MAX_NORM)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=conf.max_norm)
         optimizer.step()
     return {
         'model': model,

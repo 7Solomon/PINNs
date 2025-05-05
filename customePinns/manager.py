@@ -15,11 +15,21 @@ def manage_args(args: argparse.Namespace):
             domain = generate_steady_domain(conf)
             model, cData = create_model(domain, conf)
         elif args.type == 'transient_heat':
-            from heat.manager import create_transient
-            create = create_transient
+            raise NotImplementedError('Noch nicht implementiert, du kek')
         elif args.type == 'moisture':
-            from moisture.manager import create
-            create = create
+            from config import MoistureConfig
+            from moisture.normal_pinn_2d.domain import get_domain
+            from nn_stuff.model import create_model
+            conf = MoistureConfig()
+            domain = get_domain()
+            model, cData = create_model(domain, conf)
+        elif args.type == 'moisture_HB':
+            from config import MoistureHeadBodyConfig
+            from moisture.head_body_pinn_1d.domain import get_domain
+            from nn_stuff.model import create_model
+            conf = MoistureHeadBodyConfig()
+            domain = get_domain(conf)
+            model, cData = create_model(domain, conf)
         else:
             print(f'Unbekannter Typ: {args.type}', file=sys.stderr)
             return
@@ -37,13 +47,17 @@ def manage_args(args: argparse.Namespace):
             from config import MoistureConfig
             conf = MoistureConfig()
             model, cData = load_model(conf)
+        elif args.type == 'moisture_HB':
+            from config import MoistureHeadBodyConfig
+            conf = MoistureHeadBodyConfig()
+            model, cData = load_model(conf)
         else:
             print('Unbekannter Typ', file=sys.stderr)
             return
     elif args.command == 'test':
         if args.type == 'functions':
-            from moisture.manager import vis_functions
-            vis_functions()
+            from vis.basic import plot_saturation
+            plot_saturation(conf)
         elif args.type == 'COMSOL':
             from nn_stuff.model import load_model
             from config import SteadyHeatConfig
@@ -61,14 +75,14 @@ def manage_args(args: argparse.Namespace):
     if model and args.vis:
         if args.vis == 'loss':
             from vis.functions import visualize_loss
-            visualize_loss(cData.loss)
+            visualize_loss(cData.loss, conf)
         elif args.vis == 'field':
             from vis.functions import visualize_field
-            visualize_field(model, cData.domain)
+            visualize_field(model, cData.domain, conf)
         elif args.vis == 'all':
             from vis.functions import visualize_loss, visualize_field
             visualize_loss(cData.loss)
-            visualize_field(model, cData.domain)
+            visualize_field(model, cData.domain, conf)
         
 
     elif model is None:

@@ -1,4 +1,5 @@
 import torch.nn as nn
+import torch
 
 class PINN(nn.Module):
     def __init__(self, layers):
@@ -13,3 +14,16 @@ class PINN(nn.Module):
 
     def forward(self, x):
         return self.model(x)
+    
+class BodyHeadPINN(nn.Module):
+    def __init__(self, layers_body, layers_head):
+        super().__init__()
+        self.body = PINN(layers_body)
+        self.head_1 = PINN(layers_head)
+        self.head_2 = PINN(layers_head)
+
+    def forward(self, x):
+        body_out = self.body(x)
+        out_1 = self.head_1(torch.log(body_out))
+        out_2 = self.head_2(torch.log(body_out))
+        return body_out, out_1, out_2

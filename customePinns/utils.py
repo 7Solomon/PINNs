@@ -102,7 +102,11 @@ class Domain:
     def rescale_predictions(self, predictions : torch.Tensor) -> torch.Tensor:
         if self.min_val is None or self.max_val is None:
             raise ValueError('Min and max values are not set.')
-        return predictions * (self.max_val - self.min_val) + self.min_val
+        #print(f'predictions: {type(predictions)}')
+        if isinstance(predictions, torch.Tensor):
+            return predictions * (self.max_val - self.min_val) + self.min_val
+        else:
+            return [pred * (self.max_val - self.min_val) + self.min_val for pred in predictions]
     def rescale_points(self, points : torch.Tensor) -> torch.Tensor:
         if self.min_point is None or self.max_point is None:
             raise ValueError('Min and max values not set.')
