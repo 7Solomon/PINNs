@@ -2,7 +2,6 @@
 import argparse
 import sys
 from manager import manage_args
-from vars import device
 
 
 if __name__ == "__main__":
@@ -14,9 +13,9 @@ if __name__ == "__main__":
     parser_test = subparsers.add_parser('test', help='Visualisiere andere sachen.')
 
     parser_load.add_argument('--vis', choices=['loss', 'field', 'all'], help='Wie visualisieren? loss oder field', nargs='?')
-    parser_load.add_argument('--type', choices=['steady_heat', 'transient_heat', 'moisture'], help='Joe')
+    parser_load.add_argument('--type', choices=['steady_heat', 'transient_heat', 'moisture', 'moisture_HB'], help='Joe')
     parser_create.add_argument('--vis', choices=['loss', 'field', 'all'], help='Wie visualisieren? loss oder field', nargs='?')
-    parser_create.add_argument('--type', choices=['steady_heat', 'transient_heat', 'moisture'], help='Joe')
+    parser_create.add_argument('--type', choices=['steady_heat', 'transient_heat', 'moisture', 'moisture_HB'], help='Joe')
 
     parser_test.add_argument('--type', choices=['functions', 'COMSOL'], help='Hier nur functions und so')
 

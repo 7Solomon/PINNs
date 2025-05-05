@@ -2,7 +2,6 @@ import torch
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from vars import device
 
 def load_COMSOL_file_data(path):
     try:
@@ -41,8 +40,8 @@ def analyze_COMSOL_file_data(file_content):
             except ValueError:
                 continue
     df = pd.DataFrame(parsed_data, columns=column_names)
-    domain_tensor = torch.tensor(df[['X', 'Y']].values, dtype=torch.float32, device=device)
-    temp_tensor = torch.tensor(df['T (K)'].values, dtype=torch.float32, device=device).unsqueeze(1) - 273.15  # Convert to Celsius
+    domain_tensor = torch.tensor(df[['X', 'Y']].values, dtype=torch.float32, device=torch.device('cpu'))
+    temp_tensor = torch.tensor(df['T (K)'].values, dtype=torch.float32, device=torch.device('cpu')).unsqueeze(1) - 273.15  # Convert to Celsius
 
     return domain_tensor, temp_tensor
 
@@ -59,7 +58,7 @@ def vis_diffrence(model, domain, domain_tensor, temp_tensor):
     val = diff.squeeze().cpu().numpy() # Squeeze to make it 1D
 
     plt.scatter(x, y, c=val, cmap='jet', s=50) # s controls point size
-    plt.colorbar(label='Difference')
+    plt.colorbar(label='Diff')
     plt.xlabel('X')
     plt.ylabel('Y')
     plt.title('COMSOLE gTruth vs PINN')

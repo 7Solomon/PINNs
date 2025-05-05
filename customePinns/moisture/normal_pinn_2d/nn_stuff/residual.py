@@ -1,24 +1,12 @@
-from moisture.physics import *
+from nn_stuff.pinn import BodyHeadPINN
+from moisture.normal_pinn_2d.physics import *
+import torch
 
-class MoisturePINN(torch.nn.Module):
-    def __init__(self, layers):
-        super().__init__()
-        self.activation = torch.nn.Tanh()  
-        layer_list = []
-        for i in range(len(layers) - 1):
-            layer_list.append(torch.nn.Linear(layers[i], layers[i + 1]))
-            if i < len(layers) - 2:
-                layer_list.append(self.activation)
-        self.model = torch.nn.Sequential(*layer_list)
-
-    def forward(self, x):
-        return self.model(x)
-
-def residual(model, x):
+def residual(model, x, conf):
     u_pred = model(x)  # u is pressure head
 
-    theta = WRC(u_pred)
-    K = HC(u_pred)
+    theta = WRC(u_pred, conf)
+    K = HC(u_pred, conf)
     
     #print(f'K: {K[0][0]}')
     #print(f'theta: {theta[0][0]}')
@@ -39,11 +27,11 @@ def residual(model, x):
     return theta_t - div_K_grad_h
 
 
-def test_split_residual(model, x):
+def test_split_residual(model, x, conf):
     u_pred = model(x)  # u is pressure head
 
-    theta = WRC(u_pred)
-    K = HC(u_pred)
+    theta = WRC(u_pred, conf)
+    K = HC(u_pred, conf)
     
     theta_t = torch.autograd.grad(theta, x, grad_outputs=torch.ones_like(theta), create_graph=True)[0][:,2]
 
