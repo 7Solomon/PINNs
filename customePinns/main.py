@@ -13,11 +13,11 @@ if __name__ == "__main__":
     parser_test = subparsers.add_parser('test', help='Visualisiere andere sachen.')
 
     parser_load.add_argument('--vis', choices=['loss', 'field', 'all'], help='Wie visualisieren? loss oder field', nargs='?')
-    parser_load.add_argument('--type', choices=['steady_heat', 'transient_heat', 'moisture', 'moisture_HB'], help='Joe')
+    parser_load.add_argument('--type', choices=['steady_heat', 'transient_heat', 'moisture', 'moisture_HB', 'mechanic'], help='Joe')
     parser_create.add_argument('--vis', choices=['loss', 'field', 'all'], help='Wie visualisieren? loss oder field', nargs='?')
-    parser_create.add_argument('--type', choices=['steady_heat', 'transient_heat', 'moisture', 'moisture_HB'], help='Joe')
+    parser_create.add_argument('--type', choices=['steady_heat', 'transient_heat', 'moisture', 'moisture_HB', 'mechanic'], help='Joe')
 
-    parser_test.add_argument('--type', choices=['functions', 'COMSOL'], help='Hier nur functions und so')
+    parser_test.add_argument('--type', choices=['functions', 'COMSOL', 'domain', 'field'], help='Hier nur functions und so')
 
     
     manage_args(parser.parse_args())

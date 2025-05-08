@@ -6,7 +6,7 @@ import torch.nn as nn
 
 #from moisture.vars import *
 
-def train_loop(model, optimizer, domain: Domain, conf):
+def train_moisture_loop(model, optimizer, domain: Domain, conf):
     Loss = []
 
     # scale conditions
@@ -27,7 +27,7 @@ def train_loop(model, optimizer, domain: Domain, conf):
         for key in domain.condition_keys:
             current_points = domain.conditions[key].points.detach().requires_grad_(True)
             pred = model(current_points)
-            if domain.conditions[key].type == ConditionType.DIRICHTLETT:
+            if domain.conditions[key].type == ConditionType.DIRICHLET:
                 temp_condition_loss = conf.mse_loss(pred,domain.conditions[key].scaled_values)
             elif domain.conditions[key].type == ConditionType.NEUMANN:
                 grad_pred = torch.autograd.grad(pred, current_points, grad_outputs=torch.ones_like(pred), create_graph=True)[0]

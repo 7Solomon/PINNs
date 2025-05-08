@@ -3,6 +3,7 @@ import argparse
 import sys
 
 
+
 def manage_args(args: argparse.Namespace):
     if args.command == 'add':
         if args.type == 'steady_heat':
@@ -30,6 +31,13 @@ def manage_args(args: argparse.Namespace):
             conf = MoistureHeadBodyConfig()
             domain = get_domain(conf)
             model, cData = create_model(domain, conf)
+        elif args.type == 'mechanic':
+            from config import BernoulliBalkenConfig
+            from mechanic.domain import get_domain
+            from nn_stuff.model import create_model
+            conf = BernoulliBalkenConfig()
+            domain = get_domain(conf)
+            model, cData = create_model(domain, conf)
         else:
             print(f'Unbekannter Typ: {args.type}', file=sys.stderr)
             return
@@ -51,6 +59,10 @@ def manage_args(args: argparse.Namespace):
             from config import MoistureHeadBodyConfig
             conf = MoistureHeadBodyConfig()
             model, cData = load_model(conf)
+        elif args.type == 'mechanic':
+            from config import BernoulliBalkenConfig
+            conf = BernoulliBalkenConfig()
+            model, cData = load_model(conf)
         else:
             print('Unbekannter Typ', file=sys.stderr)
             return
@@ -67,15 +79,33 @@ def manage_args(args: argparse.Namespace):
             data = load_COMSOL_file_data('heat\COMSOL\comsolOutFile.txt')
             dom, val= analyze_COMSOL_file_data(data)
             vis_diffrence(model, cData.domain, dom, val)
+        elif args.type == 'domain':
+            from domain.heat import get_steady_heat_domain
+            from nn_stuff.model import create_model
+            from config import SteadyHeatConfig
+            conf = SteadyHeatConfig()
+            domain = get_steady_heat_domain(conf)
+            #model, cData = create_model(domain, conf)
+        elif args.type == 'field':
+            from mechanic.domain import get_domain
+            from vis.basic import visualize_beam_deflection
+            from config import BernoulliBalkenConfig
+            from nn_stuff.model import load_model
+            from vis.analytic import bernoulli_beam_deflection
 
+            conf = BernoulliBalkenConfig()
 
-        return
+            model, cData = load_model(conf)
+            visualize_beam_deflection(model,  cData.domain, analytical_func=bernoulli_beam_deflection)
+        else:
+            print('Unbekannter Typ', file=sys.stderr)
+            return
     
     # Vis
-    if model and args.vis:
+    if args.vis and model:
         if args.vis == 'loss':
             from vis.functions import visualize_loss
-            visualize_loss(cData.loss, conf)
+            visualize_loss(cData.loss)
         elif args.vis == 'field':
             from vis.functions import visualize_field
             visualize_field(model, cData.domain, conf)
@@ -84,7 +114,4 @@ def manage_args(args: argparse.Namespace):
             visualize_loss(cData.loss)
             visualize_field(model, cData.domain, conf)
         
-
-    elif model is None:
-        print('beim Laden ist ein Fehler passiert', file=sys.stderr)
 

@@ -11,7 +11,7 @@ from utils import CData
 def create_model(domain, conf, save_name=None) -> Tuple[PINN, CData]:
 
     model = conf.PINN_type(*conf.pinn_creation_vars).to(conf.device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=conf.lr)
+    optimizer = torch.optim.Adam(model.parameters(), lr=conf.lr)   # Maybe torch.optim.LBFGS
 
     data = conf.train_loop(model, optimizer, domain, conf)
     model = data['model']
@@ -25,7 +25,6 @@ def create_model(domain, conf, save_name=None) -> Tuple[PINN, CData]:
         header={
             'name': save_name,
             'type': conf.type,
-            'domain': domain.header
         },
         model=model.state_dict(),
         optimizer=optimizer.state_dict(),
