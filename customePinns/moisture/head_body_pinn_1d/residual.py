@@ -1,7 +1,7 @@
 import torch
 from nn_stuff.pinn import BodyHeadPINN
 
-def predicted_K_theta_residual(model:BodyHeadPINN, x, debug_print=False):
+def predicted_K_theta_residual(model: BodyHeadPINN, x, debug_print=False):
     x = x.clone().detach().requires_grad_(True)
     psi, K, theta  = model(x)
 

@@ -1,5 +1,6 @@
 .venv/
-abaqus/*
-models/*
+abaqus/
+COMSOL/
+models/
 __pycache__/
-
+.python-version

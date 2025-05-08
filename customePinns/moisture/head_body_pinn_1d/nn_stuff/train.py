@@ -1,7 +1,7 @@
 
 from tqdm import tqdm
 from moisture.head_body_pinn_1d.residual import predicted_K_theta_residual
-from utils import ConditionType, Domain
+from utils import Domain
 import torch
 import torch.nn as nn
 from nn_stuff.pinn import BodyHeadPINN

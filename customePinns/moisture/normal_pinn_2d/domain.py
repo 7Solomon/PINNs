@@ -33,7 +33,7 @@ def get_boundary_condition(n_points=200, x=[0,1], y=[0,2], t= [0,10]):
     bc_left_values = torch.full_like(x_left, 0.0, dtype=torch.float32)   # !!! anders lösen
     left = Condition(
         key='left',
-        type=ConditionType.DIRICHTLETT,
+        type=ConditionType.DIRICHLET,
         points=bc_left,
         values=bc_left_values,
     )
@@ -44,7 +44,7 @@ def get_boundary_condition(n_points=200, x=[0,1], y=[0,2], t= [0,10]):
     bc_right_values = torch.full_like(x_right, 0.0, dtype=torch.float32)  ## !!!
     right = Condition(
         key='right',
-        type=ConditionType.DIRICHTLETT,
+        type=ConditionType.DIRICHLET,
         points=bc_right,
         values=bc_right_values,
     )
@@ -55,7 +55,7 @@ def get_boundary_condition(n_points=200, x=[0,1], y=[0,2], t= [0,10]):
     bc_top_values = torch.full_like(x_top,  -30.0, dtype=torch.float32) ##!!
     top = Condition(
         key='top',
-        type=ConditionType.DIRICHTLETT,
+        type=ConditionType.DIRICHLET,
         points=bc_top,
         values=bc_top_values,
     )
@@ -66,7 +66,7 @@ def get_boundary_condition(n_points=200, x=[0,1], y=[0,2], t= [0,10]):
     bc_bottom_values = torch.full_like(x_bottom, 0.0, dtype=torch.float32) ##!!
     bottom = Condition(
         key='bottom',
-        type=ConditionType.DIRICHTLETT,
+        type=ConditionType.DIRICHLET,
         points=bc_bottom,
         values=bc_bottom_values,
     )

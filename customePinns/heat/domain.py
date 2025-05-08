@@ -41,14 +41,14 @@ def generate_random_boundary(domain: Domain, conf, n_points, x_min=0.0, x_max=2.
         'left': 
             Condition(
                         key='left',
-                        type=ConditionType.DIRICHTLETT,
+                        type=ConditionType.DIRICHLET,
                         points=boundary_points_left_tensor,
                         values=temp_values_left,
                     ), 
         'right': 
             Condition(
                         key='right',
-                        type=ConditionType.DIRICHTLETT,
+                        type=ConditionType.DIRICHLET,
                         points=boundary_points_right_tensor,
                         values=temp_values_right,
                     ),

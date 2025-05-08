@@ -53,69 +53,116 @@ def draw_time_dependant_plot(data, fps=15, cmap='viridis'):
     plt.show() 
 
 
-def draw_zt_time_dependant_plot(data, fps=15, ylabel='Output Value', title_prefix='Profile'):
+def draw_zt_time_dependant_plot(data, fps=15, ylabels=None, title_prefix='Profile'):
     """
-    Animates a 1D profile along the Z-axis over time T.
+    Animates multiple 1D profiles along the Z-axis over time T,
+    each in its own subplot.
 
     Args:
         data (dict): Dictionary containing 'Z', 'T', and 'output' numpy arrays.
                      'Z' should be (nz, nt), 'T' should be (nz, nt),
-                     and 'output' should be (nz, nt).
+                     and 'output' should be a *list* of 2D arrays,
+                     each with shape (nz, nt).
         fps (int): Frames per second for the animation.
-        ylabel (str): Label for the y-axis of the plot.
+        ylabels (list[str], optional): List of labels for the y-axis of each subplot.
+                                      If None, a generic label is used.
         title_prefix (str): Prefix for the plot title (e.g., 'Pressure Head Profile').
     """
     Z = data['Z']
     T = data['T']
-    output = data['output']
+    output_list = data['output'] # Expecting a list now
 
-    if output.ndim != 2:
-        print(f"Error: Expected 'output' data to be 2D (nz, nt), but got shape {output.shape}")
+    if not isinstance(output_list, list):
+        print(f"Error: Expected 'output' to be a list of 2D arrays.")
         return
-    if Z.shape != output.shape or T.shape != output.shape:
-         print(f"Error: Shape mismatch. Z: {Z.shape}, T: {T.shape}, output: {output.shape}")
-         return
+    if not output_list:
+        print("Error: 'output' list is empty.")
+        return
 
-    num_z, num_t = output.shape
+    num_plots = len(output_list)
+    if ylabels is None:
+        ylabels = [f'Output {i+1}' for i in range(num_plots)]
+    elif len(ylabels) != num_plots:
+        print("Warning: Number of ylabels does not match number of outputs. Using generic labels.")
+        ylabels = [f'Output {i+1}' for i in range(num_plots)]
+
+
+    # --- Validate Shapes ---
+    first_output_shape = None
+    for i, output in enumerate(output_list):
+        if output.ndim != 2:
+            print(f"Error: Expected output element {i} to be 2D (nz, nt), but got shape {output.shape}")
+            return
+        if i == 0:
+            first_output_shape = output.shape
+            if Z.shape != first_output_shape or T.shape != first_output_shape:
+                 print(f"Error: Shape mismatch for first output. Z: {Z.shape}, T: {T.shape}, output[0]: {first_output_shape}")
+                 return
+        elif output.shape != first_output_shape:
+            print(f"Error: Shape mismatch between output elements. output[0]: {first_output_shape}, output[{i}]: {output.shape}")
+            return
+
+    num_z, num_t = first_output_shape
     print(f"Data dimensions: nz={num_z}, nt={num_t}")
+    print(f"Number of plots: {num_plots}")
     print(f"Generating animation with {num_t} frames...")
 
     # --- Create Plot Elements ---
-    fig, ax = plt.subplots(figsize=(6, 5))
+    # Create subplots vertically, sharing the x-axis (Z)
+    fig, axes = plt.subplots(num_plots, 1, figsize=(6, 4 * num_plots), sharex=True)
+    # Ensure axes is always an array, even if num_plots is 1
+    axes = np.atleast_1d(axes)
 
     # Z coordinates (constant for each time step)
     z_coords = Z[:, 0]
     # Time values (use the first row, assuming T varies along columns)
     time_values = T[0, :]
 
-    # Initial plot with the first time step (t=0)
-    output_at_t0 = output[:, 0]
-    time_val = time_values[0]
+    lines = []
+    time_texts = []
 
-    # Determine plot limits based on the entire dataset
-    min_val = np.min(output)
-    max_val = np.max(output)
-    ax.set_ylim(min_val - 0.1 * abs(min_val), max_val + 0.1 * abs(max_val)) # Add some padding
+    for i, ax in enumerate(axes):
+        output = output_list[i]
+        ylabel = ylabels[i]
 
-    line, = ax.plot(z_coords, output_at_t0) # Store the line object
+        # Initial plot with the first time step (t=0)
+        output_at_t0 = output[:, 0]
+        time_val = time_values[0]
 
-    ax.set_xlabel('Z Coordinate')
-    ax.set_ylabel(ylabel)
-    time_text = ax.set_title(f'{title_prefix} at Time: {time_val:.3f}')
-    ax.grid(True)
+        # Determine plot limits based on the entire dataset for this specific output
+        min_val = np.min(output)
+        max_val = np.max(output)
+        # Add some padding, handle cases where min/max are zero or same
+        padding = 0.1 * max(abs(min_val), abs(max_val), 1e-6) # Avoid division by zero if range is tiny
+        ax.set_ylim(min_val - padding, max_val + padding)
+
+        line, = ax.plot(z_coords, output_at_t0) # Store the line object
+        lines.append(line)
+
+        ax.set_ylabel(ylabel)
+        title_obj = ax.set_title(f'{title_prefix} {i+1} at Time: {time_val:.3f}')
+        time_texts.append(title_obj)
+        ax.grid(True)
+
+    axes[-1].set_xlabel('Z Coordinate')
 
     def update_plot(frame_index):
         """Updates the plot for a given time frame."""
-        output_at_t = output[:, frame_index]
+        artists = []
         time_val = time_values[frame_index]
-        line.set_ydata(output_at_t) # Update the y-data of the existing line
-        time_text.set_text(f'{title_prefix} at Time: {time_val:.3f}')
-        return [line, time_text]
+        for i, line in enumerate(lines):
+            output = output_list[i]
+            output_at_t = output[:, frame_index]
+            line.set_ydata(output_at_t) # Update the y-data of the existing line
+            time_texts[i].set_text(f'{title_prefix} {i+1} at Time: {time_val:.3f}')
+            artists.append(line)
+            artists.append(time_texts[i])
+        return artists # Return list of all updated artists
 
     # --- Create Animation ---
     ani = animation.FuncAnimation(fig, update_plot, frames=num_t,
                                   interval=1000/fps, blit=True, repeat=True)
 
-    plt.tight_layout() # Adjust layout
+    plt.tight_layout()
     plt.show()
 
