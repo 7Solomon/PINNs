@@ -157,12 +157,14 @@ def visualize_beam_deflection(model, domain, num_points=100,analytical_func=None
     # Create evenly spaced points for smooth visualization
     x_min, x_max = domain.dimension['x']
     x_test = torch.linspace(x_min, x_max, num_points).reshape(-1, 1)
-    q_val = torch.ones_like(x_test)* domain.collocation[0, -1].item()  # Extract the q value from collocation points
+    q_val = torch.ones_like(x_test)* 10.0 #domain.collocation[0, -1].item()  # Extract the q value from collocation points
 
     
     #get scaling
-    scaled_x_test = scale_tensor(x_test, domain.scale_domains['collocation']['points'])
-    scaled_q_val = scale_tensor(q_val, domain.scale_domains['collocation']['inputs'])
+    scaled_x_test = x_test * domain.scale['l']
+    scaled_q_val = (q_val *  (domain.scale['E'] * domain.scale['I'])) / (domain.scale['l']**3)
+    #scaled_x_test = scale_tensor(x_test, domain.scale_domains['collocation']['points'])
+    #scaled_q_val = scale_tensor(q_val, domain.scale_domains['collocation']['inputs'])
     
     
     # Create input tensor with correct format
@@ -170,54 +172,57 @@ def visualize_beam_deflection(model, domain, num_points=100,analytical_func=None
     x_input[:, 0] = scaled_x_test.squeeze()
     x_input[:, 1] = scaled_q_val.squeeze()
     print(f'x_input: {x_input[:5]}')
-    print(f'q_val: {q_val}')
+    print(f'q_val: {q_val[:2]}')
 
     # Make prediction
     with torch.no_grad():
         pred = model(x_input).cpu().numpy()
-    print(pred[:2])
     
-    # Setup figure with improved styling
-    plt.figure(figsize=(10, 6))
-    x_np = x_test.cpu().numpy()
-    plt.plot(x_np, pred, 'b-', linewidth=2, label='pred')
-    
-    # Ground
-    if analytical_func is not None:
-        analytical = analytical_func(x_np, q_val, (x_max-x_min), 1)
-        plt.plot(x_np, analytical, 'r--', linewidth=2, label='Analytical Solution')
-        
-        # Calculate and display error metrics
-        #mse = np.mean((pred - analytical)**2)
-        #plt.text(0.05, 0.95, f'MSE: {mse:.2e}', transform=plt.gca().transAxes, 
-        #         bbox=dict(facecolor='white', alpha=0.8))
-    
-    # Plot boundary conditions as points
-    if hasattr(domain, 'boundarys') and domain.boundarys:
-        for key, condition in domain.boundarys.items():
-            if 'x_min' in key:
-                plt.scatter(condition.points[:, 0].cpu(), condition.values.cpu(), 
-                           color='green', s=50, label='Boundary Condition')
-                break
-    
-    plt.xlabel('X', fontsize=12)
-    plt.ylabel('Verschiebung (w)', fontsize=12)
-    plt.title(f'Verschiebung unter Constant Load q={q_val}', fontsize=14)
-    plt.grid(True, linestyle='--', alpha=0.7)
-    plt.legend(fontsize=10)
-    
-    plt.plot([x_min, x_max], [0, 0], 'k-', linewidth=3, label='Beam Unverformt')
-    
-    arrow_count = 10
-    arrow_x = np.linspace(x_min, x_max, arrow_count)
-    arrow_start_y = 0.05 * (plt.gca().get_ylim()[1] - plt.gca().get_ylim()[0])
-    arrow_len = 0.04 * (plt.gca().get_ylim()[1] - plt.gca().get_ylim()[0])
-    for x in arrow_x:
-        plt.arrow(x, arrow_start_y, 0, -arrow_len, 
-                 head_width=0.02, head_length=0.3*arrow_len, fc='r', ec='r')
-    y_min = min(np.min(pred), 0) * 1.1  # 
-    y_max = max(arrow_start_y + 0.02, np.max(pred) * 1.1)
-    plt.ylim(y_min, y_max)
-    
-    plt.tight_layout()
-    plt.show()
+    print(f'{pred[:5], pred[-5:]}')
+    #pred = pred * domain.scale['l']
+    #print(pred[:2])
+    #
+    ## Setup figure with improved styling
+    #plt.figure(figsize=(10, 6))
+    #x_np = x_test.cpu().numpy()
+    #plt.plot(x_np, pred, 'b-', linewidth=2, label='pred')
+    #
+    ## Ground
+    #if analytical_func is not None:
+    #    analytical = analytical_func(x_np, q_val, (x_max-x_min), 1)
+    #    plt.plot(x_np, analytical, 'r--', linewidth=2, label='Analytical Solution')
+    #    
+    #    # Calculate and display error metrics
+    #    #mse = np.mean((pred - analytical)**2)
+    #    #plt.text(0.05, 0.95, f'MSE: {mse:.2e}', transform=plt.gca().transAxes, 
+    #    #         bbox=dict(facecolor='white', alpha=0.8))
+    #
+    ## Plot boundary conditions as points
+    #if hasattr(domain, 'boundarys') and domain.boundarys:
+    #    for key, condition in domain.boundarys.items():
+    #        if 'x_min' in key:
+    #            plt.scatter(condition.points[:, 0].detach().cpu(), condition.values[:,0].detach().cpu(), 
+    #                       color='green', s=50, label='Boundary Condition')
+    #            break
+    #
+    #plt.xlabel('X', fontsize=12)
+    #plt.ylabel('Verschiebung (w)', fontsize=12)
+    #plt.title(f'Verschiebung unter Constant Load q={q_val}', fontsize=14)
+    #plt.grid(True, linestyle='--', alpha=0.7)
+    #plt.legend(fontsize=10)
+    #
+    #plt.plot([x_min, x_max], [0, 0], 'k-', linewidth=3, label='Beam Unverformt')
+    #
+    #arrow_count = 10
+    #arrow_x = np.linspace(x_min, x_max, arrow_count)
+    #arrow_start_y = 0.05 * (plt.gca().get_ylim()[1] - plt.gca().get_ylim()[0])
+    #arrow_len = 0.04 * (plt.gca().get_ylim()[1] - plt.gca().get_ylim()[0])
+    #for x in arrow_x:
+    #    plt.arrow(x, arrow_start_y, 0, -arrow_len, 
+    #             head_width=0.02, head_length=0.3*arrow_len, fc='r', ec='r')
+    #y_min = min(np.min(pred), 0) * 1.1  # 
+    #y_max = max(arrow_start_y + 0.02, np.max(pred) * 1.1)
+    #plt.ylim(y_min, y_max)
+    #
+    #plt.tight_layout()
+    #plt.show()

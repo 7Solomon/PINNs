@@ -15,7 +15,11 @@ def train_bernouli_balken_loop(model, optimizer, domain, conf):
         pred_domain = model(domain.collocation)
         
         residal = residual(pred_domain, conf, domain.collocation)
-        loss = nn.MSELoss()(residal, torch.zeros_like(residal))
+        residual_loss = nn.MSELoss()(residal, torch.zeros_like(residal))
+
+        boundary_loss = force_boundary_conditions(model, domain, conf)
+
+        loss = conf.lambda_pde * residual_loss + conf.lambda_bc * boundary_loss
 
         if torch.isnan(loss):
             print('IST NAN')
@@ -34,17 +38,13 @@ def train_bernouli_balken_loop(model, optimizer, domain, conf):
 
 def force_boundary_conditions(mode, domain, conf):
     # Dirichlet
-    for key, value in domain.condition.items():
-        if domain.conditions[key].type  == ConditionType.DIRICHLET:
-            return torch.MSELoss()(domain.conditions[key].points, domain.conditions[key].values)
-        elif domain.conditions[key].type == ConditionType.NEUMANN:
+    for key, value in domain.boundarys.items():
+        if domain.boundarys[key].type  == ConditionType.DIRICHLET:
+            #print('domain.boundarys[key].points ', domain.boundarys[key].points[:2])
+            #print('domain.boundarys[key].values ', domain.boundarys[key].values[:2])
+            return nn.MSELoss()(domain.boundarys[key].points, domain.boundarys[key].values)
+        elif domain.boundarys[key].type == ConditionType.NEUMANN:
             raise NotImplementedError('Neumann conditions are not implemented yet, you silly boy')
-            #
             #return torch.MSELoss()(, domain.conditions[key].values)
-
-    # Neumann
-    for key in domain.condition_keys:
-        i
-    return pred
 
         
