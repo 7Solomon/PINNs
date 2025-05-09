@@ -4,24 +4,31 @@ import numpy as np
 
 def plot_loss(Loss):
     if isinstance(Loss, dde.model.LossHistory):
-        epochs = Loss.steps
+        epochs = Loss.steps        
+        labels =['PDE', 'DBC links', 'DBC rechts', 'NBC links', 'NBC rechts', 'Data/Other']
+        # training losses
+        if Loss.loss_train and len(Loss.loss_train[0]) > 0:
+            loss_train_np = np.array(Loss.loss_train)
+            num_train_components = loss_train_np.shape[1]
+            for i in range(num_train_components):
+                component_label = labels[i] if i < len(labels) else f'Train Comp {i+1}'
+                plt.plot(epochs, loss_train_np[:, i], label=f'{component_label}')
+        else:
+            print('No training loss')
 
-        plt.plot(epochs, Loss.loss_train, label='Total Train Loss', color='blue', linestyle='-')
-        plt.plot(epochs, Loss.loss_test, label='Total Test Loss', color='orange', linestyle='-')
-        #for i, bc_loss in enumerate(Loss.loss_bcs):
-        #    plt.plot(epochs, bc_loss, label=f'Train BC {i} Loss', color='blue', linestyle=':')
-
-        #if len(Loss.loss_test_components) > 0:
-        #    plt.plot(epochs, Loss.loss_test_components[0], label='Test Residual Loss', color='orange', linestyle='--')
-        #    for i in range(1, len(Loss.loss_test_components)): # Start from index 1 for BCs
-        #        plt.plot(epochs, Loss.loss_test_components[i], label=f'Test BC {i-1} Loss', color='orange', linestyle=':')
-
-
-        plt.legend(loc='best') 
-
+        # testing losses
+        if Loss.loss_test and len(Loss.loss_test[0]) > 0:
+            loss_test_np = np.array(Loss.loss_test)
+            num_test_components = loss_test_np.shape[1]
+            for i in range(num_test_components):
+                component_label = labels[i] if i < len(labels) else f'Test Comp {i+1}'
+                plt.plot(epochs, loss_test_np[:, i], label=f'{component_label} (Test)', linestyle='--')
+        else:
+            print('No testing loss')
+        plt.legend(loc='best')
     else:
-        plt.plot(Loss)
-        plt.legend(['Input Data']) 
+        plt.legend(loc='best')
+        plt.plot(Loss, label='Loss')
 
 
     plt.grid(True, which="both", ls="--")
