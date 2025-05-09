@@ -20,7 +20,9 @@ def scale_tensor(tensor: torch.Tensor, scale: tuple[float, float]) -> torch.Tens
         mid_point = (min_val + max_val) / 2
         return torch.ones_like(tensor) * mid_point
     return (tensor - tensor.min()) / (tensor.max() - tensor.min()) * (max_val - min_val) + min_val
-
+#def scale(value, min, max):
+#    scale_factor = 1 / (max - min)
+#    return (value - max) * scale_factor
 @dataclass 
 class Condition:
     key: str = None
@@ -28,8 +30,8 @@ class Condition:
     points: torch.Tensor = None
     values: torch.Tensor = None
 
-    def populate(self, value: float) -> None:
-        self.values = torch.ones((self.points.shape[0], 1)) * value
+    #def populate(self, value: float) -> None:
+    #    self.values = torch.ones((self.points.shape[0], 1)) * value
 
 
 
@@ -40,10 +42,11 @@ class SimpleTestDomain:
     collocation: torch.Tensor = None
     boundarys: dict[str, Condition] = field(default_factory=dict)
 
-    scale_domains: dict[str, dict[str, tuple[float, float]]] = field(default_factory=lambda:{
-        'collocation':{},
-        'boundary':{},
-    })
+    scale: dict[str, float] = field(default_factory=dict)
+    #scale_domains: dict[str, tuple[float, float]] = field(default_factory=lambda:{
+    #    'interrior': None,
+    #    'spatial_boundary': None,
+    #})
     #point_scale_domain: tuple[float,float] = [None,None]
     #value_scale_domain: tuple[float,float] = [None,None]
     
@@ -78,7 +81,7 @@ def get_boundary_points(domain: SimpleTestDomain, n_points: int) -> dict[str, di
             else:
                 other_min, other_max = domain.dimension[other_dim]
                 max_boundary[:, j] = other_min + (other_max - other_min) * torch.rand(n_points)
-        
+
         boundary_points[dim_name] = {
             'min': min_boundary,
             'max': max_boundary
@@ -89,24 +92,27 @@ def populate_boundary(domain: SimpleTestDomain, value: float, n_points: int) -> 
     boundary_points = get_boundary_points(domain, n_points)
     for dim_name, points in boundary_points.items():
         for side, point_set in points.items():
-            # HERE ADD SCALING Stuff
+
+            scalled_points = point_set / domain.scale['l']
+            scalled_value = (value * domain.scale['l']**3) /(domain.scale['E']*domain.scale['I'])
+
+            points = torch.stack([scalled_points, torch.ones((scalled_points.shape[0], 1)) * scalled_value], dim=1).requires_grad_(True)
+
             condition = Condition(
                 key=f'{dim_name}_{side}',
                 type=ConditionType.DIRICHLET,
-                points=point_set,
-                values=torch.ones((point_set.shape[0], 1)) * value
+                points=points,
+                values=torch.ones_like(points) * 0.0
             )
+            #condition.populate(scalled_value)
             domain.boundarys[condition.key] = condition
 
 def populate_collocation_with_constant(domain: SimpleTestDomain, value: float , n_points: int) -> None:
     collocation_points = get_collocation_points(domain, n_points)
     constant = torch.ones((collocation_points.shape[0], 1)) * value
 
-    domain.scale_domains['collocation']['points'] = (collocation_points.min().item(), collocation_points.max().item())
-    domain.scale_domains['collocation']['inputs'] = (constant.min().item(), constant.max().item())
-
-    scalled_points = scale_tensor(collocation_points, domain.scale_domains['collocation']['points'])
-    scalled_constant= scale_tensor(constant, domain.scale_domains['collocation']['inputs'])
+    scalled_points = collocation_points / domain.scale['l']
+    scalled_constant = (constant * domain.scale['l']**3) /(domain.scale['E']*domain.scale['I'])
 
     domain.collocation  = torch.cat((scalled_points, scalled_constant), dim=1).requires_grad_(True)
     #print(f'collocation shape: {domain.collocation.shape}')
@@ -117,6 +123,11 @@ def populate_collocation_with_constant(domain: SimpleTestDomain, value: float , 
 def get_domain(conf):
     domain = SimpleTestDomain()
     domain.dimension = { 'x': (0.0, 2.0)}
+    domain.scale = {
+        'l': 2.0,
+        'E': 1.0,
+        'I': 1.0,
+    }
     #domain.inputs = {'q': (0.0, 10.0)}
 
     populate_collocation_with_constant(domain, 10.0, 1000)
