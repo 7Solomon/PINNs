@@ -12,7 +12,7 @@ def boundary_left(x, on_boundary):
     return on_boundary and np.isclose(x[0], 0)
 def boundary_right(x, on_boundary):
     return on_boundary and np.isclose(x[0], 1)
-def get_domain():
+def get_fest_los_domain():
     geom = dde.geometry.Interval(0,1)
 
     bc_left_w = dde.DirichletBC(geom, lambda x: 0, boundary_left)
@@ -35,3 +35,11 @@ def get_domain():
     # wights 
     #data.set_weights([1, 1, 1, 1])
     return data
+
+def get_domain(type):
+    if type == 'fest_los':
+        return get_fest_los_domain()
+    elif type == 'einspannung':
+        raise NotImplementedError('Einsparung is not implemented yet')
+    else:
+        raise NotImplementedError(f'Domain {type} is not implemented yet')

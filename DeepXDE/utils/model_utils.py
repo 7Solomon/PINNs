@@ -9,10 +9,10 @@ import numpy as np
 import deepxde as dde
 
 path_mapping = {
-    'mechanic': 'process/mechanic/models',
+    'mechanic': 'process/models/mechanic',
     'heat': {
-        'steady': 'process/heat/steady/models',
-        'transient': 'process/heat/transient/models',
+        'steady': 'process/models/heat/steady',
+        'transient': 'process/models/heat/transient',
         },
     }
 
@@ -70,7 +70,6 @@ def load_cData(model, type, subtype=None):
     if subtype is not None:
         local_MODEL_PATH = local_MODEL_PATH[subtype] 
     os.makedirs(local_MODEL_PATH, exist_ok=True)
-
     dir = [d for d in os.listdir(local_MODEL_PATH) 
            if os.path.isdir(os.path.join(local_MODEL_PATH, d))]
     print('------------------------------')
