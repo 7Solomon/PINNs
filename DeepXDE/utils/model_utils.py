@@ -9,10 +9,19 @@ import numpy as np
 import deepxde as dde
 
 path_mapping = {
-    'mechanic': 'process/models/mechanic',
+    'mechanic': {
+        'fest_los':'process/models/mechanic/fest_los',
+        'einspannung':'process/models/mechanic/einspannung',
+        'fest_los_t':'process/models/mechanic/fest_los_t',
+        'cooks':'process/models/mechanic/cooks_membrane',
+        },
     'heat': {
         'steady': 'process/models/heat/steady',
         'transient': 'process/models/heat/transient',
+        },
+    'moisture': {
+        '1d_head': 'process/models/moisture/1d_head',
+        #'2d_head': 'process/models/moisture/2d_head',
         },
     }
 
@@ -35,6 +44,9 @@ def save_cData(model, domain, Loss, type, subtype=None):
     local_MODEL_PATH = path_mapping[type]
     if subtype is not None:
         local_MODEL_PATH = local_MODEL_PATH[subtype] 
+    elif isinstance(local_MODEL_PATH, dict):
+        local_MODEL_PATH = local_MODEL_PATH[next(iter(local_MODEL_PATH.keys()))]
+
     now = datetime.datetime.now()
     save_name = now.strftime("%Y-%m-%d_%H-%M-%S")
 
@@ -65,13 +77,13 @@ def save_cData(model, domain, Loss, type, subtype=None):
     #    import json
     #    json.dump(metadata, f)
     
-def load_cData(model, type, subtype=None):
-    local_MODEL_PATH = path_mapping[type]
-    if subtype is not None:
-        local_MODEL_PATH = local_MODEL_PATH[subtype] 
+def load_cData(model, type, subtype):
+    local_MODEL_PATH = path_mapping[type][subtype] 
     os.makedirs(local_MODEL_PATH, exist_ok=True)
     dir = [d for d in os.listdir(local_MODEL_PATH) 
            if os.path.isdir(os.path.join(local_MODEL_PATH, d))]
+    
+
     print('------------------------------')
     print('Data:')
     for i, file in enumerate(dir):

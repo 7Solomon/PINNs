@@ -14,7 +14,7 @@ def parse_args():
     add_parser.add_argument('--epochs', type=int, default=10000, help='Anzahll der Epochen')
     add_parser.add_argument('--type', nargs='+', default='mechanic',)
     add_parser.add_argument('--save', action='store_true', help='Save?')
-    add_parser.add_argument('--vis', choices=['loss', 'field', 'all'], default='all', 
+    add_parser.add_argument('--vis', choices=['loss', 'field', 'div', 'all'], default='all', 
                             help='Display options')
     
     # Load command parser
@@ -22,7 +22,7 @@ def parse_args():
     load_parser.add_argument('--type', nargs='+', default='mechanic',)
     load_parser.add_argument('--epochs', type=int, default=0, help='Training noch oben drauf')
     load_parser.add_argument('--save', action='store_true', help='Save?')
-    load_parser.add_argument('--vis', choices=['loss', 'field', 'all'], default='all', 
+    load_parser.add_argument('--vis', choices=['loss', 'field', 'div', 'all'], default='all', 
                              help='Display options')
     
     return parser.parse_args()
@@ -34,9 +34,22 @@ def manage_args(args):
     
     if process_type == 'mechanic':
         from process.mechanic.domain import get_domain
-        from config import bernoulliBalkenConfig
-        config = bernoulliBalkenConfig
-        data = get_domain()
+        from config import bernoulliBalkenConfig, bernoulliBalken2DConfig, bernoulliBalkenTConfig
+        if subtype == 'fest_los':
+            config = bernoulliBalkenConfig
+            pass
+        elif subtype == 'einspannung':
+            config = bernoulliBalkenConfig
+            pass
+        elif subtype == 'fest_los_t':
+            config = bernoulliBalkenTConfig
+        elif subtype == 'cooks':
+            config = bernoulliBalken2DConfig
+        else:
+            config = bernoulliBalkenConfig
+            subtype = 'fest_los'
+        data = get_domain(subtype)
+
     elif process_type == 'heat':
         from config import steadyHeatConfig, transientHeatConfig
         if subtype == 'steady':
@@ -45,15 +58,30 @@ def manage_args(args):
             config = transientHeatConfig
         else:
             config = steadyHeatConfig
-            
+            subtype = 'steady'
         from process.heat.domain import get_domain
         data = get_domain(subtype)
     
+    elif process_type == 'moisture':
+        from config import richardsConfig
+        if subtype == '1d_head':
+            config = richardsConfig
+        else:
+            config = richardsConfig
+            subtype = '1d_head'
+        from process.moisture.domain import get_domain
+        data = get_domain(subtype)
+
+
     if args.command == 'add':
         model = create_model(data, config)
     elif args.command == 'load':
         model = create_model(data, config)
-        model, loss_history = load_cData(model, process_type, subtype=subtype)
+        model, loss_history = load_cData(model, process_type, subtype)
+    elif args.command == 'list':
+        raise NotImplementedError('List not implemented')
+        print('Verfügbare: ')
+
     else:
         raise ValueError('Nur load oder add')
     
@@ -73,8 +101,18 @@ def manage_args(args):
     if args.vis in ['field', 'all']:
         if process_type == 'mechanic':
             from process.mechanic.vis import visualize_field
-            visualize_field(model)
+            visualize_field(model, subtype, inverse_scale=None) 
         elif process_type == 'heat':
             from process.heat.vis import visualize_field
             from process.heat.scale import rescale_value
             visualize_field(model, subtype, inverse_scale=rescale_value)
+        elif process_type == 'moisture':
+            from process.moisture.vis import visualize_field
+            visualize_field(model, subtype, inverse_scale=None)
+    
+    if args.vis in ['div', 'all']:
+        if process_type == 'heat':
+            from process.heat.vis import visualize_divergence
+            from process.heat.scale import rescale_value
+            visualize_divergence(model, subtype, inverse_scale=rescale_value)
+
