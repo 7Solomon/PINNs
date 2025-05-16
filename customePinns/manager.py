@@ -10,7 +10,7 @@ def manage_args(args: argparse.Namespace):
             #from heat.manager import create_steady
             #create = create_steady
             from config import SteadyHeatConfig
-            from heat.domain import generate_steady_domain
+            from process.heat.domain import generate_steady_domain
             from nn_stuff.model import create_model
             conf = SteadyHeatConfig()
             domain = generate_steady_domain(conf)
@@ -19,21 +19,21 @@ def manage_args(args: argparse.Namespace):
             raise NotImplementedError('Noch nicht implementiert, du kek')
         elif args.type == 'moisture':
             from config import MoistureConfig
-            from moisture.normal_pinn_2d.domain import get_domain
+            from process.moisture.normal_pinn_2d.domain import get_domain
             from nn_stuff.model import create_model
             conf = MoistureConfig()
             domain = get_domain()
             model, cData = create_model(domain, conf)
         elif args.type == 'moisture_HB':
             from config import MoistureHeadBodyConfig
-            from moisture.head_body_pinn_1d.domain import get_domain
+            from process.moisture.head_body_pinn_1d.domain import get_domain
             from nn_stuff.model import create_model
             conf = MoistureHeadBodyConfig()
             domain = get_domain(conf)
             model, cData = create_model(domain, conf)
         elif args.type == 'mechanic':
             from config import BernoulliBalkenConfig
-            from mechanic.domain import get_domain
+            from process.mechanic.domain import get_domain
             from nn_stuff.model import create_model
             conf = BernoulliBalkenConfig()
             domain = get_domain(conf)
@@ -87,7 +87,7 @@ def manage_args(args: argparse.Namespace):
             domain = get_steady_heat_domain(conf)
             #model, cData = create_model(domain, conf)
         elif args.type == 'field':
-            from mechanic.domain import get_domain
+            from process.mechanic.domain import get_domain
             from vis.basic import visualize_beam_deflection
             from config import BernoulliBalkenConfig
             from nn_stuff.model import load_model

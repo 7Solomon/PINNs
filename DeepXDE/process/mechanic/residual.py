@@ -1,7 +1,8 @@
 import math
 from process.mechanic.scale import *
 import deepxde as dde
-from config import bernoulliBalkenTConfig
+import torch
+from config import bernoulliBalkenTConfig, cooksMembranConfig
     
 def pde_1d_residual(x, y):
   w_x = dde.grad.jacobian(y,x, i=0)
@@ -20,4 +21,11 @@ def pde_1d_t_residual(x, y):
   #return w_tt - bernoulliBalkenTConfig.EI*w_xxxx - bernoulliBalkenTConfig.f(x[:,0], x[:,1])
 
 def cooks_residual(x,y):
-  pass
+  e = (1/2)*(dde.grad.jacobian(y,x) + dde.grad.jacobian(y,x).T)
+  #sigma = e * cooksMembranConfig.E
+  e_voigt = torch.stack([e[:,0,0], e[:,1,1], 2*e[:,0,1]], dim=-1).unsqueeze(-1)
+  sigma_voigt = torch.matmul(cooksMembranConfig.C, e_voigt)
+  sigma = torch.stack([sigma_voigt[:,0,0], sigma_voigt[:,1,1], sigma_voigt[:,2,0]], dim=-1).unsqueeze(-1)
+  div_sigma = dde.grad.div(sigma, x)
+  #print('div_sigma', div_sigma)
+  return div_sigma # + cooksMembranConfig.f(x)

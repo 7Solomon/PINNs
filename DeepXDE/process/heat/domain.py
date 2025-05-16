@@ -26,7 +26,7 @@ def get_steady_domain():
 
 def get_transient_domain():
     geom = dde.geometry.Rectangle((0, 0), (2, 1))
-    timedomain = dde.geometry.TimeDomain(0,100)
+    timedomain = dde.geometry.TimeDomain(0, 1.1e7)   # mit L^2/(pi^2*alpha) geschätzt
     geomtime = dde.geometry.GeometryXTime(geom, timedomain)
     
     # BC

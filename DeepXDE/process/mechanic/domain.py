@@ -1,7 +1,10 @@
 import math
+from process.mechanic.scale import *
 import numpy as np
 import deepxde as dde
-from process.mechanic.residual import pde_1d_residual, pde_1d_t_residual
+import torch
+from process.mechanic.residual import pde_1d_residual, pde_1d_t_residual, cooks_residual
+from config import cooksMembranConfig
 
 def scale_value(T):
     return T/100
@@ -84,8 +87,15 @@ def get_fest_los_t_domain():
                             num_initial=200)
     return data
 
-def cooks_right(x, _):
-    return np.isclose(x[0], 48)
+def cooks_right(x, on_boundary):
+    return on_boundary and np.isclose(x[0], scale_u(48.0))
+def cooks_left(x, on_boundary):
+    return on_boundary and np.isclose(x[0], scale_u(0.0))
+def cooks_right_value(x, y, _):
+    e = (1/2)*(dde.grad.jacobian(y,x) + dde.grad.jacobian(y,x).T)
+    e_voigt = torch.stack([e[:,0,0], e[:,1,1], 2*e[:,0,1]], dim=-1).unsqueeze(-1)
+    sigma_voigt = torch.matmul(cooksMembranConfig.C, e_voigt)
+    return sigma_voigt[:,1,0] - scale_f(20.0)
 
 def get_cooks_domain():
     geom = dde.geometry.Polygon([
@@ -94,20 +104,20 @@ def get_cooks_domain():
         [48, 60],
         [0, 44],
     ])
-    time = dde.geometry.TimeDomain(0, 1)
-    geomTime = dde.geometry.GeometryXTime(geom, time)
+    #time = dde.geometry.TimeDomain(0, 1)
+    #geomTime = dde.geometry.GeometryXTime(geom, time)
 
-    bc_left_w_x = dde.DirichletBC(geomTime, lambda x,y: 0, boundary_left, component=0)
-    bc_left_w_y = dde.DirichletBC(geomTime, lambda x,y: 0, boundary_left, component=1)
+    bc_left_w_x = dde.DirichletBC(geom, lambda x,y: 0, cooks_left, component=0)
+    bc_left_w_y = dde.DirichletBC(geom, lambda x,y: 0, cooks_left, component=1)
 
-    bc_right_w_x = dde.DirichletBC(geomTime, lambda x,y: 0, boundary_left, component=0)
-    bc_right_w_xx = dde.OperatorBC(geomTime, lambda x,y: dde.grad.jacobian(dde.grad.hessian(y, x)[:,0], x)[:,0] - 1.0, cooks_right, component=0)
-    data = dde.data.TimePDE(geomTime,
-                            pde_1d_t_residual, 
-                            [bc_left_w_x, bc_left_w_y, bc_right_w_x, bc_right_w_xx], 
-                            num_domain=1000, 
-                            num_boundary=400,
-                            num_initial=200)
+    bc_right_w_xx = dde.OperatorBC(geom, cooks_right_value, cooks_right)
+    data = dde.data.PDE(geom,
+                            cooks_residual, 
+                            [bc_left_w_x, bc_left_w_y, bc_right_w_xx], 
+                            num_domain=100, 
+                            num_boundary=40,
+                            )
+    return data
 
 def get_domain(type):
     if type == 'fest_los':
@@ -116,5 +126,7 @@ def get_domain(type):
         return get_einspannung_domain()	
     elif type == 'fest_los_t':
         return get_fest_los_t_domain()
+    elif type == 'cooks':
+        return get_cooks_domain()
     else:
         raise ValueError(f"Unknown domain type: {type}")
