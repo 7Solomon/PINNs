@@ -2,9 +2,11 @@ import deepxde as dde
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+import mplcursors
 
 from matplotlib import cm
 import matplotlib.animation as animation
+
 
 def plot_loss(Loss):
     if isinstance(Loss, dde.model.LossHistory):
@@ -178,15 +180,34 @@ def vis_steady_diffrence(model, domain, temp, inverse_scale=None):
     plt.tight_layout()
     plt.show()
 
-def vis_time_diffrence(model, domain, temp, inverse_scale=None, animate=True, num_frames=10):
-    domain_np = domain.numpy()  # Shape (N, 3)
-    temp_np = temp.numpy()
+def vis_time_diffrence(
+    model,
+    coords2d,     # Tensor [N,2]
+    times,        # Tensor [M]
+    temp2d,       # Tensor [N,M]
+    inverse_scale=None,
+    animate=True,
+    num_frames=10,
+):
+    # 1) flatten spatial & time into a single (N·M,3) array
+    coords = coords2d.numpy()        # (N,2)
+    ts = times.numpy()               # (M,)
+    tt = temp2d.numpy()              # (N,M)
 
-    predictions_np = model.predict(domain)
+    N, M = coords.shape[0], ts.shape[0]
+    coords_rep = np.repeat(coords, M, axis=0)      # (N·M,2)
+    times_rep  = np.tile(ts, N)                   # (N·M,)
+    domain_np  = np.column_stack((coords_rep, times_rep))  # (N·M,3)
+    temp_np    = tt.flatten()                     # (N·M,)
+
+    # 2) get model predictions
+    preds = model.predict(domain_np)              # (N·M,1) or (N·M,)
     if inverse_scale:
-        predictions_np = inverse_scale(predictions_np)
+        preds = inverse_scale(preds)
+    pred_np = preds.squeeze()
 
-    unique_times = np.unique(domain_np[:, 2])
+    # 3) now exactly as your old code but using domain_np[:,2] for time:
+    unique_times = np.unique(times_rep)
     time_indices = np.argsort(unique_times)
     
     if len(unique_times) > num_frames and not animate:
@@ -209,7 +230,7 @@ def vis_time_diffrence(model, domain, temp, inverse_scale=None, animate=True, nu
             time_mask = np.isclose(domain_np[:, 2], t_val)
             x_t = domain_np[time_mask, 0]
             y_t = domain_np[time_mask, 1]
-            pred_t = predictions_np[time_mask].squeeze()
+            pred_t = pred_np[time_mask].squeeze()
             temp_t = temp_np[time_mask].squeeze()
             
             # Calculate difference
@@ -221,31 +242,44 @@ def vis_time_diffrence(model, domain, temp, inverse_scale=None, animate=True, nu
             
             plots.append((x_t, y_t, diff_t, t_val))
         
-        # Create figure
+        # Create figure + initial contour with diverging cmap centered at zero
         fig, ax = plt.subplots(figsize=(10, 6))
-        
-        # Initial plot
         x_0, y_0, diff_0, t_0 = plots[0]
-        cont = ax.tricontourf(x_0, y_0, diff_0, 50, cmap=cm.jet, 
-                             vmin=min_diff, vmax=max_diff)
-        
-        cbar = fig.colorbar(cont)
-        cbar.set_label('Difference (Prediction - Ground Truth)')
+        cont = ax.tricontourf(
+            x_0, y_0, diff_0, 50,
+            cmap="seismic",         # <-- diverging
+            vmin=-max(abs(min_diff), abs(max_diff)),
+            vmax= max(abs(min_diff), abs(max_diff)),
+        )
+        # create colorbar once
+        cbar = fig.colorbar(cont, ax=ax, pad=0.02)
+        cbar.set_label('Difference (Prediction - Ground Truth)', fontsize=12)
+        cbar.ax.tick_params(labelsize=11)
+
         ax.set_xlabel('x')
         ax.set_ylabel('y')
         title = ax.set_title(f'Difference at t={t_0:.3f}')
-        
+
         def update_frame(i):
             ax.clear()
             x_i, y_i, diff_i, t_i = plots[i]
-            cont = ax.tricontourf(x_i, y_i, diff_i, 50, cmap=cm.jet, 
-                                 vmin=min_diff, vmax=max_diff)
+            cont = ax.tricontourf(
+                x_i, y_i, diff_i, 50,
+                cmap="seismic",
+                vmin=-max(abs(min_diff), abs(max_diff)),
+                vmax= max(abs(min_diff), abs(max_diff)),
+            )
             ax.set_xlabel('x')
             ax.set_ylabel('y')
             ax.set_title(f'Difference at t={t_i:.3f}')
+            # just update the existing colorbar scale
+            cbar.update_normal(cont)
             return cont
-        
-        ani = animation.FuncAnimation(fig, update_frame, frames=len(plots), interval=200)
+
+        ani = animation.FuncAnimation(
+            fig, update_frame,
+            frames=len(plots), interval=200
+        )
         plt.tight_layout()
         plt.show()
         
@@ -271,7 +305,7 @@ def vis_time_diffrence(model, domain, temp, inverse_scale=None, animate=True, nu
             time_mask = np.isclose(domain_np[:, 2], t_val)
             x_t = domain_np[time_mask, 0]
             y_t = domain_np[time_mask, 1]
-            pred_t = predictions_np[time_mask].squeeze()
+            pred_t = pred_np[time_mask].squeeze()
             temp_t = temp_np[time_mask].squeeze()
             
             # Calculate difference
@@ -292,7 +326,7 @@ def vis_time_diffrence(model, domain, temp, inverse_scale=None, animate=True, nu
             time_mask = np.isclose(domain_np[:, 2], t_val)
             x_t = domain_np[time_mask, 0]
             y_t = domain_np[time_mask, 1]
-            pred_t = predictions_np[time_mask].squeeze()
+            pred_t = pred_np[time_mask].squeeze()
             temp_t = temp_np[time_mask].squeeze()
             
             # Calculate difference
@@ -303,9 +337,24 @@ def vis_time_diffrence(model, domain, temp, inverse_scale=None, animate=True, nu
                                       vmin=min_diff, vmax=max_diff)
             except RuntimeError as e:
                 print(f"Warning: tricontourf failed for t={t_val}: {e}")
-                cont = ax.scatter(x_t, y_t, c=diff_t, cmap=cm.jet, s=15,
-                                 vmin=min_diff, vmax=max_diff)
-                
+                cont = None
+
+            # always create an invisible scatter on top for hover
+            scatter = ax.scatter(x_t, y_t, c='none', s=100, picker=True)
+
+          
+            crs = mplcursors.cursor(scatter, hover=True)
+            @crs.connect("add")
+            def on_add(sel):
+                i = sel.index
+                sel.annotation.set_text(
+                    f"x = {x_t[i]:.3f}\n"
+                    f"y = {y_t[i]:.3f}\n"
+                    f"True T = {temp_t[i]:.2f} °C\n"
+                    f"Pred T = {pred_t[i]:.2f} °C\n"
+                    f"Δ = {diff_t[i]:.2f}"
+                )
+
             ax.set_xlabel('x')
             ax.set_ylabel('y')
             ax.set_title(f't={t_val:.3f}')
@@ -316,11 +365,22 @@ def vis_time_diffrence(model, domain, temp, inverse_scale=None, animate=True, nu
         
         # Add colorbar
         cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])
-        cbar = fig.colorbar(cont, cax=cbar_ax)
-        cbar.set_label('Difference (Prediction - Ground Truth)')
+        # Make sure cont is defined even if there was a runtime error
+        if cont is None and i > 0:
+            for j in range(i):
+                if hasattr(axes[j], 'collections') and axes[j].collections:
+                    cont = axes[j].collections[0]
+                    break
+        
+        if cont is not None:
+            cbar = fig.colorbar(cont, cax=cbar_ax)
+            cbar.set_label('Difference (Prediction - Ground Truth)')
         
         plt.tight_layout(rect=[0, 0, 0.9, 1]) 
         plt.suptitle('Difference between Prediction and Ground Truth over Time')
+        
+        # Enable interactive mode for better hover behavior
+        plt.ion()
         plt.show()
         
         # plt.savefig('time_difference_grid.png', dpi=300, bbox_inches='tight')

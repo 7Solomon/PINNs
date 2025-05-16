@@ -34,7 +34,7 @@ def manage_args(args):
     
     if process_type == 'mechanic':
         from process.mechanic.domain import get_domain
-        from config import bernoulliBalkenConfig, bernoulliBalken2DConfig, bernoulliBalkenTConfig
+        from config import bernoulliBalkenConfig, cooksMembranConfig, bernoulliBalkenTConfig
         if subtype == 'fest_los':
             config = bernoulliBalkenConfig
             pass
@@ -44,7 +44,7 @@ def manage_args(args):
         elif subtype == 'fest_los_t':
             config = bernoulliBalkenTConfig
         elif subtype == 'cooks':
-            config = bernoulliBalken2DConfig
+            config = cooksMembranConfig
         else:
             config = bernoulliBalkenConfig
             subtype = 'fest_los'
