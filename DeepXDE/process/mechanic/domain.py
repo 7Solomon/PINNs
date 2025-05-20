@@ -1,4 +1,5 @@
 import math
+from utils.function_utils import voigt_to_tensor
 from process.mechanic.scale import *
 import numpy as np
 import deepxde as dde
@@ -88,27 +89,34 @@ def get_fest_los_t_domain():
     return data
 
 def cooks_right(x, on_boundary):
-    return on_boundary and np.isclose(x[0], scale_u(48.0))
+    return on_boundary and np.isclose(x[0], scale_x(48.0))
 def cooks_left(x, on_boundary):
-    return on_boundary and np.isclose(x[0], scale_u(0.0))
+    return on_boundary and np.isclose(x[0], scale_x(0.0))
 def cooks_right_value(x, y, _):
-    e = (1/2)*(dde.grad.jacobian(y,x) + dde.grad.jacobian(y,x).T)
-    e_voigt = torch.stack([e[:,0,0], e[:,1,1], 2*e[:,0,1]], dim=-1).unsqueeze(-1)
-    sigma_voigt = torch.matmul(cooksMembranConfig.C, e_voigt)
-    return sigma_voigt[:,1,0] - scale_f(20.0)
+    du_dx = dde.grad.jacobian(y, x, i=0, j=0)
+    dv_dy = dde.grad.jacobian(y, x, i=1, j=1)
+    du_dy = dde.grad.jacobian(y, x, i=0, j=1)
+    dv_dx = dde.grad.jacobian(y, x, i=1, j=0)
+
+    e_voigt = torch.cat([du_dx, dv_dy, du_dy + dv_dx], dim=1)
+    sigma_voigt = torch.matmul(e_voigt, cooksMembranConfig.C())
+
+    sigma = voigt_to_tensor(sigma_voigt)
+    sigma = scale_u(sigma)
+    return sigma[:, 1, 1] - scale_f(20.0)
 
 def get_cooks_domain():
     geom = dde.geometry.Polygon([
-        [0, 0],
-        [48, 44],
-        [48, 60],
-        [0, 44],
+        [scale_x(0), scale_x(0)],
+        [scale_x(48), scale_x(44)],
+        [scale_x(48), scale_x(60)],
+        [scale_x(0), scale_x(44)],
     ])
     #time = dde.geometry.TimeDomain(0, 1)
     #geomTime = dde.geometry.GeometryXTime(geom, time)
 
-    bc_left_w_x = dde.DirichletBC(geom, lambda x,y: 0, cooks_left, component=0)
-    bc_left_w_y = dde.DirichletBC(geom, lambda x,y: 0, cooks_left, component=1)
+    bc_left_w_x = dde.DirichletBC(geom, lambda x: 0, cooks_left, component=0)
+    bc_left_w_y = dde.DirichletBC(geom, lambda x: 0, cooks_left, component=1)
 
     bc_right_w_xx = dde.OperatorBC(geom, cooks_right_value, cooks_right)
     data = dde.data.PDE(geom,

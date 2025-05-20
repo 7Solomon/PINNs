@@ -3,6 +3,7 @@ import math
 import torch
 
 
+
 @dataclass
 class ConcreteData:
     cp: float = 8.5e3 # J/(kg*K)
@@ -77,7 +78,7 @@ class RichardsConfig(BConfig):
     alpha: float = 0.4
     n: float = 1.2
     m: float = 1.0 - 1.0/1.2
-    K_s: float = 10e-6
+    K_s: float = 1e-1#K_s: float = 10e-6  # RICHARDS für Concrete IS NE nen bisschen eine bitch also große K_s
 
     #def __post_init__(self): # macht probleme
     #    print('POST INIT')
@@ -89,13 +90,13 @@ class CooksMembranConfig(BConfig):
     # material
     E = 3e6  # Pa
     nu = 0.2
-    C = None
+    
 
-    def __post_init__(self):
-        self.C = (self.E/ (1-self.nu**2)) *torch.tensor([[1, self.nu, 0],
+    def C(self):
+        return (self.E/ (1-self.nu**2)) * torch.tensor([[1, self.nu, 0],
                                                         [self.nu, 1, 0],
                                                         [0, 0, (1-self.nu)/2]
-                                                        ], dtype=torch.float32)
+                                                        ], dtype=torch.float64)
         
 
 steadyHeatConfig = SteadyHeatConfig()

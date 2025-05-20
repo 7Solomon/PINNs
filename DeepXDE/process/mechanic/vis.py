@@ -1,7 +1,11 @@
 import math
-from process.mechanic.scale import scale_t, scale_u, scale_x
+from utils.function_utils import is_inside_polygon
+from process.mechanic.scale import  *
 import numpy as np
 import matplotlib.pyplot as plt
+
+from matplotlib.patches import Polygon
+
 
 def analytical_solution_FLL(x, q=1, L=1, EI=1):
     return (1/12)*x**3 - (1/24) * x**4 - (1/24) * x
@@ -78,8 +82,91 @@ def visualize_field_1d_t(model, type):
 
 
 
+def visualize_cooks_membrane(model, resolution=20, scale_factor=1.0):
+
+    domain_points = np.array([
+        [0, 0],
+        [48, 44],
+        [48, 60],
+        [0, 44],
+    ])
+    
+    # Create a grid of points within the domain
+    x_min, y_min = np.min(domain_points, axis=0)
+    x_max, y_max = np.max(domain_points, axis=0)
+    
+    x = np.linspace(x_min, x_max, resolution)
+    y = np.linspace(y_min, y_max, resolution)
+    X, Y = np.meshgrid(x, y)
+    
+    # Create points array for prediction
+    points = np.vstack((X.flatten(), Y.flatten())).T
+    
+    mask = is_inside_polygon(points, domain_points)
+    points_inside = points[mask]
+    
+    # Predict displacements
+    if points_inside.size > 0:
+        predictions = model.predict(scale_x(points_inside))
+        predictions = rescale_x
+        u_x = predictions[:, 0].reshape(-1)  # x-displacement
+        u_y = predictions[:, 1].reshape(-1)  # y-displacement
+        
+        # Calculate deformed points
+        deformed_points = points_inside.copy()
+        deformed_points[:, 0] += u_x * scale_factor
+        deformed_points[:, 1] += u_y * scale_factor
+        
+        # Create figure
+        plt.figure(figsize=(12, 8))
+        
+        # Plot original domain
+        plt.subplot(1, 3, 1)
+        plt.title("Original Domain")
+        plt.gca().add_patch(Polygon(domain_points, fill=False, edgecolor='black'))
+        plt.scatter(points_inside[:, 0], points_inside[:, 1], c='blue', s=10, alpha=0.5)
+        plt.axis('equal')
+        plt.grid(True)
+        
+        # Plot deformed domain
+        plt.subplot(1, 3, 2)
+        plt.title(f"Deformed Domain (scale={scale_factor})")
+        plt.scatter(deformed_points[:, 0], deformed_points[:, 1], c='red', s=10, alpha=0.5)
+        plt.axis('equal')
+        plt.grid(True)
+        
+        # Plot displacement magnitude
+        plt.subplot(1, 3, 3)
+        plt.title("Displacement Magnitude")
+        displacement_mag = np.sqrt(u_x**2 + u_y**2)
+        sc = plt.scatter(points_inside[:, 0], points_inside[:, 1], 
+                        c=displacement_mag, cmap='jet', s=30, alpha=0.8)
+        plt.colorbar(sc, label="Displacement magnitude")
+        plt.gca().add_patch(Polygon(domain_points, fill=False, edgecolor='black'))
+        plt.axis('equal')
+        plt.grid(True)
+        
+        plt.tight_layout()
+        plt.show()
+        
+        # Also visualize displacement vectors
+        plt.figure(figsize=(10, 8))
+        plt.title("Displacement Field")
+        plt.quiver(points_inside[:, 0], points_inside[:, 1], 
+                u_x, u_y, angles='xy', scale_units='xy', 
+                scale=0.1/scale_factor, color='red')
+        plt.gca().add_patch(Polygon(domain_points, fill=False, edgecolor='black'))
+        plt.axis('equal')
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+    else:
+        print("No points inside the domain were found.")
+
 def visualize_field(model, type, inverse_scale=None):
     if type == 'fest_los' or type == 'einspannung':
         visualize_field_1d(model, type, inverse_scale)
     elif type == 'fest_los_t':
        visualize_field_1d_t(model, type)
+    elif type == 'cooks':
+        visualize_cooks_membrane(model)
