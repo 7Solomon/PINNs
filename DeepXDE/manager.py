@@ -4,6 +4,7 @@ from utils.model_utils import load_cData, save_cData
 from model import create_model
 
 import deepxde as dde
+import matplotlib.pyplot as plt
 
 def parse_args():
     parser = argparse.ArgumentParser(description='DeepXDE model manager')
@@ -25,6 +26,8 @@ def parse_args():
     load_parser.add_argument('--vis', choices=['loss', 'field', 'div', 'all'], default='all', 
                              help='Display options')
     
+    test_parser = subparsers.add_parser('test', help='test stuff')
+    test_parser.add_argument('--type', nargs='+', default='mechanic',)
     return parser.parse_args()
 
 def manage_args(args):
@@ -78,12 +81,12 @@ def manage_args(args):
     elif args.command == 'load':
         model = create_model(data, config)
         model, loss_history = load_cData(model, process_type, subtype)
+
     elif args.command == 'list':
         raise NotImplementedError('List not implemented')
-        print('Verfügbare: ')
 
     else:
-        raise ValueError('Nur load oder add')
+        raise ValueError('UNVALIDEr cOMmAND DU KEK')
     
     if hasattr(args, 'epochs') and args.epochs > 0:
         loss_history, train_state = model.train(epochs=args.epochs)
@@ -99,6 +102,8 @@ def manage_args(args):
             plot_loss(loss_history)
     
     if args.vis in ['field', 'all']:
+        #dde.utils.external.plot_best_state(train_state)
+        #plt.show()
         if process_type == 'mechanic':
             from process.mechanic.vis import visualize_field
             visualize_field(model, subtype, inverse_scale=None) 
@@ -116,3 +121,4 @@ def manage_args(args):
             from process.heat.scale import rescale_value
             visualize_divergence(model, subtype, inverse_scale=rescale_value)
 
+    
