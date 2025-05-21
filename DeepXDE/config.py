@@ -68,8 +68,8 @@ class BernoulliBalkenTconfig(BConfig):
         #return self.E*self.I*(1.0-16*math.pi**2)*math.sin(x/math.pi)*math.cos((4*self.c*t)/math.pi)/self.L**3  # not scaled
         return (1.0-16.0*math.pi**2)*torch.sin(x)*torch.cos(4*math.pi*t) # scaled
 
-class RichardsConfig(BConfig):
-    input_dim: int = 3
+class Richards1DConfig(BConfig):
+    input_dim: int = 2
     output_dim: int = 1
 
     # Van Genuchten params
@@ -105,7 +105,8 @@ bernoulliBalken2DConfig = BernoulliBalken2DConfig()
 bernoulliBalkenTConfig = BernoulliBalkenTconfig()
 cooksMembranConfig = CooksMembranConfig()
 transientHeatConfig = TransientHeatConfig()
-richardsConfig = RichardsConfig()
+richards1DConfig = Richards1DConfig()
+
 
 
 concreteData = ConcreteData()

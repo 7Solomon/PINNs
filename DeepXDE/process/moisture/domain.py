@@ -16,7 +16,7 @@ def boundary_left(x, on_boundary):
 def boundary_right(x, on_boundary):
     return on_boundary and np.isclose(x[0], scale_z(1))
 def boundary_initial(x, on_initial):
-    return on_initial and np.isclose(x[2], scale_t(0.0))
+    return on_initial and np.isclose(x[1], scale_t(0.0))
 
 
 def get_simple_domain():
@@ -59,9 +59,9 @@ def get_1d_domain():
     time = dde.geometry.TimeDomain(0, scale_t(1e10))   # mit L^2/(K_S/C)
     geomTime = dde.geometry.GeometryXTime(geom, time)
 
-    bc_initial = dde.IC(geomTime, lambda x: scale_h(0),
+    bc_initial = dde.IC(geomTime, lambda x: scale_h(-10),
                 boundary_initial)
-    bc_left = dde.NeumannBC(geomTime, lambda x: scale_h(0),  # NO FLUX
+    bc_left = dde.NeumannBC(geomTime, lambda x: scale_h(-10),  # NO FLUX
                 boundary_left)
     bc_right = dde.DirichletBC(geomTime, lambda x: scale_h(-9558),   # hs = (R*Tk)/(Mw*g)*ln(RH)   # RH = 0.5  Tk = 293.15
                 boundary_right)
