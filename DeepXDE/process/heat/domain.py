@@ -50,7 +50,6 @@ def get_transient_domain():
         num_boundary=50,
         num_initial=100
     )
-    
     return data
 
 def get_domain(type):

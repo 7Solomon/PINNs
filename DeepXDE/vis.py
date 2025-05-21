@@ -217,9 +217,7 @@ def vis_time_diffrence(
         selected_times = unique_times[time_indices]
     
     if animate:
-        fig, ax = plt.subplots(figsize=(10, 6))
-        plt.close()  # Don't display empty figure
-        
+
         plots = []
         min_diff = float('inf')
         max_diff = float('-inf')
