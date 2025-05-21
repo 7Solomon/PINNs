@@ -1,3 +1,4 @@
+from process.moisture.scale import *
 import deepxde as dde
 import numpy as np
 
@@ -10,9 +11,17 @@ def y_boundary_value(x, on_boundary, values: list[dict]):
 def time_boundary_value(x, on_boundary, value:float):
     return on_boundary and np.isclose(x[2], value)
 
+def boundary_left(x, on_boundary):
+    return on_boundary and np.isclose(x[0], scale_z(0))
+def boundary_right(x, on_boundary):
+    return on_boundary and np.isclose(x[0], scale_z(1))
+def boundary_initial(x, on_initial):
+    return on_initial and np.isclose(x[2], scale_t(0.0))
+
+
 def get_simple_domain():
     geom = dde.geometry.geometry_2d.Rectangle((0,0),(1,2))
-    time = dde.geometry.TimeDomain(0, 1)
+    time = dde.geometry.TimeDomain(0, scale_t(1e10))   # mit L^2/(K_S/C)
     geomTime = dde.geometry.GeometryXTime(geom, time)
 
     bc_initial = dde.IC(geomTime, lambda x: -1.0,
@@ -43,8 +52,30 @@ def get_simple_domain():
                         num_initial=100,
                         num_domain=200,
                         num_boundary=50
+                        
                     )
+def get_1d_domain():
+    geom = dde.geometry.Interval(0,scale_z(1))
+    time = dde.geometry.TimeDomain(0, scale_t(1e10))   # mit L^2/(K_S/C)
+    geomTime = dde.geometry.GeometryXTime(geom, time)
 
+    bc_initial = dde.IC(geomTime, lambda x: scale_h(0),
+                boundary_initial)
+    bc_left = dde.NeumannBC(geomTime, lambda x: scale_h(0),  # NO FLUX
+                boundary_left)
+    bc_right = dde.DirichletBC(geomTime, lambda x: scale_h(-9558),   # hs = (R*Tk)/(Mw*g)*ln(RH)   # RH = 0.5  Tk = 293.15
+                boundary_right)
+
+    return dde.data.TimePDE(geomTime,
+                        residual,
+                        [bc_left, bc_right, bc_initial],
+                        num_initial=100,
+                        num_domain=200,
+                        num_boundary=50
+                        
+                    )
 def get_domain(type):
-    if type == '1d_head':
+    if type == '2d_head':
         return get_simple_domain()
+    elif type == '1d_head':
+        return get_1d_domain()

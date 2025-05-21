@@ -1,16 +1,16 @@
-from process.heat.scale import scale_value
+from process.heat.scale import *
 import numpy as np
 import deepxde as dde
 from process.heat.residual import lp_residual, steady_lp_residual
 
 
 def boundary_left(x, on_boundary):
-    return on_boundary and np.isclose(x[0], 0)
+    return on_boundary and np.isclose(x[0], scale_x(0))
 def boundary_right(x, on_boundary):
-    return on_boundary and np.isclose(x[0], 2)
+    return on_boundary and np.isclose(x[0], scale_x(2))
 
 def get_steady_domain():
-    geom = dde.geometry.Rectangle((0,0),(2,1))
+    geom = dde.geometry.Rectangle((0,0),(scale_x(2),scale_y(1)))
 
     bc_left = dde.DirichletBC(geom, lambda x: scale_value(100.0), boundary_left)
     bc_right = dde.DirichletBC(geom, lambda x: scale_value(0.0), boundary_right)
@@ -25,8 +25,9 @@ def get_steady_domain():
     return data
 
 def get_transient_domain():
-    geom = dde.geometry.Rectangle((0, 0), (2, 1))
-    timedomain = dde.geometry.TimeDomain(0, 1.1e7)   # mit L^2/(pi^2*alpha) geschätzt
+    geom = dde.geometry.Rectangle((0, 0), (scale_x(2), scale_y(1)))
+
+    timedomain = dde.geometry.TimeDomain(0, scale_time(1.1e7))   # mit L^2/(pi^2*alpha) geschätzt
     geomtime = dde.geometry.GeometryXTime(geom, timedomain)
     
     # BC

@@ -74,6 +74,7 @@ def manage_args(args):
             subtype = '1d_head'
         from process.moisture.domain import get_domain
         data = get_domain(subtype)
+        
 
 
     if args.command == 'add':

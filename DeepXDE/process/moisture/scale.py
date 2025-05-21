@@ -1,10 +1,14 @@
-class Scale:
-    def __init__(self, domain_scale=[(0.0,1.0)], time_scale=(0.0,1.0), load_scale=(0.0,1.0)):
-        self.domain_scale = domain_scale
-        self.time_scale = time_scale
-        self.load_scale = load_scale
+def scale_z(z):
+    return z / 1.0
+def rescale_z(z):
+    return z * 1.0
 
-    def scale(self, input):
-        pass
-    def rescale(self, input):
-        pass
+def scale_t(t):
+    return t / 1.1e10
+def rescale_t(t):
+    return t * 1.1e10       
+
+def scale_h(h):
+    return h / 1000
+def rescale_h(h):
+    return h * 1000 
