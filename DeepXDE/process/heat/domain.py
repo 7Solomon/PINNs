@@ -1,3 +1,4 @@
+from utils import Domain
 from process.heat.scale import *
 import numpy as np
 import deepxde as dde
@@ -10,6 +11,11 @@ def boundary_right(x, on_boundary):
     return on_boundary and np.isclose(x[0], scale_x(2))
 
 def get_steady_domain():
+    domain = Domain(spatial={
+        'x': (0, 2),
+        'y': (0, 1)
+    }, temporal=None)
+
     geom = dde.geometry.Rectangle((0,0),(scale_x(2),scale_y(1)))
 
     bc_left = dde.DirichletBC(geom, lambda x: scale_value(100.0), boundary_left)
@@ -22,9 +28,16 @@ def get_steady_domain():
                         num_boundary=50)
     # wights 
     #data.set_weights([1, 1, 1, 1])
+    
     return data
 
 def get_transient_domain():
+    domain = Domain(spatial={
+        'x': (0, 2),
+        'y': (0, 1)
+    }, temporal={
+        't': (0, 1.1e7)
+    })
     geom = dde.geometry.Rectangle((0, 0), (scale_x(2), scale_y(1)))
 
     timedomain = dde.geometry.TimeDomain(0, scale_time(1.1e7))   # mit L^2/(pi^2*alpha) geschätzt

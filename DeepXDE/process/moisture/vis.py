@@ -68,4 +68,5 @@ def visualize_field(model, type, inverse_scale=None):
     if type == '1d_head':
         spatial_domain = (0, 1, 100)
         time_domain = (0, 1, 100)
-        vis_1d_head(model, spatial_domain, time_domain, inverse_scale=inverse_scale)
+        vis_1d_head(model, spatial_domain, time_domain)
+        print('1D Head Visualization Complete')
