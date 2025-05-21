@@ -21,3 +21,9 @@ def scale_time(t):
     return t / 1.1e7
 def rescale_time(t):
     return t * 1.1e7
+
+def scale_alpha_x(alpha):
+    return alpha * (1.1e7 / 4.0)  # s_t/s_x²
+
+def scale_alpha_y(alpha):
+    return alpha * 1.1e7  # s_t/s_y²
