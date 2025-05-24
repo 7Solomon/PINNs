@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-def vis_1d_head(model, spatial_domain, time_domain, interval=200, title='Richards 1d', xlabel='z', ylabel='u(z,t)'):
+def vis_1d_head(model, domain, interval=200, title='Richards 1d', xlabel='z', ylabel='u(z,t)'):
     """
     Generates an animation of a 1D model's prediction changing over time.
 
@@ -16,8 +16,10 @@ def vis_1d_head(model, spatial_domain, time_domain, interval=200, title='Richard
         xlabel (str, optional): Label for the x-axis. Defaults to 'x'.
         ylabel (str, optional): Label for the y-axis. Defaults to 'u(x,t)'.
     """
-    z_start, z_end, num_x_points = spatial_domain
-    t_start, t_end, num_t_points = time_domain
+    z_start, z_end = domain.spatial['z']
+    t_start, t_end = domain.temporal['t']
+    num_x_points = 100
+    num_t_points = 100
 
     z_points = np.linspace(z_start, z_end, num_x_points)
     t_points = np.linspace(t_start, t_end, num_t_points)
@@ -62,11 +64,7 @@ def vis_1d_head(model, spatial_domain, time_domain, interval=200, title='Richard
 
     ani = animation.FuncAnimation(fig, update, frames=num_t_points,
                                   interval=interval, blit=True, repeat=False)
-    plt.show()
+    
+    ani.save('animation.mp4', writer='ffmpeg', fps=1000/interval)
+    #plt.show() # geht glaube nocht auf ssh
     return ani
-def visualize_field(model, type, inverse_scale=None):
-    if type == '1d_head':
-        spatial_domain = (0, 1, 100)
-        time_domain = (0, 1, 100)
-        vis_1d_head(model, spatial_domain, time_domain)
-        print('1D Head Visualization Complete')

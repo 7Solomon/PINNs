@@ -1,4 +1,5 @@
 import os
+from utils.metadata import Domain
 from process.moisture.scale import *
 from vis import get_2d_domain, get_2d_time_domain
 
@@ -7,8 +8,14 @@ import matplotlib.pyplot as plt
 from matplotlib import animation, cm
 
 from process.heat.scale import *
-def visualize_steady_field(model, domain_variabels):
-    domain = get_2d_domain(domain_variabels, scale_x, scale_y)
+def visualize_steady_field(model, type):
+    domain_vars = Domain(
+        spatial={
+            'x':(0,2),
+            'y':(0,1)
+        }
+    )
+    domain = get_2d_domain(domain_vars, scale_x, scale_y)
     points, X, Y, nx, ny = domain['normal']
     points_scaled, X_scaled, Y_scaled, nx, ny = domain['scaled']
 
@@ -23,10 +30,17 @@ def visualize_steady_field(model, domain_variabels):
     plt.title('Predicted')
     plt.tight_layout()
     #plt.savefig('heat_field.png', dpi=300)
-    plt.show()
+    #plt.show()
+    return {'field': plt.gcf()}
 
-def visualize_transient_field(model, domain_variabels,save_animation=False):
-    domain = get_2d_time_domain(domain_variabels, scale_x, scale_y, scale_t)
+def visualize_transient_field(model, type ,save_animation=False):
+    domain_vars = Domain(
+        spatial={
+            'x':(0,2),
+            'y':(0,1)
+        }
+    )
+    domain = get_2d_time_domain(domain_vars, scale_x, scale_y, scale_t)
     
     points, X, Y, t, nx, ny, nt = domain['normal']
     scaled_points, X_scaled, Y_scaled, t_scaled, nx, ny, nt = domain['scaled']
@@ -61,6 +75,7 @@ def visualize_transient_field(model, domain_variabels,save_animation=False):
         
     plt.tight_layout()
     plt.show()
+    return {'field': fig}
 
 
 #def visualize_field(model, type, inverse_scale=None):

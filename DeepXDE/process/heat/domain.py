@@ -1,4 +1,4 @@
-from utils import Domain
+from utils.metadata import Domain
 from process.heat.scale import *
 import numpy as np
 import deepxde as dde
@@ -63,7 +63,7 @@ def get_transient_domain():
         num_boundary=50,
         num_initial=100
     )
-    return data
+    return data, domain
 
 def get_domain(type):
     if type == 'steady':

@@ -1,3 +1,4 @@
+from utils.metadata import Domain
 from process.moisture.scale import *
 import deepxde as dde
 import numpy as np
@@ -55,25 +56,36 @@ def get_simple_domain():
                         
                     )
 def get_1d_domain():
+
+    domain = Domain(
+        spatial={
+            'z': (0, 1),
+        }, temporal={
+            't': (0, 1.1e10)
+        }
+    )
+
     geom = dde.geometry.Interval(0,scale_z(1))
     time = dde.geometry.TimeDomain(0, scale_t(1e10))   # mit L^2/(K_S/C)
     geomTime = dde.geometry.GeometryXTime(geom, time)
 
     bc_initial = dde.IC(geomTime, lambda x: scale_h(-10),
                 boundary_initial)
-    bc_left = dde.NeumannBC(geomTime, lambda x: scale_h(-10),  # NO FLUX
+    bc_left = dde.NeumannBC(geomTime, lambda x: scale_h(-10),  # close to NO FLUX
                 boundary_left)
     bc_right = dde.DirichletBC(geomTime, lambda x: scale_h(-9558),   # hs = (R*Tk)/(Mw*g)*ln(RH)   # RH = 0.5  Tk = 293.15
                 boundary_right)
 
-    return dde.data.TimePDE(geomTime,
+    data = dde.data.TimePDE(geomTime,
                         residual,
                         [bc_left, bc_right, bc_initial],
-                        num_initial=100,
-                        num_domain=200,
-                        num_boundary=50
+                        num_initial=1000,
+                        num_domain=2000,
+                        num_boundary=500
                         
                     )
+    
+    return data, domain
 def get_domain(type):
     if type == '2d_head':
         return get_simple_domain()

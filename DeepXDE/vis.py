@@ -43,13 +43,15 @@ def plot_loss(Loss):
     plt.ylabel('Loss')
     plt.title('Loss (log Scale)')
     plt.yscale('log')
-    plt.show()
+    #plt.savefig('loss.png', dpi=300)
+    #plt.show()
+    return {'loss': plt.gcf()}
 
         
 
 def get_2d_domain(domain_variabeles: Domain, scale_x, scale_y):
-    min_x, max_x = domain_variabeles.spatial[0]
-    min_y, max_y = min_x, max_x = domain_variabeles.spatial[1]
+    min_x, max_x = list(domain_variabeles.spatial.values())[0]
+    min_y, max_y = list(domain_variabeles.spatial.values())[1]
     
     # Create grid
     nx, ny = 100, 50
@@ -67,9 +69,9 @@ def get_2d_domain(domain_variabeles: Domain, scale_x, scale_y):
     return {'normal':[points, X, Y, nx, ny], 'scaled': [scaled_points, scaled_X, scaled_Y, nx, ny]}
 
 def get_2d_time_domain(domain_variabeles:Domain, scale_x, scale_y, scale_t):
-    min_x, max_x = domain_variabeles.spatial[0]
-    min_y, max_y = domain_variabeles.spatial[1]
-    min_t, max_t = domain_variabeles.temporal[0]
+    min_x, max_x = domain_variabeles.spatial.keys()[0]
+    min_y, max_y = domain_variabeles.spatial.keys()[1]
+    min_t, max_t = domain_variabeles.temporal.keys()[0]
 
     # Create grid
     nx, ny, nt = 100, 50, 100

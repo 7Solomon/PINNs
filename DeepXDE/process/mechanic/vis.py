@@ -1,10 +1,10 @@
 import math
-from utils.function_utils import is_inside_polygon
+from utils.metadata import Domain
 from process.mechanic.scale import  *
 import numpy as np
 import matplotlib.pyplot as plt
+from vis import get_2d_domain
 
-from matplotlib.patches import Polygon
 
 
 def analytical_solution_FLL(x, q=1, L=1, EI=1):
@@ -20,7 +20,7 @@ analytical_mapping = {
     #'2D_fest_los': None,
 }
 
-def visualize_field_1d(model, type, inverse_scale=None):
+def visualize_field_1d(model, type):
     x = np.linspace(0, 1, 1000)[:, None]
     y = model.predict(x)
     y_analytical = analytical_mapping[type](x)
@@ -37,136 +37,139 @@ def visualize_field_1d(model, type, inverse_scale=None):
     plt.ylabel("u(x)")
     plt.title("SOlu")
     plt.legend()
+    return {'field': plt.gcf()}
+    #plt.savefig("Field_1d.png")
+    #plt.show()
 
-    #plt.savefig("results/field.png")
-    plt.show()
+def visualize_field_2d(model, type):
+    domain_vars = Domain(
+        spatial={
+            'x':(0,10),
+            'y':(0,1)
+        }
+    )
+    domain = get_2d_domain(domain_vars, scale_x, scale_y)
+    points, X, Y, nx, ny = domain['normal']
+    scaled_points, scaled_X, scaled_Y, nx, ny = domain['scaled']
 
-def visualize_field_1d_t(model, type):
-    x_comp = np.linspace(0, math.pi, 100) 
-    t_comp = np.linspace(0, 1, 100)    
+    predictions = model.predict(scaled_points)
     
-    # create mesh
-    X_comp_mesh, T_comp_mesh = np.meshgrid(x_comp, t_comp, indexing='xy')
-    predict_points = np.hstack((X_comp_mesh.ravel()[:, None], T_comp_mesh.ravel()[:, None]))
+    # Debug info
+    print(f"Domain: x=(0,10), y=(0,1) - should be horizontal beam")
+    print(f"Points shape: {scaled_points.shape}")
+    print(f"Predictions shape: {predictions.shape}")
+    print(f"Grid dimensions: nx={nx}, ny={ny}")
     
-    # get pred
-    Y_pred_scaled_flat = model.predict(predict_points)
-    Y_pred_scaled = Y_pred_scaled_flat.reshape(X_comp_mesh.shape)
-    y_analytical_scaled = analytical_mapping[type](X_comp_mesh, T_comp_mesh)
-
-
-    X_plot_mesh = scale_x(X_comp_mesh)
-    T_plot_mesh = scale_t(T_comp_mesh)
-    
-    Y_pred_physical = scale_u(Y_pred_scaled)
-    y_analytical_physical = scale_u(y_analytical_scaled)
-
-    fig, axes = plt.subplots(1, 2, figsize=(15, 6), sharey=True)
-
-    # pred
-    contour_pred = axes[0].contourf(X_plot_mesh, T_plot_mesh, Y_pred_physical, levels=50, cmap='viridis')
-    fig.colorbar(contour_pred, ax=axes[0], label='Predicted u(x,t)')
-    axes[0].set_xlabel('x')
-    axes[0].set_ylabel('t')
-    axes[0].set_title('pred')
-
-    # analy
-    contour_analytical = axes[1].contourf(X_plot_mesh, T_plot_mesh, y_analytical_physical, levels=50, cmap='viridis')
-    fig.colorbar(contour_analytical, ax=axes[1], label='Analytical u(x,t)')
-    axes[1].set_xlabel('x')
-    axes[1].set_title('analytical')
-    
-    fig.suptitle('FIELD', fontsize=16)
-    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-    plt.show()
-
-
-
-def visualize_cooks_membrane(model, resolution=20, scale_factor=1.0):
-
-    domain_points = np.array([
-        [0, 0],
-        [48, 44],
-        [48, 60],
-        [0, 44],
-    ])
-    
-    # Create a grid of points within the domain
-    x_min, y_min = np.min(domain_points, axis=0)
-    x_max, y_max = np.max(domain_points, axis=0)
-    
-    x = np.linspace(x_min, x_max, resolution)
-    y = np.linspace(y_min, y_max, resolution)
-    X, Y = np.meshgrid(x, y)
-    
-    # Create points array for prediction
-    points = np.vstack((X.flatten(), Y.flatten())).T
-    
-    mask = is_inside_polygon(points, domain_points)
-    points_inside = points[mask]
-    
-    # Predict displacements
-    if points_inside.size > 0:
-        predictions = model.predict(scale_x(points_inside))
-        predictions = rescale_x
-        u_x = predictions[:, 0].reshape(-1)  # x-displacement
-        u_y = predictions[:, 1].reshape(-1)  # y-displacement
-        
-        # Calculate deformed points
-        deformed_points = points_inside.copy()
-        deformed_points[:, 0] += u_x * scale_factor
-        deformed_points[:, 1] += u_y * scale_factor
-        
-        # Create figure
-        plt.figure(figsize=(12, 8))
-        
-        # Plot original domain
-        plt.subplot(1, 3, 1)
-        plt.title("Original Domain")
-        plt.gca().add_patch(Polygon(domain_points, fill=False, edgecolor='black'))
-        plt.scatter(points_inside[:, 0], points_inside[:, 1], c='blue', s=10, alpha=0.5)
-        plt.axis('equal')
-        plt.grid(True)
-        
-        # Plot deformed domain
-        plt.subplot(1, 3, 2)
-        plt.title(f"Deformed Domain (scale={scale_factor})")
-        plt.scatter(deformed_points[:, 0], deformed_points[:, 1], c='red', s=10, alpha=0.5)
-        plt.axis('equal')
-        plt.grid(True)
-        
-        # Plot displacement magnitude
-        plt.subplot(1, 3, 3)
-        plt.title("Displacement Magnitude")
-        displacement_mag = np.sqrt(u_x**2 + u_y**2)
-        sc = plt.scatter(points_inside[:, 0], points_inside[:, 1], 
-                        c=displacement_mag, cmap='jet', s=30, alpha=0.8)
-        plt.colorbar(sc, label="Displacement magnitude")
-        plt.gca().add_patch(Polygon(domain_points, fill=False, edgecolor='black'))
-        plt.axis('equal')
-        plt.grid(True)
-        
-        plt.tight_layout()
-        plt.show()
-        
-        # Also visualize displacement vectors
-        plt.figure(figsize=(10, 8))
-        plt.title("Displacement Field")
-        plt.quiver(points_inside[:, 0], points_inside[:, 1], 
-                u_x, u_y, angles='xy', scale_units='xy', 
-                scale=0.1/scale_factor, color='red')
-        plt.gca().add_patch(Polygon(domain_points, fill=False, edgecolor='black'))
-        plt.axis('equal')
-        plt.grid(True)
-        plt.tight_layout()
-        plt.show()
+    # Flatten coordinate arrays
+    if len(scaled_X.shape) > 1:
+        scaled_X_flat = scaled_X.flatten()
+        scaled_Y_flat = scaled_Y.flatten()
     else:
-        print("No points inside the domain were found.")
-
-def visualize_field(model, type, inverse_scale=None):
-    if type == 'fest_los' or type == 'einspannung':
-        visualize_field_1d(model, type, inverse_scale)
-    elif type == 'fest_los_t':
-       visualize_field_1d_t(model, type)
-    elif type == 'cooks':
-        visualize_cooks_membrane(model)
+        scaled_X_flat = scaled_X
+        scaled_Y_flat = scaled_Y
+    
+    # Get actual number of points
+    total_points = predictions.shape[0]
+    
+    # Subsample for visualization (25M points is too many)
+    if total_points > 100000:  # If more than 100k points, subsample
+        step = total_points // 50000  # Take every nth point to get ~50k points
+        indices = np.arange(0, total_points, step)
+        scaled_X_flat = scaled_X_flat[indices]
+        scaled_Y_flat = scaled_Y_flat[indices]
+        predictions = predictions[indices]
+        total_points = len(indices)
+        print(f"Subsampled to {total_points} points for visualization")
+    
+    # Ensure coordinate arrays match prediction length
+    if len(scaled_X_flat) != total_points:
+        scaled_X_flat = scaled_X_flat[:total_points]
+        scaled_Y_flat = scaled_Y_flat[:total_points]
+    
+    # Convert back to original domain coordinates for proper visualization
+    x_min, x_max = domain_vars.spatial['x']
+    y_min, y_max = domain_vars.spatial['y']
+    
+    # Assuming scaled coordinates are in [0,1], map back to original domain
+    original_X = scaled_X_flat * (x_max - x_min) + x_min
+    original_Y = scaled_Y_flat * (y_max - y_min) + y_min
+    
+    print(f"Original X range: {original_X.min():.3f} to {original_X.max():.3f}")
+    print(f"Original Y range: {original_Y.min():.3f} to {original_Y.max():.3f}")
+    
+    # Infer reasonable grid dimensions
+    sqrt_points = int(np.sqrt(total_points))
+    if sqrt_points * sqrt_points == total_points:
+        nx = ny = sqrt_points
+    else:
+        # Find best rectangular grid that matches beam aspect ratio
+        aspect_ratio = (x_max - x_min) / (y_max - y_min)  # Should be 10
+        ny = int(np.sqrt(total_points / aspect_ratio))
+        nx = total_points // ny
+    
+    print(f"Using grid dimensions: nx={nx}, ny={ny}")
+    
+    # Create visualization
+    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+    
+    # 1. Displacement magnitude
+    displacement_magnitude = np.sqrt(predictions[:, 0]**2 + predictions[:, 1]**2)
+    
+    try:
+        if nx * ny == total_points:
+            displacement_magnitude_2d = displacement_magnitude.reshape(ny, nx)
+            X_reshaped = original_X.reshape(ny, nx)
+            Y_reshaped = original_Y.reshape(ny, nx)
+            
+            contour = axes[0, 0].contourf(X_reshaped, Y_reshaped, 
+                                          displacement_magnitude_2d, levels=20, cmap='viridis')
+            axes[0, 0].set_title("Displacement Magnitude")
+            plt.colorbar(contour, ax=axes[0, 0])
+        else:
+            raise ValueError("Grid dimensions don't match")
+            
+    except ValueError:
+        # Fall back to scatter plot
+        scatter = axes[0, 0].scatter(original_X, original_Y, c=displacement_magnitude, 
+                                   cmap='viridis', s=1, alpha=0.7)
+        axes[0, 0].set_title("Displacement Magnitude (scatter)")
+        plt.colorbar(scatter, ax=axes[0, 0])
+    
+    # 2. Deformed shape
+    scale_factor = 5.0  # Exaggerate deformation for visibility
+    deformed_X = original_X + scale_factor * predictions[:, 0]
+    deformed_Y = original_Y + scale_factor * predictions[:, 1]
+    
+    axes[0, 1].scatter(original_X, original_Y, c='blue', s=0.5, alpha=0.3, label='Original')
+    axes[0, 1].scatter(deformed_X, deformed_Y, c='red', s=0.5, alpha=0.7, label=f'Deformed (×{scale_factor})')
+    axes[0, 1].set_title("Deformed Shape")
+    axes[0, 1].legend()
+    axes[0, 1].set_aspect('equal')
+    
+    # 3. X-displacement
+    scatter_x = axes[1, 0].scatter(original_X, original_Y, c=predictions[:, 0], 
+                                 cmap='RdBu_r', s=1, alpha=0.7)
+    axes[1, 0].set_title("X-Displacement")
+    plt.colorbar(scatter_x, ax=axes[1, 0])
+    
+    # 4. Y-displacement
+    scatter_y = axes[1, 1].scatter(original_X, original_Y, c=predictions[:, 1], 
+                                 cmap='RdBu_r', s=1, alpha=0.7)
+    axes[1, 1].set_title("Y-Displacement")
+    plt.colorbar(scatter_y, ax=axes[1, 1])
+    
+    # Add beam outline to all plots
+    beam_outline = np.array([[x_min, y_min], [x_max, y_min], [x_max, y_max], [x_min, y_max], [x_min, y_min]])
+    
+    for ax in axes.flat:
+        ax.plot(beam_outline[:, 0], beam_outline[:, 1], 'k-', linewidth=2, alpha=0.8)
+        ax.grid(True, alpha=0.3)
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_xlim(x_min-0.5, x_max+0.5)
+        ax.set_ylim(y_min-0.5, y_max+0.5)
+    
+    plt.tight_layout()
+    #plt.savefig("Field_2d_comprehensive.png", dpi=300, bbox_inches='tight')
+    #plt.show()^
+    return {'field': fig}

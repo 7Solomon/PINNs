@@ -1,15 +1,12 @@
 import math
-from utils.function_utils import voigt_to_tensor
+from utils.metadata import Domain
+from utils.functions import voigt_to_tensor
 from process.mechanic.scale import *
 import numpy as np
 import deepxde as dde
 import torch
-from process.mechanic.residual import pde_1d_residual, pde_1d_t_residual, cooks_residual
+from process.mechanic.residual import pde_1d_residual, pde_1d_t_residual, cooks_residual, pde_2d_residual
 from config import cooksMembranConfig
-
-def scale_value(T):
-    return T/100
-
 
 def du_dxx_zero(x, y, _):
     return dde.grad.hessian(y, x)[:,0]
@@ -21,6 +18,11 @@ def boundary_left(x, on_boundary):
 def boundary_right(x, on_boundary):
     return on_boundary and np.isclose(x[0], 1)
 def get_fest_los_domain():
+    domain = Domain(
+        spatial={
+            'x':(0,1)
+        }
+    )
     geom = dde.geometry.Interval(0,1)
 
     bc_left_w = dde.DirichletBC(geom, lambda x: 0, boundary_left)
@@ -36,7 +38,33 @@ def get_fest_los_domain():
                         num_boundary=50)
     # wights 
     #data.set_weights([1, 1, 1, 1])
-    return data
+    return data, domain
+
+def boundary_left_bottom(x, on_boundary):
+    return on_boundary and np.isclose(x[0], 0)
+def boundary_right_bottom(x, on_boundary):
+   return on_boundary and np.isclose(x[0], 10)
+
+def get_fest_los_domain_2d():
+    domain = Domain(
+        spatial={
+            'x':(0,10),
+            'y':(0,1)
+        }
+    )
+    geom = dde.geometry.Rectangle(xmin=[0, 0], xmax=[10, 1])
+
+    bc_left_bottom_u = dde.DirichletBC(geom, lambda x: 0.0, boundary_left_bottom , component=0)
+    bc_left_bottom_v = dde.DirichletBC(geom, lambda x: 0.0, boundary_left_bottom , component=1)
+    bc_right_bottom_u = dde.DirichletBC(geom, lambda x: 0.0, boundary_right_bottom, component=0)
+
+    data = dde.data.PDE(geom,
+                        pde_2d_residual, 
+                        [bc_left_bottom_u, bc_left_bottom_v, bc_right_bottom_u], 
+                        num_domain=2000, 
+                        num_boundary=500)
+    
+    return data, domain
 
 def get_einspannung_domain():
     geom = dde.geometry.Interval(0,1)
@@ -55,8 +83,8 @@ def get_einspannung_domain():
     data = dde.data.PDE(geom,
                         pde_1d_residual, 
                         [bc_left_w, bc_left_wx, bc_right_wxx, bc_right_wxxx], 
-                        num_domain=200, 
-                        num_boundary=50)
+                        num_domain=2000, 
+                        num_boundary=1000)
     return data
 
 def boundary_left_time(x, on_boundary):
@@ -126,15 +154,3 @@ def get_cooks_domain():
                             num_boundary=40,
                             )
     return data
-
-def get_domain(type):
-    if type == 'fest_los':
-        return get_fest_los_domain()
-    elif type == 'einspannung':
-        return get_einspannung_domain()	
-    elif type == 'fest_los_t':
-        return get_fest_los_t_domain()
-    elif type == 'cooks':
-        return get_cooks_domain()
-    else:
-        raise ValueError(f"Unknown domain type: {type}")
