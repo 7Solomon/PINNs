@@ -29,8 +29,10 @@ def load_loss_history_object(fname):
     # For this example, we'll use the header to determine column counts
     try:
         with open(fname, 'r') as f:
-            header = f.readline().strip('# \n').split(',')
-        
+            header_line = f.readline().strip() # Read and strip the whole line
+            if header_line.startswith('#'):
+                header_line = header_line[1:].strip() # Remove '#' and then strip again
+            header = [h.strip() for h in header_line.split(',')] # Split by comma and strip each item
         # Count occurrences of each component type
         loss_train_count = header.count('loss_train')
         loss_test_count = header.count('loss_test')

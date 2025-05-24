@@ -10,6 +10,8 @@ class ConcreteData:
     rho: float = 6e3  # kg/m^3
     k: float = 0.2 # W/(m*K)
 
+    E: float = 3e10 # Pa
+    nu: float = 0.2 
     
     def alpha(self):
         return self.k/(self.rho*self.cp) # m^2/s
@@ -42,7 +44,14 @@ class BernoulliBalkenConfig(BConfig):
 @dataclass
 class BernoulliBalken2DConfig(BConfig):
     input_dim: int = 2
-    #output_dim: int = 1
+    output_dim: int = 2
+
+    def C(self, material):
+        return material.E / ((1+material.nu)*(1-2*material.nu))  * torch.tensor([
+                                                                                    [1-material.nu, material.nu, 0],
+                                                                                    [material.nu, 1-material.nu, 0],
+                                                                                    [0, 0, (1-2*material.nu)/2]
+                                                                                ])
 
 @dataclass
 class BernoulliBalkenTconfig(BConfig):

@@ -1,7 +1,7 @@
 from config import BConfig
 
 class Domain:
-    def __init__(self, dim, spatial, temporal = None):
+    def __init__(self, spatial, temporal = None):
         self.spatial = spatial
         self.temporal = temporal
 
@@ -10,9 +10,10 @@ class Domain:
             "spatial": self.spatial,
             "temporal": self.temporal
         }
-    def from_dict(self, data):
-        self.spatial = data["spatial"]
-        self.temporal = data["temporal"]
+    def from_dict(data):
+        spatial = data["spatial"]
+        temporal = data["temporal"]
+        return Domain(spatial=spatial, temporal=temporal)
     def __repr__(self):
         return f"Domain(spatial={self.spatial}, temporal={self.temporal})"
 
