@@ -25,7 +25,7 @@ def pde_2d_residual(x, y):
 
   #scaled_sigmax_x, scaled_sigmay_y, scaled_tauxy_y, scaled_tauxy_x = scale_u(sigmax_x), scale_u(sigmay_y), scale_u(tauxy_y), scale_u(tauxy_x)
   #return [scaled_sigmax_x + scaled_tauxy_y - 1.0, scaled_sigmay_y + scaled_tauxy_x - 1.0]
-  return [sigmax_x + tauxy_y - 1.0, sigmay_y + tauxy_x - 1.0]
+  return [sigmax_x + tauxy_y, sigmay_y + tauxy_x - 1.0]
 def pde_1d_t_residual(x, y): 
   w_tt = dde.grad.hessian(y,x, i=1,j=1)
   w_xx = dde.grad.hessian(y,x, i=0,j=0)

@@ -41,135 +41,103 @@ def visualize_field_1d(model, type):
     #plt.savefig("Field_1d.png")
     #plt.show()
 
-def visualize_field_2d(model, type):
+
+def visualize_field_2d(model, test):
+    """
+    Visualizes the 2D displacement field predicted by a model.
+
+    Args:
+        model: The trained model with a .predict() method.
+        domain_vars: A Domain object or similar structure defining spatial bounds.
+        scale_x: Scaling factor for x-coordinates.
+        scale_y: Scaling factor for y-coordinates.
+
+    Returns:
+        A dictionary containing the matplotlib Figure object.
+    """
     domain_vars = Domain(
         spatial={
-            'x':(0,10),
-            'y':(0,1)
-        }
+            'x': (0,10),
+            'y': (0,1),
+        },
     )
+    # Get domain and points
     domain = get_2d_domain(domain_vars, scale_x, scale_y)
     points, X, Y, nx, ny = domain['normal']
-    scaled_points, scaled_X, scaled_Y, nx, ny = domain['scaled']
+    scaled_points, scaled_X, scaled_Y, _, _ = domain['scaled']
 
+    # Get predictions
     predictions = model.predict(scaled_points)
-    
-    # Debug info
-    print(f"Domain: x=(0,10), y=(0,1) - should be horizontal beam")
-    print(f"Points shape: {scaled_points.shape}")
-    print(f"Predictions shape: {predictions.shape}")
-    print(f"Grid dimensions: nx={nx}, ny={ny}")
-    
-    # Flatten coordinate arrays
-    if len(scaled_X.shape) > 1:
-        scaled_X_flat = scaled_X.flatten()
-        scaled_Y_flat = scaled_Y.flatten()
-    else:
-        scaled_X_flat = scaled_X
-        scaled_Y_flat = scaled_Y
-    
-    # Get actual number of points
-    total_points = predictions.shape[0]
-    
-    # Subsample for visualization (25M points is too many)
-    if total_points > 100000:  # If more than 100k points, subsample
-        step = total_points // 50000  # Take every nth point to get ~50k points
-        indices = np.arange(0, total_points, step)
-        scaled_X_flat = scaled_X_flat[indices]
-        scaled_Y_flat = scaled_Y_flat[indices]
-        predictions = predictions[indices]
-        total_points = len(indices)
-        print(f"Subsampled to {total_points} points for visualization")
-    
-    # Ensure coordinate arrays match prediction length
-    if len(scaled_X_flat) != total_points:
-        scaled_X_flat = scaled_X_flat[:total_points]
-        scaled_Y_flat = scaled_Y_flat[:total_points]
-    
-    # Convert back to original domain coordinates for proper visualization
+    # predictions = scale_u(predictions) # Uncomment if you need to scale output
+
+    # --- Extract min/max for bounds (Needed for outline/limits) ---
     x_min, x_max = domain_vars.spatial['x']
     y_min, y_max = domain_vars.spatial['y']
-    
-    # Assuming scaled coordinates are in [0,1], map back to original domain
-    original_X = scaled_X_flat * (x_max - x_min) + x_min
-    original_Y = scaled_Y_flat * (y_max - y_min) + y_min
-    
-    print(f"Original X range: {original_X.min():.3f} to {original_X.max():.3f}")
-    print(f"Original Y range: {original_Y.min():.3f} to {original_Y.max():.3f}")
-    
-    # Infer reasonable grid dimensions
-    sqrt_points = int(np.sqrt(total_points))
-    if sqrt_points * sqrt_points == total_points:
-        nx = ny = sqrt_points
-    else:
-        # Find best rectangular grid that matches beam aspect ratio
-        aspect_ratio = (x_max - x_min) / (y_max - y_min)  # Should be 10
-        ny = int(np.sqrt(total_points / aspect_ratio))
-        nx = total_points // ny
-    
-    print(f"Using grid dimensions: nx={nx}, ny={ny}")
-    
-    # Create visualization
+    # -------------------------------------------------------------
+
+    # Create visualization (2x2 grid)
     fig, axes = plt.subplots(2, 2, figsize=(15, 12))
-    
-    # 1. Displacement magnitude
+    fig.suptitle('2D Field Visualization', fontsize=16) # Add an overall title
+
+    # Calculate displacement magnitude (assuming X, Y are now 2D: [ny, nx])
     displacement_magnitude = np.sqrt(predictions[:, 0]**2 + predictions[:, 1]**2)
-    
-    try:
-        if nx * ny == total_points:
-            displacement_magnitude_2d = displacement_magnitude.reshape(ny, nx)
-            X_reshaped = original_X.reshape(ny, nx)
-            Y_reshaped = original_Y.reshape(ny, nx)
-            
-            contour = axes[0, 0].contourf(X_reshaped, Y_reshaped, 
-                                          displacement_magnitude_2d, levels=20, cmap='viridis')
-            axes[0, 0].set_title("Displacement Magnitude")
-            plt.colorbar(contour, ax=axes[0, 0])
-        else:
-            raise ValueError("Grid dimensions don't match")
-            
-    except ValueError:
-        # Fall back to scatter plot
-        scatter = axes[0, 0].scatter(original_X, original_Y, c=displacement_magnitude, 
-                                   cmap='viridis', s=1, alpha=0.7)
-        axes[0, 0].set_title("Displacement Magnitude (scatter)")
-        plt.colorbar(scatter, ax=axes[0, 0])
-    
-    # 2. Deformed shape
-    scale_factor = 5.0  # Exaggerate deformation for visibility
-    deformed_X = original_X + scale_factor * predictions[:, 0]
-    deformed_Y = original_Y + scale_factor * predictions[:, 1]
-    
-    axes[0, 1].scatter(original_X, original_Y, c='blue', s=0.5, alpha=0.3, label='Original')
-    axes[0, 1].scatter(deformed_X, deformed_Y, c='red', s=0.5, alpha=0.7, label=f'Deformed (×{scale_factor})')
-    axes[0, 1].set_title("Deformed Shape")
-    axes[0, 1].legend()
-    axes[0, 1].set_aspect('equal')
-    
-    # 3. X-displacement
-    scatter_x = axes[1, 0].scatter(original_X, original_Y, c=predictions[:, 0], 
-                                 cmap='RdBu_r', s=1, alpha=0.7)
-    axes[1, 0].set_title("X-Displacement")
-    plt.colorbar(scatter_x, ax=axes[1, 0])
-    
-    # 4. Y-displacement
-    scatter_y = axes[1, 1].scatter(original_X, original_Y, c=predictions[:, 1], 
-                                 cmap='RdBu_r', s=1, alpha=0.7)
-    axes[1, 1].set_title("Y-Displacement")
-    plt.colorbar(scatter_y, ax=axes[1, 1])
-    
-    # Add beam outline to all plots
+    displacement_magnitude_2d = displacement_magnitude.reshape(ny, nx)
+
+    # 1. Displacement Magnitude (Top-Left)
+    ax = axes[0, 0]
+    contour = ax.contourf(X, Y, displacement_magnitude_2d, levels=20, cmap='viridis')
+    ax.set_title("Displacement Magnitude")
+    plt.colorbar(contour, ax=ax, shrink=0.8) # Add colorbar
+    ax.set_aspect('equal') # Often good for physical fields
+
+    # Calculate deformed shape (assuming X, Y are 2D: [ny, nx])
+    u_x = predictions[:, 0].reshape(ny, nx)
+    u_y = predictions[:, 1].reshape(ny, nx)
+    scale_factor = 5.0  # Adjust for visibility
+    deformed_X = X + scale_factor * u_x
+    deformed_Y = Y + scale_factor * u_y
+
+    # 2. Deformed Shape (Top-Right)
+    ax = axes[0, 1]
+    ax.scatter(X, Y, c='blue', s=0.5, alpha=0.3, label='Original')
+    ax.scatter(deformed_X, deformed_Y, c='red', s=0.5, alpha=0.7, label=f'Deformed (×{scale_factor})')
+    ax.set_title("Deformed Shape")
+    ax.legend()
+    ax.set_aspect('equal') # Crucial for deformation plots
+
+    # 3. X-Displacement (Bottom-Left)
+    ax = axes[1, 0]
+    # Use reshape on the color data if X, Y are 2D, or plot flattened X, Y
+    scatter_x = ax.scatter(X, Y, c=predictions[:, 0], cmap='RdBu_r', s=1, alpha=0.7)
+    ax.set_title("X-Displacement ($u_x$)")
+    plt.colorbar(scatter_x, ax=ax, shrink=0.8)
+    ax.set_aspect('equal')
+
+    # 4. Y-Displacement (Bottom-Right)
+    ax = axes[1, 1]
+    scatter_y = ax.scatter(X, Y, c=predictions[:, 1], cmap='RdBu_r', s=1, alpha=0.7)
+    ax.set_title("Y-Displacement ($u_y$)")
+    plt.colorbar(scatter_y, ax=ax, shrink=0.8)
+    ax.set_aspect('equal')
+
+    # --- Add beam outline and format all plots ---
     beam_outline = np.array([[x_min, y_min], [x_max, y_min], [x_max, y_max], [x_min, y_max], [x_min, y_min]])
     
     for ax in axes.flat:
-        ax.plot(beam_outline[:, 0], beam_outline[:, 1], 'k-', linewidth=2, alpha=0.8)
-        ax.grid(True, alpha=0.3)
-        ax.set_xlabel('X')
-        ax.set_ylabel('Y')
-        ax.set_xlim(x_min-0.5, x_max+0.5)
-        ax.set_ylim(y_min-0.5, y_max+0.5)
+        ax.plot(beam_outline[:, 0], beam_outline[:, 1], 'k-', linewidth=1.5, alpha=0.9, label='Boundary')
+        ax.grid(True, linestyle='--', alpha=0.4)
+        ax.set_xlabel('X-coordinate')
+        ax.set_ylabel('Y-coordinate')
+        # Set limits with a small buffer
+        ax.set_xlim(x_min - 0.1 * (x_max - x_min), x_max + 0.1 * (x_max - x_min))
+        ax.set_ylim(y_min - 0.1 * (y_max - y_min), y_max + 0.1 * (y_max - y_min))
+
+    # Add legend only once if using the 'Boundary' label
+    axes[0,1].legend() # Re-call legend on one plot to include 'Boundary' if needed
+
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95]) # Adjust layout to make space for suptitle
     
-    plt.tight_layout()
-    #plt.savefig("Field_2d_comprehensive.png", dpi=300, bbox_inches='tight')
-    #plt.show()^
+    # plt.savefig("Field_2d_comprehensive.png", dpi=300, bbox_inches='tight')
+    # plt.show()
+    
     return {'field': fig}

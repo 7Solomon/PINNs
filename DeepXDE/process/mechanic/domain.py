@@ -17,12 +17,7 @@ def boundary_left(x, on_boundary):
     return on_boundary and np.isclose(x[0], 0)
 def boundary_right(x, on_boundary):
     return on_boundary and np.isclose(x[0], 1)
-def get_fest_los_domain():
-    domain = Domain(
-        spatial={
-            'x':(0,1)
-        }
-    )
+def get_fest_los_domain(domain_vars):
     geom = dde.geometry.Interval(0,1)
 
     bc_left_w = dde.DirichletBC(geom, lambda x: 0, boundary_left)
@@ -38,35 +33,48 @@ def get_fest_los_domain():
                         num_boundary=50)
     # wights 
     #data.set_weights([1, 1, 1, 1])
-    return data, domain
+    return data
 
 def boundary_left_bottom(x, on_boundary):
     return on_boundary and np.isclose(x[0], 0)
 def boundary_right_bottom(x, on_boundary):
    return on_boundary and np.isclose(x[0], 10)
 
-def get_fest_los_domain_2d():
-    domain = Domain(
-        spatial={
-            'x':(0,10),
-            'y':(0,1)
-        }
-    )
+#def get_fest_los_domain_2d():
+#    domain = Domain(
+#        spatial={
+#            'x':(0,10),
+#            'y':(0,1)
+#        }
+#    )
+#    geom = dde.geometry.Rectangle(xmin=[0, 0], xmax=[10, 1])#
+
+#    bc_left_bottom_u = dde.DirichletBC(geom, lambda x: 0.0, boundary_left_bottom , component=0)
+#    bc_left_bottom_v = dde.DirichletBC(geom, lambda x: 0.0, boundary_left_bottom , component=1)
+#    bc_right_bottom_u = dde.DirichletBC(geom, lambda x: 0.0, boundary_right_bottom, component=0)#
+
+#    data = dde.data.PDE(geom,
+#                        pde_2d_residual, 
+#                        [bc_left_bottom_u, bc_left_bottom_v, bc_right_bottom_u], 
+#                        num_domain=2000, 
+#                        num_boundary=500)
+#    
+#    return data, domain
+
+def get_einspannung_domain_2d(domain_vars):
     geom = dde.geometry.Rectangle(xmin=[0, 0], xmax=[10, 1])
 
     bc_left_bottom_u = dde.DirichletBC(geom, lambda x: 0.0, boundary_left_bottom , component=0)
     bc_left_bottom_v = dde.DirichletBC(geom, lambda x: 0.0, boundary_left_bottom , component=1)
-    bc_right_bottom_u = dde.DirichletBC(geom, lambda x: 0.0, boundary_right_bottom, component=0)
 
     data = dde.data.PDE(geom,
                         pde_2d_residual, 
-                        [bc_left_bottom_u, bc_left_bottom_v, bc_right_bottom_u], 
+                        [bc_left_bottom_u, bc_left_bottom_v], 
                         num_domain=2000, 
                         num_boundary=500)
-    
-    return data, domain
+    return data
 
-def get_einspannung_domain():
+def get_einspannung_domain(domain_vars):
     geom = dde.geometry.Interval(0,1)
 
     bc_left_w = dde.DirichletBC(geom, lambda x: 0, boundary_left)
