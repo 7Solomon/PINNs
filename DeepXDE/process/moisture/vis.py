@@ -1,9 +1,10 @@
+from utils.metadata import Domain
 from process.moisture.scale import rescale_h, scale_t, scale_z
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-def vis_1d_head(model, domain, interval=200, title='Richards 1d', xlabel='z', ylabel='u(z,t)'):
+def vis_1d_head(model, type, interval=200, title='Richards 1d', xlabel='z', ylabel='u(z,t)'):
     """
     Generates an animation of a 1D model's prediction changing over time.
 
@@ -16,6 +17,13 @@ def vis_1d_head(model, domain, interval=200, title='Richards 1d', xlabel='z', yl
         xlabel (str, optional): Label for the x-axis. Defaults to 'x'.
         ylabel (str, optional): Label for the y-axis. Defaults to 'u(x,t)'.
     """
+    domain = Domain(
+        spatial={
+            'z': (0, 1),
+        }, temporal={
+            't': (0, 1.1e10)
+        }
+    )
     z_start, z_end = domain.spatial['z']
     t_start, t_end = domain.temporal['t']
     num_x_points = 100
@@ -65,6 +73,6 @@ def vis_1d_head(model, domain, interval=200, title='Richards 1d', xlabel='z', yl
     ani = animation.FuncAnimation(fig, update, frames=num_t_points,
                                   interval=interval, blit=True, repeat=False)
     
-    ani.save('animation.mp4', writer='ffmpeg', fps=1000/interval)
+    #ani.save('animation.mp4', writer='ffmpeg', fps=1000/interval)
     #plt.show() # geht glaube nocht auf ssh
-    return ani
+    return {'field': ani}

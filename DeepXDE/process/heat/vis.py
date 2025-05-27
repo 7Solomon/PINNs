@@ -8,22 +8,19 @@ import matplotlib.pyplot as plt
 from matplotlib import animation, cm
 
 from process.heat.scale import *
-def visualize_steady_field(model, type):
-    domain_vars = Domain(
-        spatial={
-            'x':(0,2),
-            'y':(0,1)
-        }
-    )
-    domain = get_2d_domain(domain_vars, scale_x, scale_y)
+def visualize_steady_field(model, domain_vars):
+    steady_heat_scale = Scale(domain_vars)
+    domain = get_2d_domain(domain_vars, steady_heat_scale.scale_x, steady_heat_scale.scale_y)
     points, X, Y, nx, ny = domain['normal']
     points_scaled, X_scaled, Y_scaled, nx, ny = domain['scaled']
 
     predictions = model.predict(points_scaled)
-    Z = predictions.reshape(ny, nx)
+    predictions = predictions.reshape(ny, nx)
+    predictions = rescale_value(predictions)
 
     #PLOT
-    plt.contourf(X, Y, Z, 50, cmap=cm.jet)
+    plt.figure(figsize=(10,5))
+    plt.contourf(X, Y, predictions, 50, cmap=cm.jet)
     plt.colorbar(label='Steady Heat')
     plt.xlabel('x')
     plt.ylabel('y')
@@ -33,49 +30,46 @@ def visualize_steady_field(model, type):
     #plt.show()
     return {'field': plt.gcf()}
 
-def visualize_transient_field(model, type ,save_animation=False):
-    domain_vars = Domain(
-        spatial={
-            'x':(0,2),
-            'y':(0,1)
-        }
-    )
-    domain = get_2d_time_domain(domain_vars, scale_x, scale_y, scale_t)
-    
+def visualize_transient_field(model, domain_vars):
+    transient_heat_scale = Scale(domain_vars)
+    domain = get_2d_time_domain(domain_vars, transient_heat_scale.scale_x, transient_heat_scale.scale_y, transient_heat_scale.scale_t)
+
     points, X, Y, t, nx, ny, nt = domain['normal']
     scaled_points, X_scaled, Y_scaled, t_scaled, nx, ny, nt = domain['scaled']
-
+    
+    print('scaled_points: ', scaled_points.shape)
+    print('X_scaled', X_scaled.shape)
+    print('Y_scaled', Y_scaled.shape)
     predictions = model.predict(scaled_points)
+    predictions = predictions.reshape(ny, nx, nt)
     predictions = rescale_value(predictions)
 
-    fig, ax = plt.subplots(figsize=(8, 6))
+    fig, ax = plt.subplots(figsize=(10, 5))
 
     
     # First frame
-    cont = ax.contourf(X, Y, predictions[:,:,0], 50, cmap=cm.jet, vmin=predictions.min(), vmax=predictions.max())
+    cont = ax.contourf(X[:,:,0], Y[:,:,0], predictions[:,:,0], 50, cmap=cm.jet, vmin=predictions.min(), vmax=predictions.max())
     cbar = fig.colorbar(cont, ax=ax)
     cbar.set_label('Field Prediction')
     ax.set_xlabel('x')
     ax.set_ylabel('y')
-    ax.set_title(f'Distribution at [t={t[0]:.3f}]')
+    ax.set_title(f'Distribution at [t={(t[0,0,0]/(60*60*24)):.3f} days]')
     
     def update(frame):
         ax.clear()
-        cont = ax.contourf(X, Y, predictions[:,:,frame], 50, cmap=cm.jet, vmin=predictions.min(), vmax=predictions.max())
+        cont = ax.contourf(X[:,:,frame], Y[:,:,frame], predictions[:,:,frame], 50, cmap=cm.jet, vmin=predictions.min(), vmax=predictions.max())
         ax.set_xlabel('x')
         ax.set_ylabel('y')
-        ax.set_title(f'Distribution[t={t[frame]:.3f}]')
+        ax.set_title(f'Distribution at [t={(t[0,0,frame]/(60*60*24)):.3f} days]')
         cbar.update_normal(cont)
         return cont
     
     ani = animation.FuncAnimation(fig, update, frames=nt, interval=100)
-    
-    if save_animation:
-        ani.save('ka_volution.mp4', writer='ffmpeg', dpi=300)
-        
+
     plt.tight_layout()
     plt.show()
-    return {'field': fig}
+    #return {'field': fig}
+    return {'field': ani}
 
 
 #def visualize_field(model, type, inverse_scale=None):

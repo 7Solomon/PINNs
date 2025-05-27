@@ -5,24 +5,22 @@ import deepxde as dde
 from process.heat.residual import lp_residual, steady_lp_residual
 
 
-def boundary_left(x, on_boundary):
-    return on_boundary and np.isclose(x[0], scale_x(0))
-def boundary_right(x, on_boundary):
-    return on_boundary and np.isclose(x[0], scale_x(2))
+def boundary_left(x, on_boundary, x_min, transient_heat_scaling):
+    return on_boundary and np.isclose(x[0], transient_heat_scaling.scale_x(x_min))
+def boundary_right(x, on_boundary, x_max, transient_heat_scaling):
+    return on_boundary and np.isclose(x[0], transient_heat_scaling.scale_x(x_max))
 
-def get_steady_domain():
-    domain = Domain(spatial={
-        'x': (0, 2),
-        'y': (0, 1)
-    }, temporal=None)
+def get_steady_domain(domain_vars):
+    x_min, x_max = domain_vars.spatial['x']
+    y_min, y_max = domain_vars.spatial['y']
+    steady_heat_scaling = Scale(domain_vars)
+    geom = dde.geometry.Rectangle((steady_heat_scaling.scale_x(x_min), steady_heat_scaling.scale_y(y_min)), (steady_heat_scaling.scale_x(x_max), steady_heat_scaling.scale_y(y_max)))
 
-    geom = dde.geometry.Rectangle((0,0),(scale_x(2),scale_y(1)))
+    bc_left = dde.DirichletBC(geom, lambda x: scale_value(100.0), lambda x, on_boundary: boundary_left(x, on_boundary, x_min, steady_heat_scaling))
+    bc_right = dde.DirichletBC(geom, lambda x: scale_value(0.0), lambda x, on_boundary: boundary_right(x, on_boundary, x_max, steady_heat_scaling))
 
-    bc_left = dde.DirichletBC(geom, lambda x: scale_value(100.0), boundary_left)
-    bc_right = dde.DirichletBC(geom, lambda x: scale_value(0.0), boundary_right)
-    
     data = dde.data.PDE(geom, 
-                        steady_lp_residual, 
+                        lambda x,y: steady_lp_residual(x, y, steady_heat_scaling), 
                         [bc_left, bc_right], 
                         num_domain=200, 
                         num_boundary=50)
@@ -31,44 +29,34 @@ def get_steady_domain():
     
     return data
 
-def get_transient_domain():
-    domain = Domain(spatial={
-        'x': (0, 2),
-        'y': (0, 1)
-    }, temporal={
-        't': (0, 1.1e7)
-    })
-    geom = dde.geometry.Rectangle((0, 0), (scale_x(2), scale_y(1)))
+def get_transient_domain(domain_vars):
+    x_min, x_max = domain_vars.spatial['x']
+    y_min, y_max = domain_vars.spatial['y']
+    t_min, t_max = domain_vars.temporal['t']
+    transient_heat_scaling = Scale(domain_vars)
+    geom = dde.geometry.Rectangle((transient_heat_scaling.scale_x(x_min), transient_heat_scaling.scale_y(y_min)), (transient_heat_scaling.scale_x(x_max), transient_heat_scaling.scale_y(y_max)))
 
-    timedomain = dde.geometry.TimeDomain(0, scale_time(1.1e7))   # mit L^2/(pi^2*alpha) geschätzt
+    timedomain = dde.geometry.TimeDomain(transient_heat_scaling.scale_t(t_min), transient_heat_scaling. scale_t(t_max))   # mit L^2/(pi^2*alpha) geschätzt, und wieder geändert
     geomtime = dde.geometry.GeometryXTime(geom, timedomain)
     
     # BC
     bc_left = dde.DirichletBC(
         geomtime, 
-        lambda x: scale_value(100.0), boundary_left)
+        lambda x: scale_value(100.0), lambda x, on_boundary: boundary_left(x, on_boundary, x_min, transient_heat_scaling))
     bc_right = dde.DirichletBC(
         geomtime, 
-        lambda x: scale_value(0.0), boundary_right)
-    
+        lambda x: scale_value(0.0), lambda x, on_boundary: boundary_right(x, on_boundary, x_max, transient_heat_scaling))
+
     # IC
     ic = dde.IC(geomtime, 
         lambda x: scale_value(0.0), lambda _, on_initial: on_initial)
 
     data = dde.data.TimePDE(
         geomtime,
-        lp_residual,
+        lambda x,y: lp_residual(x, y, transient_heat_scaling),
         [bc_left, bc_right, ic],
-        num_domain=200,
-        num_boundary=50,
-        num_initial=100
+        num_domain=1600,
+        num_boundary=600,
+        num_initial=400
     )
-    return data, domain
-
-def get_domain(type):
-    if type == 'steady':
-        return get_steady_domain()
-    elif type == 'transient':
-        return get_transient_domain()
-    else:
-        raise ValueError(f'Unbekannter Typ: {type}')
+    return data

@@ -2,6 +2,7 @@ from utils.metadata import Domain
 from process.moisture.scale import *
 import deepxde as dde
 import numpy as np
+import torch
 
 from process.moisture.residual import HC, residual
 
@@ -55,25 +56,17 @@ def get_simple_domain():
                         num_boundary=50
                         
                     )
-def get_1d_domain():
-
-    domain = Domain(
-        spatial={
-            'z': (0, 1),
-        }, temporal={
-            't': (0, 1.1e10)
-        }
-    )
-
+def get_1d_domain(domain_vars):
     geom = dde.geometry.Interval(0,scale_z(1))
     time = dde.geometry.TimeDomain(0, scale_t(1e10))   # mit L^2/(K_S/C)
     geomTime = dde.geometry.GeometryXTime(geom, time)
 
-    bc_initial = dde.IC(geomTime, lambda x: scale_h(-10),
+    bc_initial = dde.IC(geomTime, lambda x: scale_h(-0.01),
                 boundary_initial)
-    bc_left = dde.NeumannBC(geomTime, lambda x: scale_h(-10),  # close to NO FLUX
+    bc_left = dde.NeumannBC(geomTime, lambda x: HC(torch.ones_like(torch.tensor(x))*scale_h(-0.01)), #scale_h(-10),  # close to NO FLUX
                 boundary_left)
-    bc_right = dde.DirichletBC(geomTime, lambda x: scale_h(-9558),   # hs = (R*Tk)/(Mw*g)*ln(RH)   # RH = 0.5  Tk = 293.15
+    
+    bc_right = dde.DirichletBC(geomTime, lambda x: scale_h(-200),   # hs = (R*Tk)/(Mw*g)*ln(RH)   # RH = 0.5  Tk = 293.15
                 boundary_right)
 
     data = dde.data.TimePDE(geomTime,
@@ -85,9 +78,4 @@ def get_1d_domain():
                         
                     )
     
-    return data, domain
-def get_domain(type):
-    if type == '2d_head':
-        return get_simple_domain()
-    elif type == '1d_head':
-        return get_1d_domain()
+    return data

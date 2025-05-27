@@ -1,11 +1,14 @@
+import domain_vars
 import process
 import config
+import process.heat.output_transform
 import vis
 
 MAP = {
     'mechanic':{
         'fest_los': {
             'domain': process.mechanic.domain.get_fest_los_domain,
+            'domain_vars': domain_vars.fest_lost_domain,
             'config': config.bernoulliBalkenConfig,
             'vis': {
                 'loss': vis.plot_loss,
@@ -14,18 +17,31 @@ MAP = {
             },
             'path': 'models/mechanic/fest_los',
         },
-        'fest_los_2d': {
-            'domain': process.mechanic.domain.get_fest_los_domain_2d,
+        'einspannung_2d':{
+            'domain': process.mechanic.domain.get_einspannung_domain_2d,
+            'domain_vars': domain_vars.einspannung_2d_domain,
             'config': config.BernoulliBalken2DConfig,
             'vis' : {
                 'loss': vis.plot_loss,
                 'field': process.mechanic.vis.visualize_field_2d,
                 #'div': process.mechanic.vis.visualize_divergence,
             },
-            'path': 'models/mechanic/fest_los_2d',
+            'path': 'models/mechanic/einspannung_2d',
+        
         },
+        #'fest_los_2d': {
+        #    'domain': process.mechanic.domain.get_fest_los_domain_2d,
+        #    'config': config.BernoulliBalken2DConfig,
+        #    'vis' : {
+        #        'loss': vis.plot_loss,
+        #        'field': process.mechanic.vis.visualize_field_2d,
+        #        #'div': process.mechanic.vis.visualize_divergence,
+        #    },
+        #    'path': 'models/mechanic/fest_los_2d',
+        #},
        'einspannung': {
             'domain': process.mechanic.domain.get_einspannung_domain,
+            'domain_vars': domain_vars.einspannung_2d_domain,
             'config': config.bernoulliBalkenConfig,
             'vis' : {
                 'loss': vis.plot_loss,
@@ -36,6 +52,7 @@ MAP = {
         },
         'fest_los_t': {
             'domain': process.mechanic.domain.get_fest_los_t_domain,
+            #'domain_vars': domain_vars.fest_lost_domain,
             'config': config.bernoulliBalkenTConfig,
             'vis' : {
                 'loss': vis.plot_loss,
@@ -58,7 +75,9 @@ MAP = {
     'heat':{
         'steady': {
             'domain': process.heat.domain.get_steady_domain,
+            'domain_vars': domain_vars.steady_heat_2d_domain,
             'config': config.steadyHeatConfig,
+            #'output_transform': process.heat.output_transform.output_transform,
             'vis' : {
                 'loss': vis.plot_loss,
                 'field': process.heat.vis.visualize_steady_field,
@@ -68,10 +87,11 @@ MAP = {
         },
         'transient': {
             'domain': process.heat.domain.get_transient_domain,
+            'domain_vars': domain_vars.transient_heat_2d_domain,
             'config': config.transientHeatConfig,
             'vis' : {
                 'loss': vis.plot_loss,
-                'field': process.heat.vis.visualize_steady_field,
+                'field': process.heat.vis.visualize_transient_field,
                 #'div': process.heat.vis.visualize_divergence,
             },
             'path': 'models/heat/transient',
@@ -80,6 +100,7 @@ MAP = {
     'moisture':{
         '1d_head': {
             'domain': process.moisture.domain.get_1d_domain,
+            'domain_vars': domain_vars.moisture_1d_head_domain,
             'config': config.richards1DConfig,
             'vis' : {
                 'loss': vis.plot_loss,

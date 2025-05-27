@@ -1,4 +1,5 @@
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field, fields
+import json
 import math
 import torch
 
@@ -15,12 +16,38 @@ class ConcreteData:
     
     def alpha(self):
         return self.k/(self.rho*self.cp) # m^2/s
+    
+
 
 @dataclass
 class BConfig:
     @property
     def type(self) -> str:
         return self.__class__.__name__.lower()
+    
+    #def to_json(self):
+    #    """Convert the config to a JSON string."""
+    #    data = asdict(self)
+    #    # Add the class type for reconstruction
+    #    data['__class__'] = self.__class__.__name__
+    #    return json.dumps(data, indent=2)
+
+    #@classmethod
+    #def from_json(cls, json_str):
+    #    """Create a config instance from a JSON string."""
+    #    data = json.loads(json_str)
+    #    
+    #    # Get the class name and remove it from data
+    #    class_name = data.pop('__class__', cls.__name__)
+    #    
+    #    # Find the correct class in the global namespace
+    #    config_class = globals().get(class_name, cls)
+    #    
+    #    # Filter data to only include fields that exist in the target class
+    #    valid_fields = {f.name for f in fields(config_class)}
+    #    filtered_data = {k: v for k, v in data.items() if k in valid_fields}
+    #    
+    #    return config_class(**filtered_data)
 
 
 @dataclass
@@ -58,17 +85,7 @@ class BernoulliBalkenTconfig(BConfig):
     input_dim: int = 2
     output_dim: int = 1
 
-    ## material
-    #E = 10e10 # pa
-    #I = 4e4 # m^4
-    #rho = 2e3 #KG/m3
-    #A = 1
-    #c = field(default=None)
-#
-    ## geom
-    #L = math.pi**2 # m
-    #T = math.pi**2/200 # s
-#
+
     #def __post_init__(self):
     #    self.c = math.sqrt((self.E*self.I)/(self.rho*self.A))
     

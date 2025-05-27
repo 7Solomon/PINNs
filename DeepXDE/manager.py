@@ -37,19 +37,20 @@ def manage_args(args):
     subtype = args.type[1] if len(args.type) > 1 else None
     if process_type not in MAP and not subtype in MAP[process_type]:
         raise ValueError(f'Du bist ein dummer Mensch, {process_type} ist nicht in der MAP')
-    
-    ### GET FROM MAP
-    domain_func = MAP[process_type][subtype]['domain']
-    config = MAP[process_type][subtype]['config']
 
-    data, domain_vars = domain_func()
+    output_transform = MAP[process_type][subtype].get('output_transform', None)
+    config = MAP[process_type][subtype]['config']
 
 
     if args.command == 'add':
-        model = create_model(data, config)
+        domain_func = MAP[process_type][subtype]['domain']
+        domain_vars = MAP[process_type][subtype]['domain_vars']
+
+        data = domain_func(domain_vars)
+
+        model = create_model(data, config, output_transform=output_transform)
     elif args.command == 'load':
-        model = create_model(data, config)
-        model, loss_history = load_function(model, process_type, subtype)
+        model, domain_vars = load_function(process_type, subtype, config, output_transform=output_transform)
     elif args.command == 'list':
         raise NotImplementedError('List not implemented')
     else:
@@ -62,15 +63,15 @@ def manage_args(args):
         #np.save('train_state.npy', train_state)
 
     ### VIS
-    Vis = visualize(args.vis, process_type, subtype, model, loss_history, args)            
-    
+    Vis = visualize(args.vis, process_type, subtype, model, loss_history, args, domain_vars)
+
     ### SAVE
     if args.save:
         save_function(model, domain_vars, loss_history, Vis, process_type, subtype)    
 
 
 
-def visualize(vis_type, process_type, subtype, model, loss_history, args):
+def visualize(vis_type, process_type, subtype, model, loss_history, args, domain_vars):
     vis = {}
     if vis_type in ['loss', 'all']:
         try:
@@ -83,7 +84,7 @@ def visualize(vis_type, process_type, subtype, model, loss_history, args):
     
     if vis_type in ['field', 'all']:
         try:
-            field_figures = MAP[process_type][subtype]['vis']['field'](model, subtype)
+            field_figures = MAP[process_type][subtype]['vis']['field'](model, domain_vars)
             vis.update(field_figures)
         except KeyError as e:
             print(f"Warning: Field visualization not available for {process_type}/{subtype}: {e}")
