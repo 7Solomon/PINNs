@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-def vis_1d_head(model, type, interval=200, title='Richards 1d', xlabel='z', ylabel='u(z,t)'):
+def vis_1d_mixed(model, type, interval=200, title='Richards 1d', xlabel='z', ylabel='u(z,t)'):
     """
     Generates an animation of a 1D model's prediction changing over time.
 

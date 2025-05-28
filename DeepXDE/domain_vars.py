@@ -30,7 +30,7 @@ fest_lost_domain = Domain(
         }
     )
 
-moisture_1d_head_domain = Domain(
+moisture_1d_mixed_domain = Domain(
         spatial={
             'z': (0, 1),
         }, temporal={
