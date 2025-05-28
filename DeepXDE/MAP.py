@@ -98,16 +98,16 @@ MAP = {
         }
     },
     'moisture':{
-        '1d_head': {
-            'domain': process.moisture.domain.get_1d_domain,
-            'domain_vars': domain_vars.moisture_1d_head_domain,
+        '1d_mixed': {
+            'domain': process.moisture.domain.get_1d_mixed_domain,
+            'domain_vars': domain_vars.moisture_1d_mixed_domain,
             'config': config.richards1DConfig,
             'vis' : {
                 'loss': vis.plot_loss,
-                'field': process.moisture.vis.vis_1d_head,
+                'field': process.moisture.vis.vis_1d_mixed,
                 #'div': process.moisture.vis.visualize_divergence,
             },
-            'path': 'models/moisture/1d_head',
+            'path': 'models/moisture/1d_mixed',
         },
     }
 }
