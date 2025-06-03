@@ -5,6 +5,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from vis import get_2d_domain
 
+from domain_vars import fest_lost_2d_domain
+
 
 
 def analytical_solution_FLL(x, q=1, L=1, EI=1):
@@ -20,7 +22,7 @@ analytical_mapping = {
     #'2D_fest_los': None,
 }
 
-def visualize_field_1d(model, type):
+def visualize_field_1d(model, **kwargs):
     x = np.linspace(0, 1, 1000)[:, None]
     y = model.predict(x)
     y_analytical = analytical_mapping[type](x)
@@ -42,7 +44,7 @@ def visualize_field_1d(model, type):
     #plt.show()
 
 
-def visualize_field_2d(model, test):
+def visualize_field_2d(model, **kwargs):
     """
     Visualizes the 2D displacement field predicted by a model.
 
@@ -55,14 +57,9 @@ def visualize_field_2d(model, test):
     Returns:
         A dictionary containing the matplotlib Figure object.
     """
-    domain_vars = Domain(
-        spatial={
-            'x': (0,10),
-            'y': (0,1),
-        },
-    )
+
     # Get domain and points
-    domain = get_2d_domain(domain_vars, scale_x, scale_y)
+    domain = get_2d_domain(fest_lost_2d_domain, scale_x, scale_y)
     points, X, Y, nx, ny = domain['normal']
     scaled_points, scaled_X, scaled_Y, _, _ = domain['scaled']
 
@@ -71,8 +68,8 @@ def visualize_field_2d(model, test):
     # predictions = scale_u(predictions) # Uncomment if you need to scale output
 
     # --- Extract min/max for bounds (Needed for outline/limits) ---
-    x_min, x_max = domain_vars.spatial['x']
-    y_min, y_max = domain_vars.spatial['y']
+    x_min, x_max = fest_lost_2d_domain.spatial['x']
+    y_min, y_max = fest_lost_2d_domain.spatial['y']
     # -------------------------------------------------------------
 
     # Create visualization (2x2 grid)
