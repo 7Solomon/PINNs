@@ -2,6 +2,7 @@ import domain_vars
 import process
 import config
 import process.heat.output_transform
+import process.thermal_mechanical
 import vis
 
 MAP = {
@@ -100,14 +101,69 @@ MAP = {
     'moisture':{
         '1d_mixed': {
             'domain': process.moisture.domain.get_1d_mixed_domain,
-            'domain_vars': domain_vars.moisture_1d_mixed_domain,
+            'domain_vars': domain_vars.moisture_1d_domain,
             'config': config.richards1DConfig,
             'vis' : {
                 'loss': vis.plot_loss,
-                'field': process.moisture.vis.vis_1d_mixed,
+                'field': lambda x: (_ for _ in ()).throw(NotImplementedError()), #process.moisture.vis.vis_1d_saturation,
+                'kwargs': {
+                    'title': '1D Mixed Field',
+                }
                 #'div': process.moisture.vis.visualize_divergence,
             },
             'path': 'models/moisture/1d_mixed',
         },
+        '1d_head': {
+            'domain': process.moisture.domain.get_1d_head_domain,
+            'domain_vars': domain_vars.moisture_1d_domain,
+            'config': config.richards1DConfig,
+            'vis' : {
+                'loss': vis.plot_loss,
+                'field': process.moisture.vis.vis_1d_head,
+                'kwargs': {
+                    'title': '1D Head Field',
+                }
+                #'div': process.moisture.vis.visualize_divergence,
+            },
+            'path': 'models/moisture/1d_head',
+        },
+        '1d_saturation': {
+            'domain': process.moisture.domain.get_1d_saturation_domain,
+            'domain_vars': domain_vars.moisture_1d_domain,
+            'config': config.richards1DConfig,
+            'vis' : {
+                'loss': vis.plot_loss,
+                'field': process.moisture.vis.vis_1d_saturation,
+                'kwargs': {
+                    'title': '1D Saturation Field',
+                }
+                #'div': process.moisture.vis.visualize_divergence,
+            },
+            'path': 'models/moisture/1d_saturation',
+        },
+        '2d_darcy': {
+            'domain': process.moisture.domain.get_2d_darcy_domain,
+            'domain_vars': domain_vars.moisture_2d_domain,
+            'config': config.darcy2DConfig,
+            'vis' : {
+                'loss': vis.plot_loss,
+                'field': process.moisture.vis.visualize_2d_darcy,
+                #'div': process.moisture.vis.visualize_divergence,
+            },
+            'path': 'models/moisture/2d_darcy',
+        }
+    },
+    'thermal_mechanical': {
+        '2d': {
+            'domain': process.thermal_mechanical.domain.get_thermal_2d_domain,
+            'domain_vars': domain_vars.thermal_2d_domain,
+            'config': config.thermalMechanical2DConfig,
+            'vis' : {
+                'loss': vis.plot_loss,
+                'field': process.thermal_mechanical.vis.vis_2d_all_variables,
+                #'div': process.thermal_mechanical.vis.visualize_divergence,
+            },
+            'path': 'models/thermal_mechanical/2d',
+        }
     }
 }

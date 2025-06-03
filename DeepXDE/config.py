@@ -10,10 +10,15 @@ class ConcreteData:
     cp: float = 8.5e3 # J/(kg*K)
     rho: float = 6e3  # kg/m^3
     k: float = 0.2 # W/(m*K)
+    beta: float = 0.2  # 1/K
 
     E: float = 3e10 # Pa
-    nu: float = 0.2 
-    
+    nu: float = 0.2
+    thermal_expansion_coefficient: float = 1e-5  # 1/K
+
+    # Moisture
+    K = 1e-9
+
     def alpha(self):
         return self.k/(self.rho*self.cp) # m^2/s
     
@@ -91,7 +96,7 @@ class BernoulliBalkenTconfig(BConfig):
     
     # load
     def f(self,x,t):
-        #return self.E*self.I*(1.0-16*math.pi**2)*math.sin(x/math.pi)*math.cos((4*self.c*t)/math.pi)/self.L**3  # not scaled
+        #return self.E*self.I*(1.0-16*math.pi**2)*math.sin(x/math.pi)*math.cos((4*self.c*t)/math.pi)/self.L**3  # not 3d
         return (1.0-16.0*math.pi**2)*torch.sin(x)*torch.cos(4*math.pi*t) # scaled
 
 class Richards1DConfig(BConfig):
@@ -123,7 +128,14 @@ class CooksMembranConfig(BConfig):
                                                         [self.nu, 1, 0],
                                                         [0, 0, (1-self.nu)/2]
                                                         ], dtype=torch.float64)
-        
+    
+class Darcy2DConfig(BConfig):
+    input_dim: int = 2
+    output_dim: int = 1
+
+class ThermalMechanical2DConfig(BConfig):
+    input_dim: int = 3
+    output_dim: int = 3
 
 steadyHeatConfig = SteadyHeatConfig()
 bernoulliBalkenConfig = BernoulliBalkenConfig()
@@ -132,7 +144,8 @@ bernoulliBalkenTConfig = BernoulliBalkenTconfig()
 cooksMembranConfig = CooksMembranConfig()
 transientHeatConfig = TransientHeatConfig()
 richards1DConfig = Richards1DConfig()
-
+darcy2DConfig = Darcy2DConfig()
+thermalMechanical2DConfig = ThermalMechanical2DConfig()
 
 
 concreteData = ConcreteData()

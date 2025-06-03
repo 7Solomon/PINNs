@@ -61,6 +61,8 @@ def manage_args(args):
     if hasattr(args, 'epochs') and args.epochs > 0:
         loss_history, train_state = model.train(iterations=args.epochs)
         #np.save('train_state.npy', train_state)
+    else:
+        loss_history = dde.model.LossHistory()
 
     ### VIS
     Vis = visualize(args.vis, process_type, subtype, model, loss_history, args, domain_vars)
@@ -84,7 +86,7 @@ def visualize(vis_type, process_type, subtype, model, loss_history, args, domain
     
     if vis_type in ['field', 'all']:
         try:
-            field_figures = MAP[process_type][subtype]['vis']['field'](model, domain_vars)
+            field_figures = MAP[process_type][subtype]['vis']['field'](model)
             vis.update(field_figures)
         except KeyError as e:
             print(f"Warning: Field visualization not available for {process_type}/{subtype}: {e}")

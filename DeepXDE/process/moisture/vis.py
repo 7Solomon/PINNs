@@ -1,10 +1,14 @@
+from vis import get_2d_domain
 from utils.metadata import Domain
-from process.moisture.scale import rescale_h, scale_t, scale_z
+from domain_vars import moisture_1d_domain, moisture_2d_domain
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+from process.moisture.scale import Scale
 
-def vis_1d_mixed(model, type, interval=200, title='Richards 1d', xlabel='z', ylabel='u(z,t)'):
+from vis import get_2d_time_domain
+
+def vis_1d_head(model, interval=600, xlabel='z', ylabel='u(z,t)', **kwargs):
     """
     Generates an animation of a 1D model's prediction changing over time.
 
@@ -13,21 +17,16 @@ def vis_1d_mixed(model, type, interval=200, title='Richards 1d', xlabel='z', yla
         spatial_domain (tuple): (x_start, x_end, num_x_points) for the spatial domain.
         time_domain (tuple): (t_start, t_end, num_t_points) for the time domain.
         interval (int, optional): Delay between frames in milliseconds. Defaults to 200.
-        title (str, optional): Title of the plot. Defaults to '1D Model Prediction Over Time'.
         xlabel (str, optional): Label for the x-axis. Defaults to 'x'.
         ylabel (str, optional): Label for the y-axis. Defaults to 'u(x,t)'.
     """
-    domain = Domain(
-        spatial={
-            'z': (0, 1),
-        }, temporal={
-            't': (0, 1.1e10)
-        }
-    )
-    z_start, z_end = domain.spatial['z']
-    t_start, t_end = domain.temporal['t']
+
+    title= f'Richards 1d' if 'title' not in kwargs else kwargs['title']
+    z_start, z_end = moisture_1d_domain.spatial['z']
+    t_start, t_end = moisture_1d_domain.temporal['t']
     num_x_points = 100
     num_t_points = 100
+    scale = Scale(moisture_1d_domain)
 
     z_points = np.linspace(z_start, z_end, num_x_points)
     t_points = np.linspace(t_start, t_end, num_t_points)
@@ -35,15 +34,14 @@ def vis_1d_mixed(model, type, interval=200, title='Richards 1d', xlabel='z', yla
     Z, T = np.meshgrid(z_points, t_points)
     ZT = np.vstack((Z.ravel(), T.ravel())).T
 
-    Z_scaled = scale_z(Z.copy())
-    T_scaled = scale_t(T.copy())
+    Z_scaled = scale.L * Z.copy()  # Scale z
+    T_scaled = scale.T * T.copy()  # Scale t
     ZT_scaled = np.vstack((Z_scaled.ravel(), T_scaled.ravel())).T
 
 
     # Get predictions from the model
     predictions = model.predict(ZT_scaled)
-    predictions = rescale_h(predictions)
-
+    predictions = predictions * scale.H
 
     if predictions.ndim > 1 and predictions.shape[1] > 1:
         print(f"Warning: Model output has shape {predictions.shape}. Assuming the first column is the desired output.")
@@ -67,7 +65,7 @@ def vis_1d_mixed(model, type, interval=200, title='Richards 1d', xlabel='z', yla
 
     def update(frame):
         line.set_ydata(data[:, frame])
-        ax.set_title(f'{title} (t={t_points[frame]:.2f})')
+        ax.set_title(f'{title} (t={(t_points[frame]/(60*60*24)):.3f} days)')
         return line,
 
     ani = animation.FuncAnimation(fig, update, frames=num_t_points,
@@ -76,3 +74,108 @@ def vis_1d_mixed(model, type, interval=200, title='Richards 1d', xlabel='z', yla
     #ani.save('animation.mp4', writer='ffmpeg', fps=1000/interval)
     #plt.show() # geht glaube nocht auf ssh
     return {'field': ani}
+
+def vis_1d_saturation(model, interval=600, xlabel='z', ylabel='u(z,t)', **kwargs):
+
+    title= f'Richards 1d' if 'title' not in kwargs else kwargs['title']
+    z_start, z_end = moisture_1d_domain.spatial['z']
+    t_start, t_end = moisture_1d_domain.temporal['t']
+    num_x_points = 100
+    num_t_points = 100
+    scale = Scale(moisture_1d_domain)
+
+    z_points = np.linspace(z_start, z_end, num_x_points)
+    t_points = np.linspace(t_start, t_end, num_t_points)
+
+    Z, T = np.meshgrid(z_points, t_points)
+    ZT = np.vstack((Z.ravel(), T.ravel())).T
+
+    Z_scaled = scale.L * Z.copy()  # Scale z
+    T_scaled = scale.T * T.copy()  # Scale t
+    ZT_scaled = np.vstack((Z_scaled.ravel(), T_scaled.ravel())).T
+
+
+    # Get predictions from the model
+    predictions = model.predict(ZT_scaled)
+    predictions = predictions
+
+    if predictions.ndim > 1 and predictions.shape[1] > 1:
+        print(f"Warning: Model output has shape {predictions.shape}. Assuming the first column is the desired output.")
+
+    try:
+        data = predictions.reshape(num_t_points, num_x_points).T
+    except ValueError as e:
+        print(f"Error reshaping predictions: {e}")
+        print(f"Prediction shape: {predictions.shape}, Target shape: ({num_t_points}, {num_x_points}) then transposed.")
+        print("Ensure the total number of elements in predictions matches num_x_points * num_t_points.")
+        return None
+
+
+    fig, ax = plt.subplots()
+    line, = ax.plot(z_points, data[:, 0])
+
+    ax.set_xlim(z_points.min(), z_points.max())
+    ax.set_ylim(data.min(), data.max())
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+
+    def update(frame):
+        line.set_ydata(data[:, frame])
+        ax.set_title(f'{title} (t={(t_points[frame]/(60*60*24)):.3f} days)')
+        return line,
+
+    ani = animation.FuncAnimation(fig, update, frames=num_t_points,
+                                  interval=interval, blit=True, repeat=False)
+    
+    #ani.save('animation.mp4', writer='ffmpeg', fps=1000/interval)
+    #plt.show() # geht glaube nocht auf ssh
+    return {'field': ani}
+
+
+
+def visualize_2d_darcy(model, **kwargs):
+    domain = get_2d_domain(moisture_2d_domain, scale_z, scale_x)
+    points, X, Y, nx, ny = domain['normal']
+    scaled_points, X_scaled, Y_scaled, _, _ = domain['scaled']
+
+    # Get predictions
+    predictions = model.predict(scaled_points)
+    predictions = rescale_h(predictions)
+
+    # Create visualization
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    # Plot the field
+    contour = ax.contourf(X.reshape(ny, nx), Y.reshape(ny, nx), predictions.reshape(ny, nx), levels=50, cmap='Blues')
+    
+    cbar = fig.colorbar(contour)
+    cbar.set_label('Field Prediction')
+    
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.set_title('2D Darcy Flow Field Visualization' if 'title' not in kwargs else kwargs['title'])
+
+    return {'field': fig}
+def visualize_2d_darcy(model, **kwargs):
+    domain = get_2d_domain(moisture_2d_domain, scale_z, scale_x)
+    points, X, Y, nx, ny = domain['normal']
+    scaled_points, X_scaled, Y_scaled, _, _ = domain['scaled']
+
+    # Get predictions
+    predictions = model.predict(scaled_points)
+    predictions = rescale_h(predictions)
+
+    # Create visualization
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    # Plot the field
+    contour = ax.contourf(X.reshape(ny, nx), Y.reshape(ny, nx), predictions.reshape(ny, nx), levels=50, cmap='Blues')
+    
+    cbar = fig.colorbar(contour)
+    cbar.set_label('Field Prediction')
+    
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.set_title('2D Darcy Flow Field Visualization' if 'title' not in kwargs else kwargs['title'])
+
+    return {'field': fig}

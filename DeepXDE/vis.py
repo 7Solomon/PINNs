@@ -12,14 +12,21 @@ import matplotlib.animation as animation
 def plot_loss(Loss):
     if isinstance(Loss, dde.model.LossHistory):
         epochs = Loss.steps
-        labels =['PDE', 'links', 'rechts', 'initial']
+        labels_v1 =['PDE', 'links', 'rechts', 'initial']
+        labels_v2 = ['PDE_u', 'PDE_v', 'heat_term', 'links', 'rechts', 'initial']
         # training losses
         if Loss.loss_train and len(Loss.loss_train[0]) > 0:
             loss_train_np = np.array(Loss.loss_train)
             num_train_components = loss_train_np.shape[1]
-            for i in range(num_train_components):
-                component_label = labels[i] if i < len(labels) else f'Train Comp {i+1}'
-                plt.plot(epochs, loss_train_np[:, i], label=f'{component_label}')
+            if num_train_components == len(labels_v1):
+                for i in range(num_train_components):
+                    component_label = labels_v1[i] if i < len(labels_v1) else f'Train Comp {i+1}'
+                    plt.plot(epochs, loss_train_np[:, i], label=f'{component_label}')
+
+            elif num_train_components == len(labels_v2):   
+                for i in range(num_train_components):
+                    component_label = labels_v2[i] if i < len(labels_v2) else f'Train Comp {i+1}'
+                    plt.plot(epochs, loss_train_np[:, i], label=f'{component_label}')
         else:
             print('No training loss')
 

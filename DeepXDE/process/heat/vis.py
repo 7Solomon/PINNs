@@ -2,15 +2,15 @@ import os
 from utils.metadata import Domain
 from process.moisture.scale import *
 from vis import get_2d_domain, get_2d_time_domain
-
+from domain_vars import transient_heat_2d_domain, steady_heat_2d_domain
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import animation, cm
 
 from process.heat.scale import *
-def visualize_steady_field(model, domain_vars):
-    steady_heat_scale = Scale(domain_vars)
-    domain = get_2d_domain(domain_vars, steady_heat_scale.scale_x, steady_heat_scale.scale_y)
+def visualize_steady_field(model, **kwargs):
+    steady_heat_scale = Scale(steady_heat_2d_domain)
+    domain = get_2d_domain(steady_heat_2d_domain, steady_heat_scale.scale_x, steady_heat_scale.scale_y)
     points, X, Y, nx, ny = domain['normal']
     points_scaled, X_scaled, Y_scaled, nx, ny = domain['scaled']
 
@@ -30,9 +30,9 @@ def visualize_steady_field(model, domain_vars):
     #plt.show()
     return {'field': plt.gcf()}
 
-def visualize_transient_field(model, domain_vars):
-    transient_heat_scale = Scale(domain_vars)
-    domain = get_2d_time_domain(domain_vars, transient_heat_scale.scale_x, transient_heat_scale.scale_y, transient_heat_scale.scale_t)
+def visualize_transient_field(model, **kwargs):
+    transient_heat_scale = Scale(transient_heat_2d_domain)
+    domain = get_2d_time_domain(transient_heat_2d_domain, transient_heat_scale.scale_x, transient_heat_scale.scale_y, transient_heat_scale.scale_t)
 
     points, X, Y, t, nx, ny, nt = domain['normal']
     scaled_points, X_scaled, Y_scaled, t_scaled, nx, ny, nt = domain['scaled']

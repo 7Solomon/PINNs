@@ -30,10 +30,25 @@ fest_lost_domain = Domain(
         }
     )
 
-moisture_1d_mixed_domain = Domain(
+moisture_1d_domain = Domain(
         spatial={
             'z': (0, 1),
         }, temporal={
-            't': (0, 1e10)
+            't': (0, 4e6) # 46 days in seconds, glaube ich
+        }
+    )
+moisture_2d_domain = Domain(
+        spatial={
+            'x': (0, 1),
+            'z': (0, 1),
+        }, temporal=None
+    )
+
+thermal_2d_domain = Domain(
+        spatial={
+            'x': (0, 0.25),
+            'y': (0, 1)
+        }, temporal={
+            't': (0, 4e6)
         }
     )
