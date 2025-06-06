@@ -102,10 +102,10 @@ MAP = {
         '1d_mixed': {
             'domain': process.moisture.domain.get_1d_mixed_domain,
             'domain_vars': domain_vars.moisture_1d_domain,
-            'config': config.richards1DConfig,
+            'config': config.richardsMixed1DConfig,
             'vis' : {
                 'loss': vis.plot_loss,
-                'field': lambda x: (_ for _ in ()).throw(NotImplementedError()), #process.moisture.vis.vis_1d_saturation,
+                'field': process.moisture.vis.visualize_2d_mixed,
                 'kwargs': {
                     'title': '1D Mixed Field',
                 }
@@ -131,6 +131,7 @@ MAP = {
             'domain': process.moisture.domain.get_1d_saturation_domain,
             'domain_vars': domain_vars.moisture_1d_domain,
             'config': config.richards1DConfig,
+            'output_transform': process.moisture.output_transform.output_transform,
             'vis' : {
                 'loss': vis.plot_loss,
                 'field': process.moisture.vis.vis_1d_saturation,
@@ -156,11 +157,14 @@ MAP = {
     'thermal_mechanical': {
         '2d': {
             'domain': process.thermal_mechanical.domain.get_thermal_2d_domain,
-            'domain_vars': domain_vars.thermal_2d_domain,
+            'domain_vars': domain_vars.thermal_mechanical_2d_domain,
             'config': config.thermalMechanical2DConfig,
             'vis' : {
                 'loss': vis.plot_loss,
-                'field': process.thermal_mechanical.vis.vis_2d_all_variables,
+                'field': process.thermal_mechanical.vis.vis_2d_multi,
+                'kwargs': {
+                    'variable_indices' : [0,1,2]
+                }
                 #'div': process.thermal_mechanical.vis.visualize_divergence,
             },
             'path': 'models/thermal_mechanical/2d',

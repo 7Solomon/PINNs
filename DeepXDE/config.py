@@ -15,8 +15,16 @@ class ConcreteData:
     E: float = 3e10 # Pa
     nu: float = 0.2
     thermal_expansion_coefficient: float = 1e-5  # 1/K
+    
+    # VG
+    theta_r: float = 0.05                               # = 0.01
+    theta_s: float = 0.35                               # = 0.12
+    soil_water_retention: float = 2.0                   # = 0.4
+    n: float = 2.0                                         # = 1.2
+    m: float = 1.0 - 1.0/2.0                             #   1.2
+    K_s: float = 1e-1#K_s: float = 10e-6  # RICHARDS für Concrete IS NE nen bisschen eine bitch also große K_s
 
-    # Moisture
+    # Moisture (Darcy)
     K = 1e-9
 
     def alpha(self):
@@ -30,53 +38,49 @@ class BConfig:
     def type(self) -> str:
         return self.__class__.__name__.lower()
     
-    #def to_json(self):
-    #    """Convert the config to a JSON string."""
-    #    data = asdict(self)
-    #    # Add the class type for reconstruction
-    #    data['__class__'] = self.__class__.__name__
-    #    return json.dumps(data, indent=2)
+    def to_json(self):
+        """Convert the config to a JSON string."""
+        data = asdict(self)
+        data['__class__'] = self.__class__.__name__
+        return json.dumps(data, indent=2)
+    
+    @classmethod
+    def from_json(cls, json_str):
+        """Create a config instance from a JSON string."""
+        data = json.loads(json_str)
+        
+        # Get the class name and remove it from data
+        class_name = data.pop('__class__', cls.__name__)
+        
+        # Find the correct class in the global namespace
+        config_class = globals().get(class_name, cls)
+        
+        # Filter data to only include fields that exist in the target class
+        valid_fields = {f.name for f in fields(config_class)}
+        filtered_data = {k: v for k, v in data.items() if k in valid_fields}
+        
+        return config_class(**filtered_data)
 
-    #@classmethod
-    #def from_json(cls, json_str):
-    #    """Create a config instance from a JSON string."""
-    #    data = json.loads(json_str)
-    #    
-    #    # Get the class name and remove it from data
-    #    class_name = data.pop('__class__', cls.__name__)
-    #    
-    #    # Find the correct class in the global namespace
-    #    config_class = globals().get(class_name, cls)
-    #    
-    #    # Filter data to only include fields that exist in the target class
-    #    valid_fields = {f.name for f in fields(config_class)}
-    #    filtered_data = {k: v for k, v in data.items() if k in valid_fields}
-    #    
-    #    return config_class(**filtered_data)
 
-
-@dataclass
 class SteadyHeatConfig(BConfig):
     input_dim: int = 2
     output_dim: int = 1
 
 
-@dataclass
 class TransientHeatConfig(BConfig):
     input_dim: int = 3
     output_dim: int = 1
 
 
-@dataclass
 class BernoulliBalkenConfig(BConfig):
     input_dim: int = 1
     output_dim: int = 1
 
 
-@dataclass
 class BernoulliBalken2DConfig(BConfig):
     input_dim: int = 2
     output_dim: int = 2
+    loss_weights: list[float] = [1.0, 1.0, 1.0, 1.0]
 
     def C(self, material):
         return material.E / ((1+material.nu)*(1-2*material.nu))  * torch.tensor([
@@ -85,7 +89,6 @@ class BernoulliBalken2DConfig(BConfig):
                                                                                     [0, 0, (1-2*material.nu)/2]
                                                                                 ])
 
-@dataclass
 class BernoulliBalkenTconfig(BConfig):
     input_dim: int = 2
     output_dim: int = 1
@@ -102,14 +105,21 @@ class BernoulliBalkenTconfig(BConfig):
 class Richards1DConfig(BConfig):
     input_dim: int = 2
     output_dim: int = 1
+    loss_weights: list[float] = [10.0, 1.0, 1.0, 1.0]
+
+class RichardsMixed1DConfig(BConfig):
+    input_dim: int = 2
+    output_dim: int = 2
+    loss_weights: list[float] = [1.0, 1.0, 10.0, 10.0, 10.0]
+
 
     # Van Genuchten params
-    theta_r: float = 0.0
-    theta_s: float = 0.1
-    alpha: float = 0.4
-    n: float = 1.2
-    m: float = 1.0 - 1.0/1.2
-    K_s: float = 1e-1#K_s: float = 10e-6  # RICHARDS für Concrete IS NE nen bisschen eine bitch also große K_s
+    #theta_r: float = 0.01
+    #theta_s: float = 0.12
+    #alpha: float = 0.4
+    #n: float = 1.2
+    #m: float = 1.0 - 1.0/1.2
+    #K_s: float = 1e-1#K_s: float = 10e-6  # RICHARDS für Concrete IS NE nen bisschen eine bitch also große K_s
 
     #def __post_init__(self): # macht probleme
     #    print('POST INIT')
@@ -136,6 +146,8 @@ class Darcy2DConfig(BConfig):
 class ThermalMechanical2DConfig(BConfig):
     input_dim: int = 3
     output_dim: int = 3
+    loss_weights: list[float] = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+                           
 
 steadyHeatConfig = SteadyHeatConfig()
 bernoulliBalkenConfig = BernoulliBalkenConfig()
@@ -144,6 +156,7 @@ bernoulliBalkenTConfig = BernoulliBalkenTconfig()
 cooksMembranConfig = CooksMembranConfig()
 transientHeatConfig = TransientHeatConfig()
 richards1DConfig = Richards1DConfig()
+richardsMixed1DConfig = RichardsMixed1DConfig()
 darcy2DConfig = Darcy2DConfig()
 thermalMechanical2DConfig = ThermalMechanical2DConfig()
 

@@ -34,7 +34,12 @@ moisture_1d_domain = Domain(
         spatial={
             'z': (0, 1),
         }, temporal={
-            't': (0, 4e6) # 46 days in seconds, glaube ich
+            #'t': (0, 1.3e7)  #4e6 seconds started  makes time derivative WAAAAAAY to small which leads to no learning there just steady output whihc is pretty interesting
+            #'t': (0, 6.04e5) # ca 1 week
+            #'t': (0, 8.6e4)  # ca 1 day
+            't': (0, 3.6e3)  # ca 1 hour
+            #'t': (0, 1.4e3)  # ca 20 minutes
+            #'t': (0, 3e2)  # ca 5 minutes
         }
     )
 moisture_2d_domain = Domain(
@@ -44,11 +49,12 @@ moisture_2d_domain = Domain(
         }, temporal=None
     )
 
-thermal_2d_domain = Domain(
+thermal_mechanical_2d_domain = Domain(
         spatial={
             'x': (0, 0.25),
             'y': (0, 1)
         }, temporal={
-            't': (0, 4e6)
+           #'t': (0,6.04e5)  # ca 1 week
+            't': (0, 3.6e3)  # ca 1 hour
         }
     )
