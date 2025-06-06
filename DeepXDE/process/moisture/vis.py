@@ -8,7 +8,7 @@ from process.moisture.scale import Scale
 
 from vis import get_2d_time_domain
 
-def vis_1d_head(model, interval=600, xlabel='z', ylabel='u(z,t)', **kwargs):
+def vis_1d_head(model, interval=2000, xlabel='z', ylabel='u(z,t)', **kwargs):
     """
     Generates an animation of a 1D model's prediction changing over time.
 
@@ -16,7 +16,7 @@ def vis_1d_head(model, interval=600, xlabel='z', ylabel='u(z,t)', **kwargs):
         model: The trained model object with a predict(XT) method.
         spatial_domain (tuple): (x_start, x_end, num_x_points) for the spatial domain.
         time_domain (tuple): (t_start, t_end, num_t_points) for the time domain.
-        interval (int, optional): Delay between frames in milliseconds. Defaults to 200.
+        interval (int, optional): Delay between frames in milliseconds. Defaults to 2000.
         xlabel (str, optional): Label for the x-axis. Defaults to 'x'.
         ylabel (str, optional): Label for the y-axis. Defaults to 'u(x,t)'.
     """
@@ -34,8 +34,8 @@ def vis_1d_head(model, interval=600, xlabel='z', ylabel='u(z,t)', **kwargs):
     Z, T = np.meshgrid(z_points, t_points)
     ZT = np.vstack((Z.ravel(), T.ravel())).T
 
-    Z_scaled = scale.L * Z.copy()  # Scale z
-    T_scaled = scale.T * T.copy()  # Scale t
+    Z_scaled = Z.copy() / scale.L   # Scale z
+    T_scaled = T.copy() / scale.T   # Scale t
     ZT_scaled = np.vstack((Z_scaled.ravel(), T_scaled.ravel())).T
 
 
@@ -75,7 +75,7 @@ def vis_1d_head(model, interval=600, xlabel='z', ylabel='u(z,t)', **kwargs):
     #plt.show() # geht glaube nocht auf ssh
     return {'field': ani}
 
-def vis_1d_saturation(model, interval=600, xlabel='z', ylabel='u(z,t)', **kwargs):
+def vis_1d_saturation(model, interval=2000, xlabel='z', ylabel='u(z,t)', **kwargs):
 
     title= f'Richards 1d' if 'title' not in kwargs else kwargs['title']
     z_start, z_end = moisture_1d_domain.spatial['z']
@@ -90,14 +90,14 @@ def vis_1d_saturation(model, interval=600, xlabel='z', ylabel='u(z,t)', **kwargs
     Z, T = np.meshgrid(z_points, t_points)
     ZT = np.vstack((Z.ravel(), T.ravel())).T
 
-    Z_scaled = scale.L * Z.copy()  # Scale z
-    T_scaled = scale.T * T.copy()  # Scale t
+    Z_scaled = Z.copy() / scale.L  # Scale z
+    T_scaled = T.copy() / scale.T  # Scale t
     ZT_scaled = np.vstack((Z_scaled.ravel(), T_scaled.ravel())).T
 
 
     # Get predictions from the model
     predictions = model.predict(ZT_scaled)
-    predictions = predictions
+
 
     if predictions.ndim > 1 and predictions.shape[1] > 1:
         print(f"Warning: Model output has shape {predictions.shape}. Assuming the first column is the desired output.")
@@ -132,15 +132,60 @@ def vis_1d_saturation(model, interval=600, xlabel='z', ylabel='u(z,t)', **kwargs
     return {'field': ani}
 
 
+def visualize_2d_mixed(model, **kwargs):
 
-def visualize_2d_darcy(model, **kwargs):
-    domain = get_2d_domain(moisture_2d_domain, scale_z, scale_x)
+    scale = Scale(moisture_2d_domain)
+    domain = get_2d_domain(moisture_2d_domain, scale)
     points, X, Y, nx, ny = domain['normal']
     scaled_points, X_scaled, Y_scaled, _, _ = domain['scaled']
 
     # Get predictions
     predictions = model.predict(scaled_points)
-    predictions = rescale_h(predictions)
+    
+    # Extract head (index 0) and saturation (index 1)
+    head_predictions = predictions[:, 0] * scale.H  # Rescale head to physical units
+    saturation_predictions = predictions[:, 1]  # Saturation is typically dimensionless [0,1]
+
+    # Create subplots for both fields
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+    
+    # Plot head field
+    head_contour = ax1.contourf(X.reshape(ny, nx), Y.reshape(ny, nx), 
+                               head_predictions.reshape(ny, nx), levels=50, cmap='Blues')
+    head_cbar = fig.colorbar(head_contour, ax=ax1)
+    head_cbar.set_label('Head [m]')
+    ax1.set_xlabel('x [m]')
+    ax1.set_ylabel('y [m]')
+    ax1.set_title('Head Field')
+    
+    # Plot saturation field
+    sat_contour = ax2.contourf(X.reshape(ny, nx), Y.reshape(ny, nx), 
+                              saturation_predictions.reshape(ny, nx), levels=50, cmap='Reds')
+    sat_cbar = fig.colorbar(sat_contour, ax=ax2)
+    sat_cbar.set_label('Saturation [-]')
+    ax2.set_xlabel('x [m]')
+    ax2.set_ylabel('y [m]')
+    ax2.set_title('Saturation Field')
+    
+    # Overall title
+    title = '2D Richards Equation: Head and Saturation' if 'title' not in kwargs else kwargs['title']
+    fig.suptitle(title)
+    
+    plt.tight_layout()
+    
+    return {'head_saturation': fig, 'head_field': head_predictions.reshape(ny, nx), 
+            'saturation_field': saturation_predictions.reshape(ny, nx)}
+
+
+def visualize_2d_darcy(model, **kwargs):
+    scale = Scale(moisture_2d_domain)
+    domain = get_2d_domain(moisture_2d_domain, scale)
+    points, X, Y, nx, ny = domain['normal']
+    scaled_points, X_scaled, Y_scaled, _, _ = domain['scaled']
+
+    # Get predictions
+    predictions = model.predict(scaled_points)
+    predictions = predictions * scale.H  # Rescale predictions to physical units
 
     # Create visualization
     fig, ax = plt.subplots(figsize=(10, 6))
@@ -156,26 +201,4 @@ def visualize_2d_darcy(model, **kwargs):
     ax.set_title('2D Darcy Flow Field Visualization' if 'title' not in kwargs else kwargs['title'])
 
     return {'field': fig}
-def visualize_2d_darcy(model, **kwargs):
-    domain = get_2d_domain(moisture_2d_domain, scale_z, scale_x)
-    points, X, Y, nx, ny = domain['normal']
-    scaled_points, X_scaled, Y_scaled, _, _ = domain['scaled']
 
-    # Get predictions
-    predictions = model.predict(scaled_points)
-    predictions = rescale_h(predictions)
-
-    # Create visualization
-    fig, ax = plt.subplots(figsize=(10, 6))
-    
-    # Plot the field
-    contour = ax.contourf(X.reshape(ny, nx), Y.reshape(ny, nx), predictions.reshape(ny, nx), levels=50, cmap='Blues')
-    
-    cbar = fig.colorbar(contour)
-    cbar.set_label('Field Prediction')
-    
-    ax.set_xlabel('x')
-    ax.set_ylabel('y')
-    ax.set_title('2D Darcy Flow Field Visualization' if 'title' not in kwargs else kwargs['title'])
-
-    return {'field': fig}

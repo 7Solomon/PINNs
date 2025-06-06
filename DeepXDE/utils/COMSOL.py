@@ -1,5 +1,32 @@
 import torch
 import pandas as pd
+import os
+
+
+
+def load_data_from_file(file_path, delimiter=',', skiprows=0):
+    """
+    Loads numerical data from a text file into a NumPy array.
+
+    Args:
+        file_path (str): The path to the data file.
+        delimiter (str, optional): The string used to separate values. Defaults to ','.
+        skiprows (int, optional): Skip the first `skiprows` lines, e.g., for headers. Defaults to 0.
+
+    Returns:
+        np.ndarray: A NumPy array containing the loaded data.
+                    Returns None if the file is not found or an error occurs during loading.
+    """
+    if not os.path.exists(file_path):
+        print(f"Error: File not found at {file_path}")
+        return None
+    try:
+        data = np.loadtxt(file_path, delimiter=delimiter, skiprows=skiprows)
+        return data
+    except Exception as e:
+        print(f"Error loading data from {file_path}: {e}")
+        return None
+
 
 def load_COMSOL_file_data(path):
     try:

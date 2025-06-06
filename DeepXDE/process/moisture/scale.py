@@ -1,33 +1,15 @@
-def scale_z(z):
-    return z / 1.0
-def rescale_z(z):
-    return z * 1.0
-
-def scale_t(t):
-    return t / 4e6
-def rescale_t(t):
-    return t * 4e6
-
-def scale_h(h):
-    return h / 200
-def rescale_h(h):
-    return h * 200 
-
-def scale_theta(theta):
-    return theta / 0.5
-def rescale_theta(theta):
-    return theta * 0.5
-
-
 class Scale:
     def __init__(self, domain_variables):
-        self.z_min, self.z_max = list(domain_variables.spatial.values())[0]
-        self.t_min, self.t_max = list(domain_variables.temporal.values())[0]
+        self.z_min, self.z_max = domain_variables.spatial['z']
+        self.t_min, self.t_max = domain_variables.temporal['t']
 
-        self.T = (self.t_max - self.t_min)
+        #self.T = (self.t_max - self.t_min)  # could lead to faulure
+        self.T = 1
         self.L = (self.z_max - self.z_min)
 
-        self.H = 200
+        self.H = 10
+
+        self.theta = 10
 
     #def scale_z(self, z):
     #    return (z - self.z_min) / (self.z_max - self.z_min)

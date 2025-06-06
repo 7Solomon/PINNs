@@ -1,6 +1,6 @@
 import math
 from utils.metadata import Domain
-from process.mechanic.scale import  *
+from process.mechanic.scale import Scale
 import numpy as np
 import matplotlib.pyplot as plt
 from vis import get_2d_domain
@@ -45,21 +45,9 @@ def visualize_field_1d(model, **kwargs):
 
 
 def visualize_field_2d(model, **kwargs):
-    """
-    Visualizes the 2D displacement field predicted by a model.
-
-    Args:
-        model: The trained model with a .predict() method.
-        domain_vars: A Domain object or similar structure defining spatial bounds.
-        scale_x: Scaling factor for x-coordinates.
-        scale_y: Scaling factor for y-coordinates.
-
-    Returns:
-        A dictionary containing the matplotlib Figure object.
-    """
-
+    scale = Scale(fest_lost_2d_domain)
     # Get domain and points
-    domain = get_2d_domain(fest_lost_2d_domain, scale_x, scale_y)
+    domain = get_2d_domain(fest_lost_2d_domain, scale)
     points, X, Y, nx, ny = domain['normal']
     scaled_points, scaled_X, scaled_Y, _, _ = domain['scaled']
 
@@ -91,8 +79,8 @@ def visualize_field_2d(model, **kwargs):
     u_x = predictions[:, 0].reshape(ny, nx)
     u_y = predictions[:, 1].reshape(ny, nx)
     scale_factor = 5.0  # Adjust for visibility
-    deformed_X = X + scale_factor * u_x
-    deformed_Y = Y + scale_factor * u_y
+    deformed_X = X - scale_factor * u_x
+    deformed_Y = Y - scale_factor * u_y
 
     # 2. Deformed Shape (Top-Right)
     ax = axes[0, 1]
@@ -104,19 +92,24 @@ def visualize_field_2d(model, **kwargs):
 
     # 3. X-Displacement (Bottom-Left)
     ax = axes[1, 0]
-    # Use reshape on the color data if X, Y are 2D, or plot flattened X, Y
-    scatter_x = ax.scatter(X, Y, c=predictions[:, 0], cmap='RdBu_r', s=1, alpha=0.7)
+    # Create symmetric color limits centered at zero
+    u_x_max = np.max(np.abs(predictions[:, 0]))
+    scatter_x = ax.scatter(X, Y, c=predictions[:, 0], cmap='RdBu_r', s=1, alpha=0.7, 
+                          vmin=-u_x_max, vmax=u_x_max)
     ax.set_title("X-Displacement ($u_x$)")
     plt.colorbar(scatter_x, ax=ax, shrink=0.8)
     ax.set_aspect('equal')
 
     # 4. Y-Displacement (Bottom-Right)
     ax = axes[1, 1]
-    scatter_y = ax.scatter(X, Y, c=predictions[:, 1], cmap='RdBu_r', s=1, alpha=0.7)
+    # Create symmetric color limits centered at zero
+    u_y_max = np.max(np.abs(predictions[:, 1]))
+    scatter_y = ax.scatter(X, Y, c=predictions[:, 1], cmap='RdBu_r', s=1, alpha=0.7,
+                          vmin=-u_y_max, vmax=u_y_max)
     ax.set_title("Y-Displacement ($u_y$)")
     plt.colorbar(scatter_y, ax=ax, shrink=0.8)
     ax.set_aspect('equal')
-
+    
     # --- Add beam outline and format all plots ---
     beam_outline = np.array([[x_min, y_min], [x_max, y_min], [x_max, y_max], [x_min, y_max], [x_min, y_min]])
     
@@ -138,3 +131,94 @@ def visualize_field_2d(model, **kwargs):
     # plt.show()
     
     return {'field': fig}
+
+
+def visualize_comsol_comparison(comsol_data, predictions, fest_lost_2d_domain, **kwargs):
+    """
+    Visualizes COMSOL data and compares it with model predictions.
+
+    Args:
+        comsol_data (np.ndarray): NumPy array with COMSOL data.
+                                  Expected columns: [X, Y, U_x_comsol, U_y_comsol]
+        predictions (np.ndarray): NumPy array with model predictions.
+                                  Expected columns: [U_x_pred, U_y_pred]
+                                  Should correspond to the points in comsol_data.
+        fest_lost_2d_domain (Domain): Domain object for outline and limits.
+    """
+    X_comsol = comsol_data[:, 0]
+    Y_comsol = comsol_data[:, 1]
+    Ux_comsol = comsol_data[:, 2]
+    Uy_comsol = comsol_data[:, 3]
+
+    Ux_pred = predictions[:, 0]
+    Uy_pred = predictions[:, 1]
+
+    # Calculate deviations
+    Ux_deviation = Ux_pred - Ux_comsol
+    Uy_deviation = Uy_pred - Uy_comsol
+
+    # --- Extract min/max for bounds (Needed for outline/limits) ---
+    x_min, x_max = fest_lost_2d_domain.spatial['x']
+    y_min, y_max = fest_lost_2d_domain.spatial['y']
+    # -------------------------------------------------------------
+
+    fig, axes = plt.subplots(2, 2, figsize=(17, 14)) # Increased figure size slightly
+    fig.suptitle('COMSOL Data and Deviation from Predictions', fontsize=16)
+
+    # 1. COMSOL X-Displacement (Top-Left)
+    ax = axes[0, 0]
+    ux_comsol_max_abs = np.max(np.abs(Ux_comsol))
+    scatter_ux_comsol = ax.scatter(X_comsol, Y_comsol, c=Ux_comsol, cmap='RdBu_r', s=1, alpha=0.7,
+                                   vmin=-ux_comsol_max_abs, vmax=ux_comsol_max_abs)
+    ax.set_title("COMSOL X-Displacement ($U_x^{COMSOL}$)")
+    plt.colorbar(scatter_ux_comsol, ax=ax, shrink=0.8)
+    ax.set_aspect('equal')
+
+    # 2. COMSOL Y-Displacement (Top-Right)
+    ax = axes[0, 1]
+    uy_comsol_max_abs = np.max(np.abs(Uy_comsol))
+    scatter_uy_comsol = ax.scatter(X_comsol, Y_comsol, c=Uy_comsol, cmap='RdBu_r', s=1, alpha=0.7,
+                                   vmin=-uy_comsol_max_abs, vmax=uy_comsol_max_abs)
+    ax.set_title("COMSOL Y-Displacement ($U_y^{COMSOL}$)")
+    plt.colorbar(scatter_uy_comsol, ax=ax, shrink=0.8)
+    ax.set_aspect('equal')
+
+    # 3. X-Displacement Deviation (Bottom-Left)
+    ax = axes[1, 0]
+    ux_dev_max_abs = np.max(np.abs(Ux_deviation))
+    scatter_ux_dev = ax.scatter(X_comsol, Y_comsol, c=Ux_deviation, cmap='PRGn', s=1, alpha=0.7,
+                                vmin=-ux_dev_max_abs, vmax=ux_dev_max_abs) # Using PRGn for deviation
+    ax.set_title("X-Displacement Deviation ($U_x^{pred} - U_x^{COMSOL}$)")
+    plt.colorbar(scatter_ux_dev, ax=ax, shrink=0.8)
+    ax.set_aspect('equal')
+
+    # 4. Y-Displacement Deviation (Bottom-Right)
+    ax = axes[1, 1]
+    uy_dev_max_abs = np.max(np.abs(Uy_deviation))
+    scatter_uy_dev = ax.scatter(X_comsol, Y_comsol, c=Uy_deviation, cmap='PRGn', s=1, alpha=0.7,
+                                vmin=-uy_dev_max_abs, vmax=uy_dev_max_abs) # Using PRGn for deviation
+    ax.set_title("Y-Displacement Deviation ($U_y^{pred} - U_y^{COMSOL}$)")
+    plt.colorbar(scatter_uy_dev, ax=ax, shrink=0.8)
+    ax.set_aspect('equal')
+
+    # --- Add beam outline and format all plots ---
+    beam_outline = np.array([[x_min, y_min], [x_max, y_min], [x_max, y_max], [x_min, y_max], [x_min, y_min]])
+    
+    for ax_idx, ax_row in enumerate(axes):
+        for ax_idy, ax in enumerate(ax_row):
+            ax.plot(beam_outline[:, 0], beam_outline[:, 1], 'k-', linewidth=1.5, alpha=0.9, label='Boundary')
+            ax.grid(True, linestyle='--', alpha=0.4)
+            ax.set_xlabel('X-coordinate')
+            ax.set_ylabel('Y-coordinate')
+            ax.set_xlim(x_min - 0.1 * (x_max - x_min), x_max + 0.1 * (x_max - x_min))
+            ax.set_ylim(y_min - 0.1 * (y_max - y_min), y_max + 0.1 * (y_max - y_min))
+            if ax_idx == 0 and ax_idy == 0: # Add legend only once to avoid duplicates
+                 ax.legend(loc='upper right')
+
+
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95]) # Adjust layout
+    
+    # plt.savefig("comsol_comparison.png", dpi=300, bbox_inches='tight')
+    # plt.show()
+    
+    return {'comsol_comparison_plot': fig}

@@ -1,6 +1,6 @@
 import math
 from utils.functions import voigt_to_tensor
-from process.mechanic.scale import *
+from process.mechanic.scale import Scale
 import deepxde as dde
 import torch
 from config import bernoulliBalkenTConfig, cooksMembranConfig, bernoulliBalken2DConfig, concreteData
@@ -12,19 +12,29 @@ def pde_1d_residual(x, y):
   w_xxxx = dde.grad.jacobian(w_xxx, x, i=0)
   return w_xxxx - 1.0
   #return bernoulliBalkenConfig.EI*w_xxxx - bernoulliBalkenConfig.f(x[:,0], x[:,1])
-def pde_2d_residual(x, y):
-  e_x = dde.grad.jacobian(y,x, i=0, j=0)
-  e_y = dde.grad.jacobian(y,x, i=1, j=1)
-  g_xy = dde.grad.jacobian(y,x, i=0, j=1) + dde.grad.jacobian(y,x, i=1, j=0)
+def pde_2d_residual(x, y, scale: Scale):
+  e_x = dde.grad.jacobian(y,x, i=0, j=0) * (scale.U(concreteData.E)/ scale.L)
+  e_y = dde.grad.jacobian(y,x, i=1, j=1) * (scale.U(concreteData.E) / scale.L)
+  g_xy = dde.grad.jacobian(y,x, i=0, j=1) * (scale.U(concreteData.E) / scale.L) + dde.grad.jacobian(y,x, i=1, j=0) * (scale.U(concreteData.E) / scale.L)
   voigt = torch.cat([e_x, e_y, g_xy], dim=1)
-  sigma_voigt = torch.matmul(voigt, bernoulliBalken2DConfig.C(concreteData))
-  sigmax_x = dde.grad.jacobian(sigma_voigt, x, i=0, j=0)
-  sigmay_y = dde.grad.jacobian(sigma_voigt, x, i=1, j=1)
-  tauxy_y = dde.grad.jacobian(sigma_voigt, x, i=2, j=1)
-  tauxy_x = dde.grad.jacobian(sigma_voigt, x, i=2, j=0)
+  C_scaled = bernoulliBalken2DConfig.C(concreteData) /scale.sigma(concreteData.E)  # [N/L**2]
+  sigma_voigt = torch.matmul(voigt, C_scaled)   # [1/L**2]
 
-  #scaled_sigmax_x, scaled_sigmay_y, scaled_tauxy_y, scaled_tauxy_x = scale_u(sigmax_x), scale_u(sigmay_y), scale_u(tauxy_y), scale_u(tauxy_x)
-  #return [scaled_sigmax_x + scaled_tauxy_y - 1.0, scaled_sigmay_y + scaled_tauxy_x - 1.0]
+  sigmax_x = dde.grad.jacobian(sigma_voigt, x, i=0, j=0) * (scale.sigma(concreteData.E) / scale.L)   # [N/L**2] / [L] = [N/L]
+  sigmay_y = dde.grad.jacobian(sigma_voigt, x, i=1, j=1) * (scale.sigma(concreteData.E) / scale.L)   # [N/L]
+  tauxy_y = dde.grad.jacobian(sigma_voigt, x, i=2, j=1) * (scale.sigma(concreteData.E) / scale.L)    # [N/L]
+  tauxy_x = dde.grad.jacobian(sigma_voigt, x, i=2, j=0) * (scale.sigma(concreteData.E) / scale.L)    # [N/L]
+
+  #print('u', y[0].min().item(), y[0].max().item())
+  #print('v', y[1].min().item(), y[1].max().item())
+  #print('e_x', e_x.min().item(), e_x.max().item())
+  #print('e_y', e_y.min().item(), e_y.max().item())
+  #print('g_xy', g_xy.min().item(), g_xy.max().item())
+  #print('sigmax_x', sigmax_x.min().item(), sigmax_x.max().item())
+  #print('sigmay_y', sigmay_y.min().item(), sigmay_y.max().item())
+  #print('tauxy_y', tauxy_y.min().item(), tauxy_y.max().item())
+  #print('tauxy_x', tauxy_x.min().item(), tauxy_x.max().item())
+
   return [sigmax_x + tauxy_y, sigmay_y + tauxy_x - 1.0]
 def pde_1d_t_residual(x, y): 
   w_tt = dde.grad.hessian(y,x, i=1,j=1)

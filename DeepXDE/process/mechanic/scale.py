@@ -1,6 +1,23 @@
 from config import cooksMembranConfig, bernoulliBalkenTConfig
 
-#class Scale:
+class Scale:
+    def __init__(self, domain_variables):
+        self.x_min, self.x_max = domain_variables.spatial['x']
+        self.y_min, self.y_max = domain_variables.spatial['y']
+
+        self.L = max(self.x_max - self.x_min, self.y_max - self.y_min)
+
+    def U(self, E):
+        return (1.0 * self.L**3) / E
+
+    def sigma(self, E):
+        return (E * self.U(E)) / self.L
+
+    #def Ux(self, alpha):
+    #    return alpha * self.L
+    #def Uy(self, alpha):
+    #    return alpha * self.L
+
     #def scale_u(u):
     #    return u/bernoulliBalkenTConfig.L
     #def scale_x(x):
@@ -9,31 +26,3 @@ from config import cooksMembranConfig, bernoulliBalkenTConfig
     #    return (bernoulliBalkenTConfig.c*t)/(bernoulliBalkenTConfig.L**2)
     #def scale_f(f):
     #    return (f*bernoulliBalkenTConfig.L**3)/(bernoulliBalkenTConfig.E*bernoulliBalkenTConfig.I)
-
-def scale_u(u):
-    return u/1e10
-def scale_x(x):
-    return x/10
-def scale_y(y):
-    return y/1
-def rescale_x(x):
-    return x*10
-def rescale_y(y):
-    return y*1
-def rescale_u(u):
-    return u*1e10
-#def scale_f(f):
-#    return f/20
-#def scale_t(t):
-#    return t/20
-#def rescale_t(t):
-#    return t*20
-#def rescale_u(u):
-    return u*1e7
-#def rescale_x(x):
-    return x*60
-#def rescale_f(f):#
-    return f*20
-
-#def test_scale(sigma):
-#    sigma_normalized = sigma / cooksMembranConfig.E

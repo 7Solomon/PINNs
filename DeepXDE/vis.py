@@ -13,7 +13,7 @@ def plot_loss(Loss):
     if isinstance(Loss, dde.model.LossHistory):
         epochs = Loss.steps
         labels_v1 =['PDE', 'links', 'rechts', 'initial']
-        labels_v2 = ['PDE_u', 'PDE_v', 'heat_term', 'links', 'rechts', 'initial']
+        labels_v2 = ['PDE_u', 'PDE_v', 'links_temp', 'rechts_temp', 'u_fixed', 'v_fixed', 'initial']
         # training losses
         if Loss.loss_train and len(Loss.loss_train[0]) > 0:
             loss_train_np = np.array(Loss.loss_train)
@@ -56,7 +56,7 @@ def plot_loss(Loss):
 
         
 
-def get_2d_domain(domain_variabeles: Domain, scale_x, scale_y):
+def get_2d_domain(domain_variabeles: Domain, scale):
     min_x, max_x = list(domain_variabeles.spatial.values())[0]
     min_y, max_y = list(domain_variabeles.spatial.values())[1]
     
@@ -66,15 +66,15 @@ def get_2d_domain(domain_variabeles: Domain, scale_x, scale_y):
     y = np.linspace(min_y, max_y, ny)
     X, Y = np.meshgrid(x, y)
 
-    scaled_X = scale_x(X)
-    scaled_Y = scale_y(Y)
+    scaled_X = X.copy() / scale.L  # Scale x
+    scaled_Y = Y.copy() / scale.L  # Scale y
     
     points = np.vstack((X.ravel(), Y.ravel())).T
     scaled_points = np.vstack((scaled_X.ravel(), scaled_Y.ravel())).T  
 
     return {'normal':[points, X, Y, nx, ny], 'scaled': [scaled_points, scaled_X, scaled_Y, nx, ny]}
 
-def get_2d_time_domain(domain_variabeles:Domain, scale_x, scale_y, scale_t):
+def get_2d_time_domain(domain_variabeles:Domain, scale):
     min_x, max_x = list(domain_variabeles.spatial.values())[0]
     min_y, max_y = list(domain_variabeles.spatial.values())[1]
     min_t, max_t = list(domain_variabeles.temporal.values())[0]
@@ -87,14 +87,12 @@ def get_2d_time_domain(domain_variabeles:Domain, scale_x, scale_y, scale_t):
     t = np.linspace(min_t, max_t, nt)
     X, Y, T = np.meshgrid(x, y, t)
 
-    scaled_X = scale_x(X)
-    scaled_Y = scale_y(Y)
-    scaled_T = scale_t(T)
-    
+    scaled_X = X.copy() / scale.L  # Scale x
+    scaled_Y = Y.copy() / scale.L  # Scale y
+    scaled_T = T.copy() / scale.T  # Scale t
 
-    
     points = np.vstack((X.flatten(), Y.flatten(), T.flatten())).T
-    scaled_points = np.vstack((scaled_X.flatten(), scaled_Y.flatten(), scaled_T.flatten())).T  
+    scaled_points = np.vstack((scaled_X.flatten(), scaled_Y.flatten(), scaled_T.flatten())).T
 
     return {'normal':[points, X, Y, T, nx, ny, nt], 'scaled': [scaled_points, scaled_X, scaled_Y, scaled_T,  nx, ny, nt]}
-    
+

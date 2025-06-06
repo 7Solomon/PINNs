@@ -1,4 +1,3 @@
-from process.moisture.scale import scale_h, rescale_h
 import torch
 import deepxde as dde
 from config import richards1DConfig, concreteData

@@ -39,8 +39,8 @@ def manage_args(args):
         raise ValueError(f'Du bist ein dummer Mensch, {process_type} ist nicht in der MAP')
 
     output_transform = MAP[process_type][subtype].get('output_transform', None)
+    print(f'Output transform: {output_transform}')
     config = MAP[process_type][subtype]['config']
-
 
     if args.command == 'add':
         domain_func = MAP[process_type][subtype]['domain']
@@ -93,5 +93,5 @@ def visualize(vis_type, process_type, subtype, model, loss_history, args, domain
         except Exception as e:
             print(f"Error generating field visualization: {e}")
     
-    print(f"Generated visualizations: {list(vis.keys())}")
+    #print(f"Generated visualizations: {list(vis.keys())}")
     return vis
