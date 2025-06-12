@@ -3,13 +3,16 @@ class Scale:
         self.z_min, self.z_max = domain_variables.spatial['z']
         self.t_min, self.t_max = domain_variables.temporal['t']
 
-        #self.T = (self.t_max - self.t_min)  # could lead to faulure
-        self.T = 1
+
         self.L = (self.z_max - self.z_min)
+        self.T = 10e9
+        #self.T = 1 
+        #self.T = 1e6
+        self.K = 1e-10
 
-        self.H = 10
 
-        self.theta = 10
+        self.H = 6
+        self.theta = 1  # HERE
 
     #def scale_z(self, z):
     #    return (z - self.z_min) / (self.z_max - self.z_min)

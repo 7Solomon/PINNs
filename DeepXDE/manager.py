@@ -1,5 +1,6 @@
 import argparse
 from MAP import MAP
+from utils.dynamic_loss import DynamicLossWeightCallback
 import vis
 from utils.model_utils import load_function, save_function
 from model import create_model
@@ -59,13 +60,18 @@ def manage_args(args):
 
     ### Train
     if hasattr(args, 'epochs') and args.epochs > 0:
-        loss_history, train_state = model.train(iterations=args.epochs)
+        callbacks = []
+        if hasattr(config, 'callbacks') and 'dynamicLossWeight' in config.callbacks:
+            callbacks.append(DynamicLossWeightCallback(model, 0, max_epoch=args.epochs))
+        if hasattr(config, 'callbacks') and 'resample' in config.callbacks:
+            callbacks.append(dde.callbacks.PDEPointResampler(period=1000))
+        loss_history, train_state = model.train(iterations=args.epochs, callbacks=callbacks)
         #np.save('train_state.npy', train_state)
     else:
         loss_history = dde.model.LossHistory()
 
     ### VIS
-    Vis = visualize(args.vis, process_type, subtype, model, loss_history, args, domain_vars)
+    Vis = visualize(args.vis, process_type, subtype, model, loss_history, args, domain_vars, config)
 
     ### SAVE
     if args.save:
@@ -73,11 +79,11 @@ def manage_args(args):
 
 
 
-def visualize(vis_type, process_type, subtype, model, loss_history, args, domain_vars):
+def visualize(vis_type, process_type, subtype, model, loss_history, args, domain_vars, config):
     vis = {}
     if vis_type in ['loss', 'all']:
         try:
-            loss_figures = MAP[process_type][subtype]['vis']['loss'](loss_history)
+            loss_figures = MAP[process_type][subtype]['vis']['loss'](loss_history, config.loss_labels)
             vis.update(loss_figures)
         except KeyError as e:
             print(f"Warning: Loss visualization not available for {process_type}/{subtype}: {e}")
@@ -86,7 +92,8 @@ def visualize(vis_type, process_type, subtype, model, loss_history, args, domain
     
     if vis_type in ['field', 'all']:
         try:
-            field_figures = MAP[process_type][subtype]['vis']['field'](model)
+            kwargs = MAP[process_type][subtype]['vis'].get('kwargs', {})
+            field_figures = MAP[process_type][subtype]['vis']['field'](model, **kwargs)
             vis.update(field_figures)
         except KeyError as e:
             print(f"Warning: Field visualization not available for {process_type}/{subtype}: {e}")

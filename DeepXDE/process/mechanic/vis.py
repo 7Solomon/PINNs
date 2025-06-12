@@ -1,4 +1,6 @@
 import math
+from scipy.interpolate import griddata
+from utils.COMSOL import load_comsol_data_mechanic_2d
 from utils.metadata import Domain
 from process.mechanic.scale import Scale
 import numpy as np
@@ -6,26 +8,13 @@ import matplotlib.pyplot as plt
 from vis import get_2d_domain
 
 from domain_vars import fest_lost_2d_domain
+from process.mechanic.base_line import base_mapping
 
-
-
-def analytical_solution_FLL(x, q=1, L=1, EI=1):
-    return (1/12)*x**3 - (1/24) * x**4 - (1/24) * x
-def analytical_solution_FES(x, q=1, L=1, EI=1):
-    return -(1/2)*q*L*x**2 + (1/6)*q*L*x**3
-def analytical_solution_FLL_t(x,t):
-    return np.sin(x)*np.cos(4*math.pi*t)
-analytical_mapping = {
-    'fest_los': analytical_solution_FLL,
-    'einspannung': analytical_solution_FES,
-    'fest_los_t': analytical_solution_FLL_t,
-    #'2D_fest_los': None,
-}
 
 def visualize_field_1d(model, **kwargs):
     x = np.linspace(0, 1, 1000)[:, None]
     y = model.predict(x)
-    y_analytical = analytical_mapping[type](x)
+    y_analytical = base_mapping[type](x)
     #print("max: ", analytical_solution_FLL(1/2))
     plt.figure()
     plt.plot(x, -y, label='NEGATIVE predicted', color='red')
@@ -53,45 +42,75 @@ def visualize_field_2d(model, **kwargs):
 
     # Get predictions
     predictions = model.predict(scaled_points)
-    # predictions = scale_u(predictions) # Uncomment if you need to scale output
+    predictions = predictions * scale.U
 
     # --- Extract min/max for bounds (Needed for outline/limits) ---
     x_min, x_max = fest_lost_2d_domain.spatial['x']
     y_min, y_max = fest_lost_2d_domain.spatial['y']
     # -------------------------------------------------------------
 
-    # Create visualization (2x2 grid)
-    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+    # Create visualization (3x2 grid)
+    fig, axes = plt.subplots(2, 3, figsize=(15, 12))
     fig.suptitle('2D Field Visualization', fontsize=16) # Add an overall title
 
     # Calculate displacement magnitude (assuming X, Y are now 2D: [ny, nx])
     displacement_magnitude = np.sqrt(predictions[:, 0]**2 + predictions[:, 1]**2)
     displacement_magnitude_2d = displacement_magnitude.reshape(ny, nx)
+    
+    # Calculate base magnitude for comparison
+    data = load_comsol_data_mechanic_2d('BASELINE/mechanic/einspannung_2d.txt')
+    comsol_u_interp = griddata((data[:,0], data[:,1]), data[:,2], (X.flatten(), Y.flatten()), 
+                               method='linear', fill_value=0.0)
+    comsol_v_interp = griddata((data[:,0], data[:,1]), data[:,3], (X.flatten(), Y.flatten()), 
+                               method='linear', fill_value=0.0)
+
+    # Calculate base magnitude from interpolated data
+    base_magnitude = np.sqrt(comsol_u_interp**2 + comsol_v_interp**2)
+    base_magnitude_2d = base_magnitude.reshape(ny, nx)
+    
+    # Calculate error
+    error_magnitude = np.abs(displacement_magnitude - base_magnitude)
+    error_magnitude_2d = error_magnitude.reshape(ny, nx)
 
     # 1. Displacement Magnitude (Top-Left)
     ax = axes[0, 0]
     contour = ax.contourf(X, Y, displacement_magnitude_2d, levels=20, cmap='viridis')
     ax.set_title("Displacement Magnitude")
     plt.colorbar(contour, ax=ax, shrink=0.8) # Add colorbar
-    ax.set_aspect('equal') # Often good for physical fields
+    ax.set_aspect('equal')
+
+    # 2. Base Displacement Magnitude (Top-Center)
+    ax = axes[0, 1]
+    contour_base = ax.contourf(X, Y, base_magnitude_2d, levels=20, cmap='viridis')
+    ax.set_title("Base Displacement Magnitude")
+    plt.colorbar(contour_base, ax=ax, shrink=0.8) # Add colorbar
+    ax.set_aspect('equal') 
+
+    # 3. Error Magnitude (Top-Right)
+    ax = axes[0, 2]
+    contour_error = ax.contourf(X, Y, error_magnitude_2d, levels=20, cmap='plasma')
+    ax.set_title("Error Magnitude")
+    plt.colorbar(contour_error, ax=ax, shrink=0.8) # Add colorbar
+    ax.set_aspect('equal')
+
 
     # Calculate deformed shape (assuming X, Y are 2D: [ny, nx])
     u_x = predictions[:, 0].reshape(ny, nx)
     u_y = predictions[:, 1].reshape(ny, nx)
-    scale_factor = 5.0  # Adjust for visibility
+    scale_factor = 2.0  # Adjust for visibility
     deformed_X = X - scale_factor * u_x
     deformed_Y = Y - scale_factor * u_y
 
     # 2. Deformed Shape (Top-Right)
-    ax = axes[0, 1]
+    ax = axes[1, 0]
     ax.scatter(X, Y, c='blue', s=0.5, alpha=0.3, label='Original')
     ax.scatter(deformed_X, deformed_Y, c='red', s=0.5, alpha=0.7, label=f'Deformed (×{scale_factor})')
     ax.set_title("Deformed Shape")
-    ax.legend()
+    #ax.legend()
     ax.set_aspect('equal') # Crucial for deformation plots
 
     # 3. X-Displacement (Bottom-Left)
-    ax = axes[1, 0]
+    ax = axes[1, 1]
     # Create symmetric color limits centered at zero
     u_x_max = np.max(np.abs(predictions[:, 0]))
     scatter_x = ax.scatter(X, Y, c=predictions[:, 0], cmap='RdBu_r', s=1, alpha=0.7, 
@@ -101,7 +120,7 @@ def visualize_field_2d(model, **kwargs):
     ax.set_aspect('equal')
 
     # 4. Y-Displacement (Bottom-Right)
-    ax = axes[1, 1]
+    ax = axes[1, 2]
     # Create symmetric color limits centered at zero
     u_y_max = np.max(np.abs(predictions[:, 1]))
     scatter_y = ax.scatter(X, Y, c=predictions[:, 1], cmap='RdBu_r', s=1, alpha=0.7,
@@ -123,7 +142,7 @@ def visualize_field_2d(model, **kwargs):
         ax.set_ylim(y_min - 0.1 * (y_max - y_min), y_max + 0.1 * (y_max - y_min))
 
     # Add legend only once if using the 'Boundary' label
-    axes[0,1].legend() # Re-call legend on one plot to include 'Boundary' if needed
+    #axes[0,1].legend() # Re-call legend on one plot to include 'Boundary' if needed
 
     plt.tight_layout(rect=[0, 0.03, 1, 0.95]) # Adjust layout to make space for suptitle
     
@@ -212,8 +231,8 @@ def visualize_comsol_comparison(comsol_data, predictions, fest_lost_2d_domain, *
             ax.set_ylabel('Y-coordinate')
             ax.set_xlim(x_min - 0.1 * (x_max - x_min), x_max + 0.1 * (x_max - x_min))
             ax.set_ylim(y_min - 0.1 * (y_max - y_min), y_max + 0.1 * (y_max - y_min))
-            if ax_idx == 0 and ax_idy == 0: # Add legend only once to avoid duplicates
-                 ax.legend(loc='upper right')
+            #if ax_idx == 0 and ax_idy == 0: # Add legend only once to avoid duplicates
+            #     ax.legend(loc='upper right')
 
 
     plt.tight_layout(rect=[0, 0.03, 1, 0.95]) # Adjust layout

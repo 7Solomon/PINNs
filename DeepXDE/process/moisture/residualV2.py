@@ -4,6 +4,7 @@ import torch
 import deepxde as dde
 
 from config import concreteData
+#from material import concreteData
 
 def S_e(h):
     """
@@ -24,36 +25,66 @@ def water_retention_curve(h):
 
 def specific_moisture_capacity(h):
     """
-    Specific Moisture capacity / C
+    Specific Moisture capacity C(h) = d(theta)/dh for h < 0.
+    For h >= 0, the derivative is 0.
     """
-    return (concreteData.theta_s - concreteData.theta_r) * concreteData.soil_water_retention * concreteData.n * concreteData.m * (concreteData.soil_water_retention * torch.abs(h))**(concreteData.n - 1) / S_e(h)
+    # unsaturated zone (h < 0) mas
+    unsaturated_mask = h < 0
+    C = torch.zeros_like(h)
+    
+    if torch.any(unsaturated_mask):
+        h_unsat = h[unsaturated_mask]
+        
+        term1 = (concreteData.theta_s - concreteData.theta_r)
+        term2 = concreteData.soil_water_retention * concreteData.n * concreteData.m
+        term3 = (concreteData.soil_water_retention * torch.abs(h_unsat))**(concreteData.n - 1)
+        term4 = (1 + (concreteData.soil_water_retention * torch.abs(h_unsat))**concreteData.n)**(-(concreteData.m + 1))
+        
+        C[unsaturated_mask] = term1 * term2 * term3 * term4
 
+    return C
 def hydraulic_conductivity(h):
     Se = S_e(h)
+    #print('Se', Se.min().item(), Se.max().item())
     return concreteData.K_s* Se**0.5* (1-(1-Se**(1/concreteData.m))**concreteData.m)**2
 
 def residual_1d_head(x, y, scale: Scale):
     rescaled_h = y[:, 0] * scale.H 
-    C = specific_moisture_capacity(rescaled_h) # [1/H]
-    K = hydraulic_conductivity(rescaled_h)   # [L/T]
-    #print('TRUE C', C.min().item(), C.max().item())
-    #print('TRUE K', K.min().item(), K.max().item())
+    C = specific_moisture_capacity(rescaled_h)  # [1/m]
+    K = hydraulic_conductivity(rescaled_h)      # [m/s]
 
-    C = C / (1 / scale.H)  
-    K = K / (scale.L / scale.T)
+    log_K = torch.log(K + 1e-20)          # smoothing
+    K_smoothed = torch.exp(log_K)        # 
 
-    #print('rescaled_C', C.min().item(), C.max().item())
-    #print('rescaled_K', K.min().item(), K.max().item())
-
-
-    dh_dt = dde.grad.jacobian(y,x,i=0,j=1) * (scale.H/ scale.T)    # [H/T]
-    dh_dz = dde.grad.jacobian(y,x,i=0,j=0) * (scale.H / scale.L)   # [H/L]
-    time_term = C * dh_dt   # [1/H] * [H/T] = [1/T]
+    # Convert dimensionless
+    C_scaled = C * scale.H   # [1/m] * [m] = [-]
+    K_scaled = K_smoothed / scale.K  # [m/s] / [m/s] = [-]
 
 
-    Kdh_dz = K * dh_dz   # [L/T] * [H/L] = = [H/T]
+    dh_dt = dde.grad.jacobian(y,x,i=0,j=1)  # [-]
+    dh_dz = dde.grad.jacobian(y,x,i=0,j=0)  # [-]
     
-    spatial_term = dde.grad.jacobian(Kdh_dz, x, i=0, j=0) * (scale.H/(scale.T*scale.L))  #[H/T]*[1/L] = [H/(LT)]  =ca [1/T]
+    time_term = C_scaled * dh_dt #* ((scale.H*scale.L)/(scale.K*scale.T)) # [now -]
+
+    pi_one = (scale.K*scale.T)/scale.L**2  
+    flux_term = pi_one * K_scaled * dh_dz 
+    spatial_term = dde.grad.jacobian(flux_term, x, i=0, j=0)
+
+    #print('----')
+    #print('rescaled_h', rescaled_h.min().item(), rescaled_h.max().item())
+    #print('C', C.min().item(), C.max().item())
+    #print('K', K.min().item(), K.max().item())
+    #print('C_scaled', C_scaled.min().item(), C_scaled.max().item())
+    #print('K_scaled', K_scaled.min().item(), K_scaled.max().item())
+    #print('dh_dt', dh_dt.min().item(), dh_dt.max().item())
+    #print('dh_dz', dh_dz.min().item(), dh_dz.max().item())
+    #print('time_term', time_term.min().item(), time_term.max().item())
+    #print('spatial_term', spatial_term.min().item(), spatial_term.max().item())
+    #print('ScaleL', scale.L)
+    #print('ScaleT', scale.T)
+    #print('ScaleH', scale.H)
+    #print('ScaleK', scale.K)
+    #print('pi_one', pi_one)
     return time_term - spatial_term
 
 def hydraulic_conductivity_theta(theta):

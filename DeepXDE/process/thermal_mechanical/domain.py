@@ -1,5 +1,6 @@
 
 import torch
+import numpy as np
 import deepxde as dde
 
 from process.thermal_mechanical.residual import residual_thermal_2d
@@ -19,45 +20,47 @@ def get_thermal_2d_domain(domain_vars):
     time = dde.geometry.TimeDomain(t_min/scale.t, t_max/scale.t)
     geomTime = dde.geometry.GeometryXTime(geom, time)
 
-    value_left = 1.0 / scale.Temperature
+    value_left = 10.0 / scale.Temperature
     value_right = 0.0 / scale.Temperature
     initial_value = 0.5 / scale.Temperature
 
     left_temp_boundary = dde.DirichletBC(
         geomTime, 
         lambda x: value_left, 
-        lambda x, on_boundary: on_boundary and x[0] == (x_min/scale.L),
+        lambda x, on_boundary: on_boundary and np.isclose(x[0], (x_min/scale.L)),
         component=2
     )
     right_temp_boundary = dde.DirichletBC(
         geomTime, 
         lambda x: value_right, 
-        lambda x, on_boundary: on_boundary and x[0] == (x_max/scale.L),
+        lambda x, on_boundary: on_boundary and np.isclose(x[0], (x_max/scale.L)),
         component=2
     )
-    left_u_fixed = dde.DirichletBC(
+    
+    bottom_u_fixed = dde.DirichletBC(
         geomTime,
         lambda x: 0.0,
-        lambda x, on_boundary: on_boundary and x[0] == (x_min/scale.L),
+        lambda x, on_boundary: on_boundary and np.isclose(x[1], (y_min/scale.L)),
         component=0
     )
     bottom_v_fixed = dde.DirichletBC(
         geomTime,
         lambda x: 0.0,
-        lambda x, on_boundary: on_boundary and x[1] == (y_min/scale.L),
+        lambda x, on_boundary: on_boundary and np.isclose(x[1], (y_min/scale.L)),
         component=1
     )
 
     initial_condition = dde.IC(
         geomTime, 
         lambda x: initial_value, 
-        lambda _, on_initial: on_initial
+        lambda _, on_initial: on_initial,
+        component=2
     )
 
     data = dde.data.TimePDE(
         geomTime,
         lambda x,y : residual_thermal_2d(x,y, scale),
-        [left_temp_boundary, right_temp_boundary, left_u_fixed, bottom_v_fixed, initial_condition],
+        [left_temp_boundary, right_temp_boundary, bottom_u_fixed, bottom_v_fixed, initial_condition],
         num_initial=1000,
         num_domain=2000,
         num_boundary=300

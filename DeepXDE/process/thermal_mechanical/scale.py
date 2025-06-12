@@ -5,23 +5,13 @@ class Scale:
         self.y_min, self.y_max = domain_variables.spatial['y']
         self.t_min, self.t_max = domain_variables.temporal['t']
 
-        self.Temperature = 1
-        #self.Lx = self.x_max - self.x_min
-        #self.Ly = self.y_max - self.y_min
+        self.Temperature = 10
+
         self.t = self.t_max - self.t_min
+        #self.t = 1
         self.L = max(self.x_max - self.x_min, self.y_max - self.y_min)
+        self.U = 0.1
 
-        #self.Ux = 1
-        #self.Uy = 1
-    def U(self, alpha):
-        return alpha * self.L * self.Temperature
-
-
-    def sigma_voigt(self, E, alpha):
-        self.sigma_char = E * alpha * self.Temperature 
-        return torch.tensor([
-            self.sigma_char, 
-            self.sigma_char, 
-            self.sigma_char * 0.5
-        ], dtype=torch.float64)
-            
+    def sigma(self, E):
+        return (E * self.U) / self.L  # [Pa]
+#

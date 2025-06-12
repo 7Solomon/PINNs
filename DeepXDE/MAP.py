@@ -108,6 +108,7 @@ MAP = {
                 'field': process.moisture.vis.visualize_2d_mixed,
                 'kwargs': {
                     'title': '1D Mixed Field',
+                    
                 }
                 #'div': process.moisture.vis.visualize_divergence,
             },
@@ -117,6 +118,7 @@ MAP = {
             'domain': process.moisture.domain.get_1d_head_domain,
             'domain_vars': domain_vars.moisture_1d_domain,
             'config': config.richards1DConfig,
+            'output_transform': process.moisture.output_transform.output_transform_1d_head,
             'vis' : {
                 'loss': vis.plot_loss,
                 'field': process.moisture.vis.vis_1d_head,
@@ -131,7 +133,7 @@ MAP = {
             'domain': process.moisture.domain.get_1d_saturation_domain,
             'domain_vars': domain_vars.moisture_1d_domain,
             'config': config.richards1DConfig,
-            'output_transform': process.moisture.output_transform.output_transform,
+            'output_transform': process.moisture.output_transform.output_transform_1d_saturation,
             'vis' : {
                 'loss': vis.plot_loss,
                 'field': process.moisture.vis.vis_1d_saturation,
@@ -163,11 +165,27 @@ MAP = {
                 'loss': vis.plot_loss,
                 'field': process.thermal_mechanical.vis.vis_2d_multi,
                 'kwargs': {
-                    'variable_indices' : [0,1,2]
+                    #'variable_indices' : [0,1,2,3],
+                    #'show_displacement_comparison': True,
+                    #'displacement_amplifier': 1000,
                 }
                 #'div': process.thermal_mechanical.vis.visualize_divergence,
             },
             'path': 'models/thermal_mechanical/2d',
+        }
+    },
+    'thermal_moisture': {
+        '2d': {
+            'domain': process.thermal_moisture.domain.get_2d_domain,
+            'domain_vars': domain_vars.thermal_moisture_2d_domain,
+            'config': config.thermalMoisture2DConfig,
+            'vis' : {
+                'loss': vis.plot_loss,
+                'field': process.thermal_moisture.vis.vis_2d_multi,
+                #'field': lambda x :print('No field visualization implemented for thermal moisture 2D yet, you '),
+                #'div': process.thermal_moisture.vis.visualize_divergence,
+            },
+            'path': 'models/thermal_moisture/2d',
         }
     }
 }

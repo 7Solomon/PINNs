@@ -5,7 +5,7 @@ from process.mechanic.scale import *
 import numpy as np
 import deepxde as dde
 import torch
-from process.mechanic.residual import pde_1d_residual, pde_1d_t_residual, cooks_residual, pde_2d_residual
+from process.mechanic.residual import pde_1d_residual, pde_1d_t_residual, pde_2d_residual
 from config import cooksMembranConfig
 
 def du_dxx_zero(x, y, _):

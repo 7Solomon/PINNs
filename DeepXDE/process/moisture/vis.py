@@ -32,7 +32,6 @@ def vis_1d_head(model, interval=2000, xlabel='z', ylabel='u(z,t)', **kwargs):
     t_points = np.linspace(t_start, t_end, num_t_points)
 
     Z, T = np.meshgrid(z_points, t_points)
-    ZT = np.vstack((Z.ravel(), T.ravel())).T
 
     Z_scaled = Z.copy() / scale.L   # Scale z
     T_scaled = T.copy() / scale.T   # Scale t
@@ -42,19 +41,11 @@ def vis_1d_head(model, interval=2000, xlabel='z', ylabel='u(z,t)', **kwargs):
     # Get predictions from the model
     predictions = model.predict(ZT_scaled)
     predictions = predictions * scale.H
-
-    if predictions.ndim > 1 and predictions.shape[1] > 1:
-        print(f"Warning: Model output has shape {predictions.shape}. Assuming the first column is the desired output.")
-
-    try:
-        data = predictions.reshape(num_t_points, num_x_points).T
-    except ValueError as e:
-        print(f"Error reshaping predictions: {e}")
-        print(f"Prediction shape: {predictions.shape}, Target shape: ({num_t_points}, {num_x_points}) then transposed.")
-        print("Ensure the total number of elements in predictions matches num_x_points * num_t_points.")
-        return None
+    # 
+    data = predictions.reshape(num_t_points, num_x_points).T
 
 
+    
     fig, ax = plt.subplots()
     line, = ax.plot(z_points, data[:, 0])
 
@@ -63,10 +54,13 @@ def vis_1d_head(model, interval=2000, xlabel='z', ylabel='u(z,t)', **kwargs):
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
 
+    time_scale = ((60*60), 'Hours') if t_points.max()/(60*60*24) < 2 else ((60*60*24), 'Days')
+
     def update(frame):
         line.set_ydata(data[:, frame])
-        ax.set_title(f'{title} (t={(t_points[frame]/(60*60*24)):.3f} days)')
+        ax.set_title(f'{title} (t={(t_points[frame]/time_scale[0]):.3f} {time_scale[1]})')
         return line,
+
 
     ani = animation.FuncAnimation(fig, update, frames=num_t_points,
                                   interval=interval, blit=True, repeat=False)
@@ -119,9 +113,11 @@ def vis_1d_saturation(model, interval=2000, xlabel='z', ylabel='u(z,t)', **kwarg
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
 
+    time_scale = ((60*60), 'Hours') if t_points.max()/(60*60*24) < 2 else ((60*60*24), 'Days')
+
     def update(frame):
         line.set_ydata(data[:, frame])
-        ax.set_title(f'{title} (t={(t_points[frame]/(60*60*24)):.3f} days)')
+        ax.set_title(f'{title} (t={(t_points[frame]/time_scale[0]):.3f} {time_scale[1]})')
         return line,
 
     ani = animation.FuncAnimation(fig, update, frames=num_t_points,

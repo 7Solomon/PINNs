@@ -6,12 +6,11 @@ class Scale:
         self.y_min, self.y_max = domain_variables.spatial['y']
 
         self.L = max(self.x_max - self.x_min, self.y_max - self.y_min)
-
-    def U(self, E):
-        return (1.0 * self.L**3) / E
+        self.U = 1 # [L]
+        self.f = self.U / self.L**2
 
     def sigma(self, E):
-        return (E * self.U(E)) / self.L
+        return (E * self.U) / self.L
 
     #def Ux(self, alpha):
     #    return alpha * self.L

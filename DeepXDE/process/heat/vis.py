@@ -9,14 +9,14 @@ from matplotlib import animation, cm
 
 from process.heat.scale import *
 def visualize_steady_field(model, **kwargs):
-    steady_heat_scale = Scale(steady_heat_2d_domain)
-    domain = get_2d_domain(steady_heat_2d_domain, steady_heat_scale.scale_x, steady_heat_scale.scale_y)
+    scale = Scale(steady_heat_2d_domain)
+    domain = get_2d_domain(steady_heat_2d_domain, scale)
     points, X, Y, nx, ny = domain['normal']
     points_scaled, X_scaled, Y_scaled, nx, ny = domain['scaled']
 
     predictions = model.predict(points_scaled)
     predictions = predictions.reshape(ny, nx)
-    predictions = rescale_value(predictions)
+    predictions = predictions * scale.T
 
     #PLOT
     plt.figure(figsize=(10,5))
@@ -31,8 +31,8 @@ def visualize_steady_field(model, **kwargs):
     return {'field': plt.gcf()}
 
 def visualize_transient_field(model, **kwargs):
-    transient_heat_scale = Scale(transient_heat_2d_domain)
-    domain = get_2d_time_domain(transient_heat_2d_domain, transient_heat_scale.scale_x, transient_heat_scale.scale_y, transient_heat_scale.scale_t)
+    scale = Scale(transient_heat_2d_domain)
+    domain = get_2d_time_domain(transient_heat_2d_domain, scale)
 
     points, X, Y, t, nx, ny, nt = domain['normal']
     scaled_points, X_scaled, Y_scaled, t_scaled, nx, ny, nt = domain['scaled']
@@ -42,7 +42,7 @@ def visualize_transient_field(model, **kwargs):
     print('Y_scaled', Y_scaled.shape)
     predictions = model.predict(scaled_points)
     predictions = predictions.reshape(ny, nx, nt)
-    predictions = rescale_value(predictions)
+    predictions = predictions * scale.T
 
     fig, ax = plt.subplots(figsize=(10, 5))
 
@@ -69,7 +69,7 @@ def visualize_transient_field(model, **kwargs):
     plt.tight_layout()
     plt.show()
     #return {'field': fig}
-    return {'field': ani}
+    return {'field': ani, 'fig': fig}
 
 
 #def visualize_field(model, type, inverse_scale=None):

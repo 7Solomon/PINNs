@@ -9,49 +9,46 @@ from matplotlib import cm
 import matplotlib.animation as animation
 
 
-def plot_loss(Loss):
+def plot_loss(Loss, labels=None):
+    """
+    Plot loss history with customizable labels.
+    
+    Args:
+        Loss: LossHistory object or list/array of loss values
+        labels: List of labels for loss components. If None, uses generic labels.
+    """
+    
     if isinstance(Loss, dde.model.LossHistory):
         epochs = Loss.steps
-        labels_v1 =['PDE', 'links', 'rechts', 'initial']
-        labels_v2 = ['PDE_u', 'PDE_v', 'links_temp', 'rechts_temp', 'u_fixed', 'v_fixed', 'initial']
-        # training losses
+        
         if Loss.loss_train and len(Loss.loss_train[0]) > 0:
             loss_train_np = np.array(Loss.loss_train)
-            num_train_components = loss_train_np.shape[1]
-            if num_train_components == len(labels_v1):
-                for i in range(num_train_components):
-                    component_label = labels_v1[i] if i < len(labels_v1) else f'Train Comp {i+1}'
-                    plt.plot(epochs, loss_train_np[:, i], label=f'{component_label}')
+            num_components = loss_train_np.shape[1]
+            
+            if labels is None:
+                labels = [f'Component {i+1}' for i in range(num_components)]
+            elif len(labels) < num_components:
+                labels = list(labels) + [f'Component {i+1}' for i in range(len(labels), num_components)]
+            
 
-            elif num_train_components == len(labels_v2):   
-                for i in range(num_train_components):
-                    component_label = labels_v2[i] if i < len(labels_v2) else f'Train Comp {i+1}'
-                    plt.plot(epochs, loss_train_np[:, i], label=f'{component_label}')
+            # Here PLOT LOSS
+            for i in range(num_components):
+                plt.plot(epochs, loss_train_np[:, i], label=labels[i])
         else:
-            print('No training loss')
-
-        # testing losses
-        #if Loss.loss_test and len(Loss.loss_test[0]) > 0:
-        #    loss_test_np = np.array(Loss.loss_test)
-        #    num_test_components = loss_test_np.shape[1]
-        #    for i in range(num_test_components):
-        #        component_label = labels[i] if i < len(labels) else f'Test Comp {i+1}'
-        #        plt.plot(epochs, loss_test_np[:, i], label=f'{component_label} (Test)', linestyle='--')
-        #else:
-        #    print('No testing loss')
+            print('No training loss data available')
+            
         plt.legend(loc='best')
     else:
-        #plt.legend(loc='best')
-        plt.plot(Loss, label='Loss')
-
+        # Handle case where Loss is just a simple array/list
+        plt.plot(Loss, label='Total Loss')
+        plt.legend()
 
     plt.grid(True, which="both", ls="--")
     plt.xlabel('Epochs')
     plt.ylabel('Loss')
-    plt.title('Loss (log Scale)')
+    plt.title('Training Loss (Log Scale)')
     plt.yscale('log')
-    #plt.savefig('loss.png', dpi=300)
-    #plt.show()
+    
     return {'loss': plt.gcf()}
 
         
@@ -66,9 +63,9 @@ def get_2d_domain(domain_variabeles: Domain, scale):
     y = np.linspace(min_y, max_y, ny)
     X, Y = np.meshgrid(x, y)
 
-    scaled_X = X.copy() / scale.L  # Scale x
-    scaled_Y = Y.copy() / scale.L  # Scale y
-    
+    scaled_X = X.copy() / getattr(scale, 'Lx', getattr(scale, 'L', 1))
+    scaled_Y = Y.copy() / getattr(scale, 'Ly', getattr(scale, 'L', 1))
+
     points = np.vstack((X.ravel(), Y.ravel())).T
     scaled_points = np.vstack((scaled_X.ravel(), scaled_Y.ravel())).T  
 
@@ -87,9 +84,9 @@ def get_2d_time_domain(domain_variabeles:Domain, scale):
     t = np.linspace(min_t, max_t, nt)
     X, Y, T = np.meshgrid(x, y, t)
 
-    scaled_X = X.copy() / scale.L  # Scale x
-    scaled_Y = Y.copy() / scale.L  # Scale y
-    scaled_T = T.copy() / scale.T  # Scale t
+    scaled_X = X.copy() / getattr(scale, 'Lx', getattr(scale, 'L', 1))
+    scaled_Y = Y.copy() / getattr(scale, 'Ly', getattr(scale, 'L', 1))
+    scaled_T = T.copy() / getattr(scale, 'T', getattr(scale, 't', 1))
 
     points = np.vstack((X.flatten(), Y.flatten(), T.flatten())).T
     scaled_points = np.vstack((scaled_X.flatten(), scaled_Y.flatten(), scaled_T.flatten())).T
