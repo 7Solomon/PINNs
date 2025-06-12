@@ -2,147 +2,172 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from process.thermal_mechanical.scale import Scale
+
+from config import concreteData
 from domain_vars import thermal_mechanical_2d_domain
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from process.thermal_mechanical.scale import Scale
+from config import concreteData
+from domain_vars import thermal_mechanical_2d_domain
+
 def vis_2d_multi(model, interval=600, **kwargs):
     """
-    Creates an animation showing multiple variables in subplots.
+    Creates an animation showing thermal-mechanical 2D results with all variables.
     
     Args:
         model: Trained model with predict() method
-        variable_indices: List of variables to show [0=u_x, 1=u_y, 2=T]
         interval: Animation delay in ms (default: 600)
     """
     
-    # --- Setup ---
-    var_names = ['X-Displacement (u)', 'Y-Displacement (v)', 'Temperature (T)']
-    cmaps = ['RdBu_r', 'RdBu_r', 'plasma']
-    units = ['m', 'm', '°C']
+    # Configuration
+    var_names = ['X-Displacement (u)', 'Y-Displacement (v)', 'Temperature (T)', 'Displacement Magnitude']
+    cmaps = ['RdBu_r', 'RdBu_r', 'plasma', 'viridis']
+    units = ['m', 'm', '°C', 'm']
     
     scale = Scale(thermal_mechanical_2d_domain)
-    variable_indices = kwargs.get('variable_indices', [0, 1, 2])
-    n_vars = len(variable_indices)
-
-    # Domain bounds
+    
+    # Domain and grid setup
     x_start, x_end = thermal_mechanical_2d_domain.spatial['x']
     y_start, y_end = thermal_mechanical_2d_domain.spatial['y']
     t_start, t_end = thermal_mechanical_2d_domain.temporal['t']
     
-    # Grid resolution
-    nx = kwargs.get('num_x_points', 50)
-    ny = kwargs.get('num_y_points', 50)
-    nt = kwargs.get('num_t_points', 50)
-    
-    # --- Generate Data ---
-    print(f"Generating {nt} time steps for {n_vars} variables...")
+    nx, ny, nt = 50, 50, 50
     x_points = np.linspace(x_start, x_end, nx)
     y_points = np.linspace(y_start, y_end, ny)
     t_points = np.linspace(t_start, t_end, nt)
     X, Y = np.meshgrid(x_points, y_points)
     
-    # Store data for each variable
-    all_data = {idx: [] for idx in variable_indices}
-
+    # Generate predictions for all time steps
+    print(f"Generating {nt} time steps...")
+    all_predictions = []
+    
     for i, t in enumerate(t_points):
         if i % 10 == 0:
             print(f"  Step {i+1}/{nt}")
             
-        # Create input points
+        # Create and scale input points
         T_grid = np.full_like(X, t)
         XYT = np.vstack((X.ravel(), Y.ravel(), T_grid.ravel())).T
+        XYT_scaled = XYT / np.array([scale.L, scale.L, scale.t])
         
-        # Scale and predict
-        XYT_scaled = XYT.copy()
-        XYT_scaled[:, 0] /= scale.L
-        XYT_scaled[:, 1] /= scale.L  
-        XYT_scaled[:, 2] /= scale.t
-        
+        # Get predictions and scale back to physical units
         predictions = model.predict(XYT_scaled)
+        u_data = predictions[:, 0].reshape(X.shape) * scale.U
+        v_data = predictions[:, 1].reshape(X.shape) * scale.U
+        T_data = predictions[:, 2].reshape(X.shape) * scale.Temperature
+        mag_data = np.sqrt(u_data**2 + v_data**2)
         
-        # Process each variable
-        for var_idx in variable_indices:
-            data = predictions[:, var_idx].reshape(X.shape)
-            
-            # Unscale for display
-            if var_idx == 2:  # Temperature
-                data = data * scale.Temperature
-                
-            all_data[var_idx].append(data)
+        all_predictions.append([u_data, v_data, T_data, mag_data])
     
-    # Convert to arrays
-    for var_idx in variable_indices:
-        all_data[var_idx] = np.array(all_data[var_idx])
+    all_predictions = np.array(all_predictions)  # Shape: (nt, 4, ny, nx)
     
-    # --- Create Animation ---
-    # Determine subplot layout
-    if n_vars == 1:
-        rows, cols = 1, 1
-        figsize = (8, 6)
-    elif n_vars == 2:
-        rows, cols = 1, 2
-        figsize = (15, 6)
-    elif n_vars == 3:
-        rows, cols = 1, 3
-        figsize = (18, 6)
-    else:
-        rows, cols = 2, (n_vars + 1) // 2
-        figsize = (9 * cols, 6 * rows)
+    # Setup figure with 2x3 layout (4 field plots + 2 mesh plots)
+    fig, axes = plt.subplots(2, 3, figsize=(18, 12))
+    axes = axes.flatten()
     
-    fig, axes = plt.subplots(rows, cols, figsize=figsize)
-    if n_vars == 1:
-        axes = [axes]
-    elif rows == 1:
-        axes = axes
-    else:
-        axes = axes.flatten()
-    
-    # Initialize plots
-    ims = []
-    cbars = []
-    
-    for i, var_idx in enumerate(variable_indices):
+    # Initialize field plots (first 4 subplots)
+    field_ims = []
+    for i in range(4):
         ax = axes[i]
         
-        # Color limits
-        if var_idx in [0, 1]:  # Displacements - symmetric
-            vmax = np.max(np.abs(all_data[var_idx]))
+        # Set color limits
+        if i in [0, 1]:  # Displacements - symmetric around zero
+            vmax = np.max(np.abs(all_predictions[:, i]))
             vmin = -vmax
-        else:  # Temperature - full range
-            vmin, vmax = all_data[var_idx].min(), all_data[var_idx].max()
+        else:  # Temperature and magnitude - full range
+            vmin = all_predictions[:, i].min()
+            vmax = all_predictions[:, i].max()
         
-        # Create plot
-        im = ax.imshow(all_data[var_idx][0], 
+        # Create initial plot
+        im = ax.imshow(all_predictions[0, i], 
                       extent=[x_start, x_end, y_start, y_end],
                       origin='lower', aspect='equal', 
-                      vmin=vmin, vmax=vmax, cmap=cmaps[var_idx])
-        ims.append(im)
+                      vmin=vmin, vmax=vmax, cmap=cmaps[i])
+        field_ims.append(im)
         
-        # Styling
+        # Add colorbar and styling
         cbar = plt.colorbar(im, ax=ax, shrink=0.8)
-        cbar.set_label(f'{var_names[var_idx]} [{units[var_idx]}]')
-        cbars.append(cbar)
-        
-        ax.set_title(var_names[var_idx])
-        ax.set_xlabel('X Position')
-        ax.set_ylabel('Y Position')
+        cbar.set_label(f'{var_names[i]} [{units[i]}]')
+        ax.set_title(var_names[i])
+        ax.set_xlabel('X Position [m]')
+        ax.set_ylabel('Y Position [m]')
         ax.grid(True, alpha=0.3)
     
-    # Hide unused subplots
-    for i in range(n_vars, len(axes)):
-        axes[i].set_visible(False)
+    # Setup mesh deformation plots (subplots 5 and 6)
+    mesh_subsample = 8  # Every 8th point for cleaner mesh
+    X_mesh = X[::mesh_subsample, ::mesh_subsample] 
+    Y_mesh = Y[::mesh_subsample, ::mesh_subsample]
     
-    # Animation function
-    def update(frame):
+    # Original mesh plot (subplot 5)
+    original_ax = axes[4]
+    original_ax.plot(X_mesh, Y_mesh, 'k-', alpha=0.5, linewidth=0.8)
+    original_ax.plot(X_mesh.T, Y_mesh.T, 'k-', alpha=0.5, linewidth=0.8)
+    original_ax.set_title('Original Mesh')
+    original_ax.set_xlabel('X Position [m]')
+    original_ax.set_ylabel('Y Position [m]')
+    original_ax.set_aspect('equal')
+    original_ax.grid(True, alpha=0.3)
+    
+    # Deformed mesh plot (subplot 6)
+    deformed_ax = axes[5]
+    deformed_lines_h = []  # Horizontal lines
+    deformed_lines_v = []  # Vertical lines
+    
+    # Initialize deformed mesh lines
+    amplification = 1000  # Amplify displacements for visibility
+    for i in range(X_mesh.shape[0]):
+        line, = deformed_ax.plot([], [], 'r-', linewidth=1)
+        deformed_lines_h.append(line)
+    for j in range(X_mesh.shape[1]):
+        line, = deformed_ax.plot([], [], 'r-', linewidth=1)
+        deformed_lines_v.append(line)
+    
+    deformed_ax.set_title(f'Deformed Mesh ({amplification}x amplified)')
+    deformed_ax.set_xlabel('X Position [m]')
+    deformed_ax.set_ylabel('Y Position [m]')
+    deformed_ax.set_aspect('equal')
+    deformed_ax.grid(True, alpha=0.3)
+    
+    def update_frame(frame):
+        # Update title with current time
         time_days = t_points[frame] / (24 * 3600)
         fig.suptitle(f'Thermal-Mechanical 2D Animation - Time: {time_days:.2f} days', 
-                    fontsize=16, y=0.98)
+                    fontsize=16, y=0.95)
         
-        for i, var_idx in enumerate(variable_indices):
-            ims[i].set_array(all_data[var_idx][frame])
+        # Update field plots
+        for i in range(4):
+            field_ims[i].set_array(all_predictions[frame, i])
         
-        return ims
+        # Update deformed mesh
+        u_mesh = all_predictions[frame, 0][::mesh_subsample, ::mesh_subsample] * amplification
+        v_mesh = all_predictions[frame, 1][::mesh_subsample, ::mesh_subsample] * amplification
+        X_deformed = X_mesh + u_mesh
+        Y_deformed = Y_mesh + v_mesh
+        
+        # Update horizontal lines
+        for i, line in enumerate(deformed_lines_h):
+            line.set_data(X_deformed[i, :], Y_deformed[i, :])
+        
+        # Update vertical lines  
+        for j, line in enumerate(deformed_lines_v):
+            line.set_data(X_deformed[:, j], Y_deformed[:, j])
+        
+        # Adjust deformed mesh axis limits
+        x_range = X_deformed.max() - X_deformed.min()
+        y_range = Y_deformed.max() - Y_deformed.min()
+        margin = 0.1
+        deformed_ax.set_xlim(X_deformed.min() - margin * x_range, 
+                           X_deformed.max() + margin * x_range)
+        deformed_ax.set_ylim(Y_deformed.min() - margin * y_range, 
+                           Y_deformed.max() + margin * y_range)
+        
+        return field_ims + deformed_lines_h + deformed_lines_v
     
-    ani = animation.FuncAnimation(fig, update, frames=nt, interval=interval, 
-                                  blit=True, repeat=True)
+    # Create animation
+    ani = animation.FuncAnimation(fig, update_frame, frames=nt, interval=interval, 
+                                  blit=False, repeat=True)
     
     plt.tight_layout()
     return {'field': ani, 'figure': fig}

@@ -1,6 +1,7 @@
 from dataclasses import asdict, dataclass, field, fields
 import json
 import math
+from utils.dynamic_loss import DynamicLossWeightCallback
 import torch
 
 
@@ -9,7 +10,7 @@ import torch
 class ConcreteData:
     cp: float = 8.5e3 # J/(kg*K)
     rho: float = 6e3  # kg/m^3
-    k: float = 0.2 # W/(m*K)
+    k: float = 0.2 # W/(m*K)   # Vielliecht auch lamda, ja wajrsheinlich
     beta: float = 0.2  # 1/K
 
     E: float = 3e10 # Pa
@@ -19,17 +20,37 @@ class ConcreteData:
     # VG
     theta_r: float = 0.05                               # = 0.01
     theta_s: float = 0.35                               # = 0.12
-    soil_water_retention: float = 2.0                   # = 0.4
-    n: float = 2.0                                         # = 1.2
-    m: float = 1.0 - 1.0/2.0                             #   1.2
-    K_s: float = 1e-1#K_s: float = 10e-6  # RICHARDS für Concrete IS NE nen bisschen eine bitch also große K_s
+    soil_water_retention: float = 14.5                 # = 0.4
+    n: float = 1.89                                    # = 1.2
+    m: float = 1.0 - 1.0/1.89                         #   1.2
+    K_s: float = 1e-5#  K_s: float = 10e-6  # RICHARDS für Concrete IS NE nen bisschen eine bitch also große K_s
 
-    # Moisture (Darcy)
-    K = 1e-9
+    # Moisture (Darcy) 
+    #K: 1e-9    # 
+
+    # Thermal Moisture
+    rho_a: float = 1.29  # kg/m^3
+    cp_a: float = 1e3  # J/(kg*K)
+
+    rho_w:float = 1000  # kg/m^3
+    cp_w: float = 4.2e3 
+
+    phi: float = 0.9    # [%]
+    L_v:float = 2.45e6  # J/kg    # Does change with Temp [(0,2.5),(25,2.45),(100,2.26)]
+    D_v:float = 2e-5  # m^2/s
+
+    lamda_dry: float = 1.4
+    lamda_sat: float = 2.5
 
     def alpha(self):
         return self.k/(self.rho*self.cp) # m^2/s
-    
+    def C(self):  # 
+        return self.E / ((1+self.nu)*(1-2*self.nu))  * torch.tensor([
+                                                                        [1-self.nu, self.nu, 0],
+                                                                        [self.nu, 1-self.nu, 0],
+                                                                        [0, 0, (1-2*self.nu)/2]
+                                                                    ])
+
 
 
 @dataclass
@@ -60,94 +81,124 @@ class BConfig:
         filtered_data = {k: v for k, v in data.items() if k in valid_fields}
         
         return config_class(**filtered_data)
+    
+    def get(self, attr_name, default=None):
+        return getattr(self, attr_name, default)
 
+
+###
+#  Heat
+###
 
 class SteadyHeatConfig(BConfig):
     input_dim: int = 2
     output_dim: int = 1
+    loss_weights: list[float] = [1.0, 1.0, 1.0]
+    loss_labels: list[str] = ['PDE', 'Left', 'Right']
+    decay = None
+
+    compile_args: dict = {'optimizer': 'adam', 'lr': 1e-3}
 
 
 class TransientHeatConfig(BConfig):
     input_dim: int = 3
     output_dim: int = 1
+    
+    compile_args: dict = {'optimizer': 'adam', 'lr': 1e-3}
+    loss_weights: list[float] = [1.0, 1.0, 1.0, 1.0]
+    loss_labels: list[str] = ['PDE', 'Left', 'Right', 'Initial']
+
+
+
+####
+##  Moisture
+###
+class Richards1DConfig(BConfig):
+    input_dim: int = 2
+    output_dim: int = 1
+
+    compile_args: dict = {'optimizer': 'adam', 'lr': 1e-3}
+    #decay: list[str,int,float] = ['step', 2000, 0.5]
+    loss_weights: list[float] = [100.0, 100.0, 1.0, 1.0]
+    loss_labels: list[str] = ['PDE', 'Initial', 'Left', 'Right']
+    callbacks: list[str] = ['resample']
+    
+    fourier_transform_features: int = 20
+    #callbacks: list[str] = ['dynamicLossWeight']
+
+class RichardsMixed1DConfig(BConfig):
+    input_dim: int = 2
+    output_dim: int = 2
+
+    compile_args: dict = {'optimizer': 'adam', 'lr': 1e-3}
+    loss_weights: list[float] = [1.0, 1.0, 10.0, 10.0, 10.0]
+    loss_labels: list[str] = ['PDE_Head', 'PDE_Saturation', 'Initial', 'Left', 'Right']
+
+
+class Darcy2DConfig(BConfig):
+    input_dim: int = 2
+    output_dim: int = 1
+
+    compile_args: dict = {'optimizer': 'adam', 'lr': 1e-3}
+    loss_weights: list[float] = [1.0, 1.0, 1.0]
+    loss_labels: list[str] = ['PDE', 'Left', 'Right']
+
+
+###
+#  Mechanical
+##
 
 
 class BernoulliBalkenConfig(BConfig):
     input_dim: int = 1
     output_dim: int = 1
 
+    compile_args: dict = {'optimizer': 'adam', 'lr': 1e-3}
+    loss_weights: list[float] = [1.0, 1.0, 1.0, 1.0]
+    #loss_labels: list[str] = ['PDE_X', 'Left', 'Right']
+
 
 class BernoulliBalken2DConfig(BConfig):
     input_dim: int = 2
     output_dim: int = 2
-    loss_weights: list[float] = [1.0, 1.0, 1.0, 1.0]
 
-    def C(self, material):
-        return material.E / ((1+material.nu)*(1-2*material.nu))  * torch.tensor([
-                                                                                    [1-material.nu, material.nu, 0],
-                                                                                    [material.nu, 1-material.nu, 0],
-                                                                                    [0, 0, (1-2*material.nu)/2]
-                                                                                ])
+    compile_args: dict = {'optimizer': 'adam', 'lr': 1e-3}
+    decay: list[str,int,float] = None
+    loss_weights: list[float] = [1.0, 1.0, 1.0, 1.0]
+    loss_labels: list[str] = ['PDE_X', 'PDE_Y', 'Left', 'Right']
+
 
 class BernoulliBalkenTconfig(BConfig):
     input_dim: int = 2
     output_dim: int = 1
 
-
-    #def __post_init__(self):
-    #    self.c = math.sqrt((self.E*self.I)/(self.rho*self.A))
-    
-    # load
-    def f(self,x,t):
-        #return self.E*self.I*(1.0-16*math.pi**2)*math.sin(x/math.pi)*math.cos((4*self.c*t)/math.pi)/self.L**3  # not 3d
-        return (1.0-16.0*math.pi**2)*torch.sin(x)*torch.cos(4*math.pi*t) # scaled
-
-class Richards1DConfig(BConfig):
-    input_dim: int = 2
-    output_dim: int = 1
-    loss_weights: list[float] = [10.0, 1.0, 1.0, 1.0]
-
-class RichardsMixed1DConfig(BConfig):
-    input_dim: int = 2
-    output_dim: int = 2
-    loss_weights: list[float] = [1.0, 1.0, 10.0, 10.0, 10.0]
+    compile_args: dict = {'optimizer': 'adam', 'lr': 1e-3}
+    loss_weights: list[float] = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
 
 
-    # Van Genuchten params
-    #theta_r: float = 0.01
-    #theta_s: float = 0.12
-    #alpha: float = 0.4
-    #n: float = 1.2
-    #m: float = 1.0 - 1.0/1.2
-    #K_s: float = 1e-1#K_s: float = 10e-6  # RICHARDS für Concrete IS NE nen bisschen eine bitch also große K_s
-
-    #def __post_init__(self): # macht probleme
-    #    print('POST INIT')
-    #    self.m = 1.0 - 1.0/self.n
 class CooksMembranConfig(BConfig):
     input_dim: int = 2
     output_dim: int = 2
 
-    # material
-    E = 3e6  # Pa
-    nu = 0.2
-    
-
-    def C(self):
-        return (self.E/ (1-self.nu**2)) * torch.tensor([[1, self.nu, 0],
-                                                        [self.nu, 1, 0],
-                                                        [0, 0, (1-self.nu)/2]
-                                                        ], dtype=torch.float64)
-    
-class Darcy2DConfig(BConfig):
-    input_dim: int = 2
-    output_dim: int = 1
+    compile_args: dict = {'optimizer': 'adam', 'lr': 1e-3}
+    #loss_weights: list[float] = [1.0, 1.0, 1.0, 1.0]
 
 class ThermalMechanical2DConfig(BConfig):
     input_dim: int = 3
     output_dim: int = 3
+
+    compile_args: dict = {'optimizer': 'adam', 'lr': 1e-4}
+    decay: list[str,int,float] = ['step', 10000, 0.5]
     loss_weights: list[float] = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
-                           
+    loss_labels: list[str] = ['PDE_X', 'PDE_Y', 'PDE_T', 'Left_T', 'Right_T', 'Bottom_U', 'Bottom_V', 'Initial_T']
+
+class ThermalMoisture2DConfig(BConfig):
+    input_dim: int = 3
+    output_dim: int = 2
+
+    compile_args: dict = {'optimizer': 'adam', 'lr': 1e-4}
+    loss_weights: list[float] = [1.0, 1.0, 1.0, 1.0, 1.0]
+    loss_labels: list[str] = ['PDE', 'temp_init', 'moisture_init', 'temp_left', 'moisture_left']
 
 steadyHeatConfig = SteadyHeatConfig()
 bernoulliBalkenConfig = BernoulliBalkenConfig()
@@ -159,6 +210,7 @@ richards1DConfig = Richards1DConfig()
 richardsMixed1DConfig = RichardsMixed1DConfig()
 darcy2DConfig = Darcy2DConfig()
 thermalMechanical2DConfig = ThermalMechanical2DConfig()
+thermalMoisture2DConfig = ThermalMoisture2DConfig()
 
 
 concreteData = ConcreteData()
