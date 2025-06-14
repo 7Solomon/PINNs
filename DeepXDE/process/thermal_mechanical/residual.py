@@ -1,9 +1,14 @@
 import torch
 import deepxde as dde
-from config import bernoulliBalken2DConfig, concreteData
+from config import bernoulliBalken2DConfig
 from process.thermal_mechanical.scale import Scale
+
+from material import concreteData
+materialData = concreteData
+
+
 def residual_thermal_2d(x, y, scale: Scale):
-    alpha_dT = concreteData.thermal_expansion_coefficient * y[:,2:3] * scale.Temperature  # [-]
+    alpha_dT = materialData.thermal_expansion_coefficient * y[:,2:3] * scale.Temperature  # [-]
     
     du_dx = dde.grad.jacobian(y, x, i=0, j=0)  # [-]
     dv_dy = dde.grad.jacobian(y, x, i=1, j=1)  # [-]
@@ -16,7 +21,7 @@ def residual_thermal_2d(x, y, scale: Scale):
     
     strain_voigt = torch.cat([ex, ey, exy], dim=1)
     
-    C_matrix = concreteData.C() / scale.sigma(concreteData.E)
+    C_matrix = materialData.C_stiffness_matrix() / scale.sigma(materialData.E)
     sigma_voigt = torch.matmul(strain_voigt, C_matrix.T)
 
     sigmax_x = dde.grad.jacobian(sigma_voigt, x, i=0, j=0)
@@ -33,9 +38,9 @@ def residual_thermal_2d(x, y, scale: Scale):
     T_yy = dde.grad.hessian(y, x, i=2, j=1)
 
 
-    alpha_nd = concreteData.alpha() / (scale.L**2/scale.t)
+    alpha_nd = materialData.alpha_thermal_diffusivity / (scale.L**2/scale.t)
     heat = T_t - alpha_nd * (T_xx + T_yy)
-    #heat_physical = T_t - concreteData.alpha() * (T_xx + T_yy)  # [K/s]
+    #heat_physical = T_t - materialData.alpha() * (T_xx + T_yy)  # [K/s]
     #heat = heat_physical / (scale.Temperature / scale.t)        # dimensionless
     
     #print('T_t:', T_t.min().item(), T_t.max().item())

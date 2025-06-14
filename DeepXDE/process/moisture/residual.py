@@ -1,123 +1,253 @@
+from process.moisture.scale import *
+#from config import richards1DConfig
 import torch
 import deepxde as dde
-from config import richards1DConfig, concreteData
 
-torch.autograd.set_detect_anomaly(True)
+#from config import materialData
+from material import concreteData, sandData
+materialData = concreteData
 
-def smooth_step(x, eps=1e-5):
-    return torch.sigmoid(x/eps)
+def S_e(h):
+    """
+    Effective saturation (VG)
+    """
+    core = (1 + (materialData.alpha_vg * torch.abs(h))**materialData.n_vg)**(-materialData.m_vg)
 
-# Van Genuchten stuff   
-#def S_e_scaled(h):
-#    """
-#    Effective saturation (VG)"""
-#    smooth = smooth_step(-h) # ca 1 for h < 0, ca 0 for h > 0
-#    #core = (1 + (scale_h(richards1DConfig.alpha)*torch.abs(h))**richards1DConfig.n)**(-richards1DConfig.m)   # scaled h is givin zero values which lead to linear pred 
-#    
-#    # Unscaleing h
-#    h_actual = rescale_h(h)
-#    core_exponent_base = richards1DConfig.alpha * torch.abs(h_actual)
-#    core = (1 + core_exponent_base**richards1DConfig.n)**(-richards1DConfig.m)
-#    
-#    S_e_h = smooth *core + (1-smooth)
-#    return torch.clamp(S_e_h, min=1e-7, max=1.0 - 1e-7)  # to get arround hard 0,1. so that loss nan doesnt happen 
-
-#def WRC_scaled(h):
-#    """
-#    Water retention Curve (VG)
-#    """
-#    return richards1DConfig.theta_r + (richards1DConfig.theta_s - richards1DConfig.theta_r)*S_e_scaled(h)
-#def HC_scaled(h):
-#    """
-#    Hydraulic Conductivity (VG)
-#    """
-#    S_e_h = S_e_scaled(h)
-#    return (richards1DConfig.K_s * S_e_h**(1/2) * (1 - (1 - S_e_h**(1/richards1DConfig.m))**richards1DConfig.m)**2) / richards1DConfig.K_s  # for scaling
+    smooth = torch.sigmoid(-h)  # ca 1 for h < 0, ca 0 for h > 0
+    S_e = smooth * core + (1 - smooth)  # diffrentiable switch
+    return torch.clamp(S_e, min=1e-7, max=1.0 - 1e-7) 
 
 
-#def residual_1d_mixed(x, y): # y is u_pred , x is [x,y,t]   # ohne gravitation   # jetzt 1d asl [z,t]
-#    theta = WRC_scaled(y)
-#    K = HC_scaled(y)
-#
-#    theta_t = dde.grad.jacobian(theta,x,i=0,j=1)
-#    u_x = dde.grad.jacobian(y,x,i=0,j=1)
-#    
-#    Ku_x = K * u_x
-#    Ku_xx = dde.grad.jacobian(Ku_x,x,i=0,j=1)
-#
-#    return theta_t - Ku_xx
-#
-#def residual_1d_head(x, y):
-#    C = SMC(y) # C(h)
-#    dh_dt = dde.grad.jacobian(y,x,i=0,j=1)  # dh/dt
-#
-#    K = HC_scaled(y) # K(h)
-#    dh_dz = dde.grad.jacobian(y,x,i=0,j=0) # dh/dz
-#
-#    Kdh_dz = K * dh_dz
-#    Kdh_dz_z = dde.grad.jacobian(Kdh_dz,x,i=0,j=0)  # d/dz(K * dh/dz)
-#    return C * dh_dt - Kdh_dz_z  # - Sinkterm if i want 
-#
-#def theta(h):
-#    core = (1 + (richards1DConfig.alpha * torch.abs(h))**richards1DConfig.n)**(-richards1DConfig.m)
-#    return richards1DConfig.theta_r + (richards1DConfig.theta_s - richards1DConfig.theta_r) * core
-#
-#def S_e(h):
-#    """
-#    Effective saturation (VG)
-#    """
-#    smooth = smooth_step(-h) # ca 1 for h < 0, ca 0 for h > 0
-#  
-#    core_exponent_base = richards1DConfig.alpha * torch.abs(h)
-#    core = (1 + core_exponent_base**richards1DConfig.n)**(-richards1DConfig.m)
-#
-#    S_e_h = smooth *core + (1-smooth)
-#    return torch.clamp(S_e_h, min=1e-7, max=1.0 - 1e-7)  # to get arround hard 0,1. so that loss nan doesnt happen
-#
-#def WRC(h):
-#    """
-#    Water retention Curve / theta
-#    """
-#    return richards1DConfig.theta_r + (richards1DConfig.theta_s - richards1DConfig.theta_r) *   (h)
-#def HC(h):
-#    """
-#    Hydraulic Conductivity / K
-#    """
-#    S_e_h = S_e(h)
-#    return (richards1DConfig.K_s * S_e_h**(1/2) * (1 - (1 - S_e_h**(1/richards1DConfig.m))**richards1DConfig.m)**2)
-#
-#def SMC(theta):
-#    """
-#    Specific Moisture capacity / C
-#    """
-#    (richards1DConfig.theta_s - richards1DConfig.theta_r) * richards1DConfig.alpha * richards1DConfig.n * richards1DConfig.m *(richards1DConfig.alpha * torch.abs(theta))**(richards1DConfig.n - 1) / (1 + (richards1DConfig.alpha * torch.abs(theta))**richards1DConfig.n)**(richards1DConfig.m + 2)
-#def SWD(theta):
-#    """
-#    Soil water diffusivity / D
-#    """
-#    C = SMC(theta)  # C(theta)
-#    C = torch.clamp(C, min=1e-10)  # to avoid division by zero
-#    Ktheta = HC(theta)/C  # K(theta)/C(theta)
-#    return Ktheta
-#
-#def residual_1d_saturation(x,y):
-#
-#    dtheta_dt = dde.grad.jacobian(y,x,i=0,j=1)  # dtheta/dt
-#
-#    Dtheta = SWD(y)  # D(theta)
-#    right_side = dde.grad.jacobian(Dtheta,x,i=0,j=0)  # (dtheta/dz)*(D(theta))
-#    grad = dde.grad.jacobian(right_side,x,i=0,j=0)  # d/dz(D(theta)*dtheta/dz)
-#    return grad - dtheta_dt  # - S
+def water_retention_curve(h):
+    """
+    Computes the volumetric water content (VWC) out of head.
+    """
+    return materialData.theta_r + (materialData.theta_s - materialData.theta_r) * S_e(h)
+
+def specific_moisture_capacity(h):
+    """
+    Specific Moisture capacity C(h) = d(theta)/dh for h < 0.
+    For h >= 0, the derivative is 0.
+    """
+    # unsaturated zone (h < 0) mas
+    unsaturated_mask = h < 0
+    C = torch.zeros_like(h)
+    
+    if torch.any(unsaturated_mask):
+        h_unsat = h[unsaturated_mask]
+        
+        term1 = (materialData.theta_s - materialData.theta_r)
+        term2 = materialData.alpha_vg * materialData.n_vg * materialData.m_vg
+        term3 = (materialData.alpha_vg * torch.abs(h_unsat))**(materialData.n_vg - 1)
+        term4 = (1 + (materialData.alpha_vg * torch.abs(h_unsat))**materialData.n_vg)**(-(materialData.m_vg + 1))
+
+        C[unsaturated_mask] = term1 * term2 * term3 * term4
+
+    return C
+def hydraulic_conductivity_head(h):
+    Se = S_e(h)
+    #print('Se', Se.min().item(), Se.max().item())
+    return materialData.K_s* Se**0.5* (1-(1-Se**(1/materialData.m_vg))**materialData.m_vg)**2
+
+def residual_1d_head(x, y, scale: HeadScale):
+    rescaled_h = y[:, 0] * scale.H 
+    C = specific_moisture_capacity(rescaled_h)  # [1/m]
+    K = hydraulic_conductivity_head(rescaled_h)      # [m/s]
+
+    log_K = torch.log(K + 1e-20)         # smoothing
+    K_smoothed = torch.exp(log_K)        #
+
+    # Convert dimensionless
+    C_scaled = C * scale.H   # [1/m] * [m] = [-]
+    K_scaled = K_smoothed / scale.K  # [m/s] / [m/s] = [-]
+
+
+    dh_dt = dde.grad.jacobian(y,x,i=0,j=1)  # [-]
+    dh_dz = dde.grad.jacobian(y,x,i=0,j=0)  # [-]
+    
+    time_term = C_scaled * dh_dt #* ((scale.H*scale.L)/(scale.K*scale.T)) # [now -]
+
+    pi_one = (scale.K*scale.T)/scale.L**2  
+    flux_term = pi_one * K_scaled * dh_dz 
+    spatial_term = dde.grad.jacobian(flux_term, x, i=0, j=0)
+
+    #print('----')
+    #print('rescaled_h', rescaled_h.min().item(), rescaled_h.max().item())
+    #print('C', C.min().item(), C.max().item())
+    #print('K', K.min().item(), K.max().item())
+    #print('C_scaled', C_scaled.min().item(), C_scaled.max().item())
+    #print('K_scaled', K_scaled.min().item(), K_scaled.max().item())
+    #print('dh_dt', dh_dt.min().item(), dh_dt.max().item())
+    #print('dh_dz', dh_dz.min().item(), dh_dz.max().item())
+    #print('time_term', time_term.min().item(), time_term.max().item())
+    #print('spatial_term', spatial_term.min().item(), spatial_term.max().item())
+    #print('ScaleL', scale.L)
+    #print('ScaleT', scale.T)
+    #print('ScaleH', scale.H)
+    #print('ScaleK', scale.K)
+    #print('pi_one', pi_one)
+    return time_term - spatial_term
+
+def volumetric_water_content_saturation(theta):
+    Se = (theta - materialData.theta_r) / (materialData.theta_s - materialData.theta_r)
+    return materialData.K_s* Se**0.5* (torch.clamp(1-(1-Se**(1/materialData.m_vg)), min=1e-6)**materialData.m_vg)**2
+
+def physical_possible_S(S):
+    """
+    Important because Conductivity makes weird shit if not PHYSICS working
+    """
+    return torch.clamp(S, min=1e-6, max=1- 1e-6)
+
+def efective_saturation_theta(S):
+    return (S - materialData.Sr()) / (1 - materialData.Sr())
+
+def head(Se):
+    core = (Se**(-(1/materialData.m_vg))-1)**(1/materialData.n_vg) * (1/materialData.alpha_vg) 
+    smooth = torch.sigmoid(-20 * (Se - 1.0))
+    h = smooth * core
+    return h
+
+def hydraulic_conductivity_saturation(Se):
+    return Se**(1/2)*(1-(1-Se**(1/materialData.m_vg))**materialData.m_vg)**2
+
+
+def residual_1d_saturation(x, y, scale: SaturationScale):
+    S = y[:, 0:1] * scale.S # [S]
+    S_phys_poss = physical_possible_S(S)
+    efective_saturation = efective_saturation_theta(S_phys_poss)
+
+    theta = volumetric_water_content_saturation(S_phys_poss) / scale.theta
+    h = head(efective_saturation) / scale.H
+    K = hydraulic_conductivity_saturation(efective_saturation) / scale.K 
+
+    time_term = dde.grad.jacobian(theta, x, i=0, j=1) 
+    
+    dh_dz = dde.grad.jacobian(h, x, i=0, j=0)
+    flux_term = K * dh_dz
+    spatial_term = dde.grad.jacobian(flux_term, x, i=0, j=0)
+    pi_one = (scale.H*scale.K*scale.T)/(scale.L**2 *scale.theta)
+
+    print('----')
+    print('S', S.min().item(), S.max().item())
+    print('S_phys_poss', S_phys_poss.min().item(), S_phys_poss.max().item())
+    print('efective_saturation', efective_saturation.min().item(), efective_saturation.max().item())
+    print('theta', theta.min().item(), theta.max().item())
+    print('h', h.min().item(), h.max().item())
+    print('K', K.min().item(), K.max().item())
+    print('time_term', time_term.min().item(), time_term.max().item())
+    print('dh_dz', dh_dz.min().item(), dh_dz.max().item())
+    print('flux_term', flux_term.min().item(), flux_term.max().item())
+    print('spatial_term', spatial_term.min().item(), spatial_term.max().item())
+    print('pi_one * spatial_term', (pi_one*spatial_term).min().item(), (spatial_term* pi_one).max().item())
+    print('pi_one', pi_one)
+    print('ScaleL', scale.L)
+    print('ScaleT', scale.T)
+    print('ScaleS', scale.S)
+    print('ScaleH', scale.H)
+    print('ScaleK', scale.K)
+    print('ScaleTheta', scale.theta)
+    return time_term - spatial_term * pi_one
+
+
+# --- SUGGESTED REVISIONS ---
+
+# Let's assume `materialData` contains these physical constants:
+# materialData.theta_r: Residual water content
+# materialData.theta_s: Saturated water content
+# materialData.K_s: Saturated hydraulic conductivity [L/T]
+# materialData.alpha: van Genuchten alpha parameter [1/L]
+# materialData.n: van Genuchten n parameter
+# materialData.m: 1 - 1/n
+
+def get_effective_saturation(S_total):
+    """Calculates effective saturation (Se) from total saturation (S)."""
+    theta = get_volumetric_water_content(S_total)
+    return (theta - materialData.theta_r) / (materialData.theta_s - materialData.theta_r)
+
+
+def get_volumetric_water_content(S_total):
+    """Calculates volumetric water content (theta) from total saturation (S)."""
+    return S_total * (materialData.theta_s - materialData.theta_r) + materialData.theta_r
+
+def get_pressure_head(Se):
+    """Calculates pressure head (h) from effective saturation (Se)."""
+    Se_clamped = torch.clamp(Se, min=1e-7, max=1.0 - 1e-7)
+    core = ((Se_clamped**(-1/materialData.m_vg)) - 1)**(1/materialData.n_vg) / materialData.alpha_vg
+
+    # Smoothly force h 0 as Se 1
+    smooth = torch.sigmoid(-20 * (Se - 1.0))
+    h = smooth * core
+    return h
+
+def get_hydraulic_conductivity(Se):
+    """Calculates hydraulic conductivity (K) from effective saturation (Se)."""
+    Se_clamped = torch.clamp(Se, min=1e-7, max=1.0 - 1e-7)
+    K_r = Se_clamped**0.5 * (1 - (1 - Se_clamped**(1/materialData.m_vg))**materialData.m_vg)**2
+    return materialData.K_s * K_r
+
+def residual_1d_saturation(x, y, scale: SaturationScale):
+    S_total = y[:, 0:1]
+    S_clamped = physical_possible_S(S_total)
+
+    Theta = get_effective_saturation(S_clamped)
+    
+    h_physical = get_pressure_head(Theta)
+    K_physical = get_hydraulic_conductivity(Theta)
+
+    H = h_physical / scale.H # [-] Head
+    K = K_physical / scale.K # [-] Conductivity
+
+    time_term = dde.grad.jacobian(Theta, x, i=0, j=1)
+    dH_dZ = dde.grad.jacobian(H, x, i=0, j=0)
+
+    flux_term = K * dH_dZ
+    diffusion_term = dde.grad.jacobian(flux_term, x, i=0, j=0)
+
+    pi_one = (scale.K * scale.H * scale.T) / (scale.L**2 * (materialData.theta_s - materialData.theta_r))
+    spatial_term = pi_one * diffusion_term
+    #print('----')
+    #print('S_total', S_total.min().item(), S_total.max().item())
+    #print('S_clamped', S_clamped.min().item(), S_clamped.max().item())
+    #print('Theta', Theta.min().item(), Theta.max().item())
+    #print('h_physical', h_physical.min().item(), h_physical.max().item())
+    #print('K_physical', K_physical.min().item(), K_physical.max().item())
+    #print('H', H.min().item(), H.max().item())
+    #print('K', K.min().item(), K.max().item())
+    #print('dH_dZ', dH_dZ.min().item(), dH_dZ.max().item())
+    #print('flux_term', flux_term.min().item(), flux_term.max().item())
+    #print('diffusion_term', diffusion_term.min().item(), diffusion_term.max().item())
+    #print('pi_one', pi_one)
+    #print('spatial_term', spatial_term.min().item(), spatial_term.max().item())
+    #print('time_term', time_term.min().item(), time_term.max().item())
+    #print('ScaleL', scale.L)
+    #print('ScaleT', scale.T)
+    #print('ScaleS', scale.S)
+    #print('ScaleH', scale.H)
+    #print('ScaleK', scale.K)
+    #print('ScaleTheta', scale.theta)
+    
+    return  time_term - spatial_term
+#def residual_1d_mixed(x, y, scale: Scale):
+#    head = y[:,0:1]
+#    sat = y[:,1:2]
+#    res_head = residual_1d_head(x, head, scale)
+#    res_saturation = residual_1d_saturation(x, sat, scale)
+#    return [res_head, res_saturation]
 
 
 
 
-### Darcy
+
+
+# =========================================================================
+# DARCY
+# =========================================================================
+
 def residual_2d_darcy(x, y):
     """
     Darcy's law for 2D flow
     """
-    K = concreteData.K
+    K = materialData.K_s # Hydraulic conductivity [m/s]
     d2h_dx2 = dde.grad.hessian(y, x, i=0, j=0)  # dh/dx
     d2h_dy2 = dde.grad.hessian(y, x, i=0, j=1)  # dh/dy
     return -K * (d2h_dx2 + d2h_dy2)  # -K * grad(h)

@@ -1,10 +1,11 @@
+from utils.metadata import Domain
 import deepxde as dde
 import numpy as np
 from process.thermal_moisture.residual import residual
 from process.thermal_moisture.scale import Scale
 
 
-def get_2d_domain(domain_vars):
+def get_2d_domain(domain_vars: Domain, scale: Scale):
     
     scale = Scale(domain_vars)
     x_min, x_max = domain_vars.spatial['x']

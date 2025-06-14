@@ -1,18 +1,24 @@
 import os
 from utils.metadata import Domain
 from process.moisture.scale import *
-from vis import get_2d_domain, get_2d_time_domain
 from domain_vars import transient_heat_2d_domain, steady_heat_2d_domain
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import animation, cm
 
 from process.heat.scale import *
-def visualize_steady_field(model, **kwargs):
-    scale = Scale(steady_heat_2d_domain)
-    domain = get_2d_domain(steady_heat_2d_domain, scale)
-    points, X, Y, nx, ny = domain['normal']
-    points_scaled, X_scaled, Y_scaled, nx, ny = domain['scaled']
+def visualize_steady_field(model, scale: Scale, **kwargs):
+    
+    min_x, max_x = steady_heat_2d_domain.spatial['x']
+    min_y, max_y = steady_heat_2d_domain.spatial['y']
+    # Create grid
+    nx, ny = 100, 50
+    x = np.linspace(min_x, max_x, nx)
+    y = np.linspace(min_y, max_y, ny)
+    X, Y = np.meshgrid(x, y)
+    scaled_X = X.copy() / scale.L
+    scaled_Y = Y.copy() / scale.L
+    points_scaled = np.vstack((scaled_X.flatten(), scaled_Y.flatten())).T
 
     predictions = model.predict(points_scaled)
     predictions = predictions.reshape(ny, nx)
@@ -30,16 +36,29 @@ def visualize_steady_field(model, **kwargs):
     #plt.show()
     return {'field': plt.gcf()}
 
-def visualize_transient_field(model, **kwargs):
-    scale = Scale(transient_heat_2d_domain)
-    domain = get_2d_time_domain(transient_heat_2d_domain, scale)
+def visualize_transient_field(model, scale: Scale, **kwargs):
+    min_x, max_x = transient_heat_2d_domain.spatial['x']
+    min_y, max_y = transient_heat_2d_domain.spatial['y']
+    min_t, max_t = transient_heat_2d_domain.temporal['t']
 
-    points, X, Y, t, nx, ny, nt = domain['normal']
-    scaled_points, X_scaled, Y_scaled, t_scaled, nx, ny, nt = domain['scaled']
+
+    # Create grid
+    nx, ny, nt = 100, 50, 100
+    x = np.linspace(min_x, max_x, nx)
+    y = np.linspace(min_y, max_y, ny)
+    t = np.linspace(min_t, max_t, nt)
+    X, Y, T = np.meshgrid(x, y, t)
+
+    scaled_X = X.copy() / scale.L
+    scaled_Y = Y.copy() / scale.L
+    scaled_T = T.copy() / scale.t
+
+    scaled_points = np.vstack((scaled_X.flatten(), scaled_Y.flatten(), scaled_T.flatten())).T
+
     
     print('scaled_points: ', scaled_points.shape)
-    print('X_scaled', X_scaled.shape)
-    print('Y_scaled', Y_scaled.shape)
+    print('X_scaled', scaled_X.shape)
+    print('Y_scaled', scaled_Y.shape)
     predictions = model.predict(scaled_points)
     predictions = predictions.reshape(ny, nx, nt)
     predictions = predictions * scale.T
@@ -48,26 +67,25 @@ def visualize_transient_field(model, **kwargs):
 
     
     # First frame
-    cont = ax.contourf(X[:,:,0], Y[:,:,0], predictions[:,:,0], 50, cmap=cm.jet, vmin=predictions.min(), vmax=predictions.max())
+    cont = ax.contourf(X[:,:,0], Y[:,:,0], predictions[:,:,0], 50, cmap=cm.jet, vmin=predictions.min().item(), vmax=predictions.max().item())
     cbar = fig.colorbar(cont, ax=ax)
     cbar.set_label('Field Prediction')
     ax.set_xlabel('x')
     ax.set_ylabel('y')
-    ax.set_title(f'Distribution at [t={(t[0,0,0]/(60*60*24)):.3f} days]')
+    ax.set_title(f'Distribution at [t={(t[0]/(60*60*24)):.3f} days]')
     
     def update(frame):
         ax.clear()
-        cont = ax.contourf(X[:,:,frame], Y[:,:,frame], predictions[:,:,frame], 50, cmap=cm.jet, vmin=predictions.min(), vmax=predictions.max())
+        cont = ax.contourf(X[:,:,frame], Y[:,:,frame], predictions[:,:,frame], 50, cmap=cm.jet, vmin=predictions.min().item(), vmax=predictions.max().item())
         ax.set_xlabel('x')
         ax.set_ylabel('y')
-        ax.set_title(f'Distribution at [t={(t[0,0,frame]/(60*60*24)):.3f} days]')
+        ax.set_title(f'Distribution at [t={(t[frame]/(60*60*24)):.3f} days]')
         cbar.update_normal(cont)
         return cont
     
     ani = animation.FuncAnimation(fig, update, frames=nt, interval=100)
 
     plt.tight_layout()
-    plt.show()
     #return {'field': fig}
     return {'field': ani, 'fig': fig}
 

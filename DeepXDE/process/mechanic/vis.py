@@ -5,7 +5,6 @@ from utils.metadata import Domain
 from process.mechanic.scale import Scale
 import numpy as np
 import matplotlib.pyplot as plt
-from vis import get_2d_domain
 
 from domain_vars import fest_lost_2d_domain
 from process.mechanic.base_line import base_mapping
@@ -33,12 +32,17 @@ def visualize_field_1d(model, **kwargs):
     #plt.show()
 
 
-def visualize_field_2d(model, **kwargs):
-    scale = Scale(fest_lost_2d_domain)
+def visualize_field_2d(model, scale: Scale, **kwargs):
     # Get domain and points
-    domain = get_2d_domain(fest_lost_2d_domain, scale)
-    points, X, Y, nx, ny = domain['normal']
-    scaled_points, scaled_X, scaled_Y, _, _ = domain['scaled']
+    x_min, x_max = fest_lost_2d_domain.spatial['x']
+    y_min, y_max = fest_lost_2d_domain.spatial['y']
+    nx, ny = 100, 50  # Number of points in x and y directions
+    x_points = np.linspace(x_min, x_max, nx)
+    y_points = np.linspace(y_min, y_max, ny)
+
+    X, Y = np.meshgrid(x_points, y_points)
+    points = np.vstack((X.flatten(), Y.flatten())).T
+    scaled_points = points / np.array([scale.L, scale.L])  # Assuming scale has L attribute for length
 
     # Get predictions
     predictions = model.predict(scaled_points)

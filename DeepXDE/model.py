@@ -1,9 +1,10 @@
+from utils.metadata import BConfig
 from utils.fourier_features import fourier_transform
 import deepxde as dde
 import numpy as np
 
 
-def create_model(data, config, output_transform=None):
+def create_model(data, config: BConfig, output_transform=None):
     fourier_transform_features = config.get('fourier_transform_features', None)
     decay = config.get('decay', None)
     if decay is not None:

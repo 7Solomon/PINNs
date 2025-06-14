@@ -1,5 +1,7 @@
+from utils.metadata import BSaver
 import torch
-class Scale:
+
+class Scale(BSaver):
     def __init__(self, domain_variables):
         self.x_min, self.x_max = domain_variables.spatial['x']
         self.y_min, self.y_max = domain_variables.spatial['y']

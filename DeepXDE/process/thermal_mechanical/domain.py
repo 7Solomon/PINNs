@@ -1,4 +1,5 @@
 
+from utils.metadata import Domain
 import torch
 import numpy as np
 import deepxde as dde
@@ -6,8 +7,7 @@ import deepxde as dde
 from process.thermal_mechanical.residual import residual_thermal_2d
 from process.thermal_mechanical.scale import Scale
 
-def get_thermal_2d_domain(domain_vars):
-    scale = Scale(domain_vars)
+def get_thermal_2d_domain(domain_vars: Domain, scale: Scale):
     x_min, x_max = domain_vars.spatial['x']
     y_min, y_max = domain_vars.spatial['y']
 

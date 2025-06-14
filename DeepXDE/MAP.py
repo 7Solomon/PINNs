@@ -11,6 +11,7 @@ MAP = {
             'domain': process.mechanic.domain.get_fest_los_domain,
             'domain_vars': domain_vars.fest_lost_domain,
             'config': config.bernoulliBalkenConfig,
+            'scale': process.mechanic.scale.Scale,
             'vis': {
                 'loss': vis.plot_loss,
                 'field': process.mechanic.vis.visualize_field_1d,
@@ -21,7 +22,8 @@ MAP = {
         'einspannung_2d':{
             'domain': process.mechanic.domain.get_einspannung_domain_2d,
             'domain_vars': domain_vars.einspannung_2d_domain,
-            'config': config.BernoulliBalken2DConfig,
+            'config': config.bernoulliBalken2DConfig,
+            'scale' : process.mechanic.scale.Scale,
             'vis' : {
                 'loss': vis.plot_loss,
                 'field': process.mechanic.vis.visualize_field_2d,
@@ -44,6 +46,7 @@ MAP = {
             'domain': process.mechanic.domain.get_einspannung_domain,
             'domain_vars': domain_vars.einspannung_2d_domain,
             'config': config.bernoulliBalkenConfig,
+            'scale' : process.mechanic.scale.Scale,
             'vis' : {
                 'loss': vis.plot_loss,
                 'field': process.mechanic.vis.visualize_field_1d,
@@ -55,6 +58,8 @@ MAP = {
             'domain': process.mechanic.domain.get_fest_los_t_domain,
             #'domain_vars': domain_vars.fest_lost_domain,
             'config': config.bernoulliBalkenTConfig,
+            'scale': process.mechanic.scale.Scale,
+
             'vis' : {
                 'loss': vis.plot_loss,
                 #'field': process.mechanic.vis.,
@@ -65,6 +70,7 @@ MAP = {
         'cooks': {
             'domain': process.mechanic.domain.get_cooks_domain,
             'config': config.cooksMembranConfig,
+            'scale' : process.mechanic.scale.Scale,
             'vis' : {
                 'loss': vis.plot_loss,
                 #'field': process.mechanic.vis.visualize_field,
@@ -78,6 +84,7 @@ MAP = {
             'domain': process.heat.domain.get_steady_domain,
             'domain_vars': domain_vars.steady_heat_2d_domain,
             'config': config.steadyHeatConfig,
+            'scale' : process.heat.scale.Scale,
             #'output_transform': process.heat.output_transform.output_transform,
             'vis' : {
                 'loss': vis.plot_loss,
@@ -90,6 +97,7 @@ MAP = {
             'domain': process.heat.domain.get_transient_domain,
             'domain_vars': domain_vars.transient_heat_2d_domain,
             'config': config.transientHeatConfig,
+            'scale' : process.heat.scale.Scale,
             'vis' : {
                 'loss': vis.plot_loss,
                 'field': process.heat.vis.visualize_transient_field,
@@ -118,6 +126,7 @@ MAP = {
             'domain': process.moisture.domain.get_1d_head_domain,
             'domain_vars': domain_vars.moisture_1d_domain,
             'config': config.richards1DConfig,
+            'scale' : process.moisture.scale.HeadScale,
             'output_transform': process.moisture.output_transform.output_transform_1d_head,
             'vis' : {
                 'loss': vis.plot_loss,
@@ -134,6 +143,7 @@ MAP = {
             'domain_vars': domain_vars.moisture_1d_domain,
             'config': config.richards1DConfig,
             'output_transform': process.moisture.output_transform.output_transform_1d_saturation,
+            'scale' : process.moisture.scale.SaturationScale,
             'vis' : {
                 'loss': vis.plot_loss,
                 'field': process.moisture.vis.vis_1d_saturation,
@@ -148,6 +158,7 @@ MAP = {
             'domain': process.moisture.domain.get_2d_darcy_domain,
             'domain_vars': domain_vars.moisture_2d_domain,
             'config': config.darcy2DConfig,
+            #'scale' : process.moisture.scale.Scale,
             'vis' : {
                 'loss': vis.plot_loss,
                 'field': process.moisture.vis.visualize_2d_darcy,
@@ -161,6 +172,7 @@ MAP = {
             'domain': process.thermal_mechanical.domain.get_thermal_2d_domain,
             'domain_vars': domain_vars.thermal_mechanical_2d_domain,
             'config': config.thermalMechanical2DConfig,
+            'scale' : process.thermal_mechanical.scale.Scale,
             'vis' : {
                 'loss': vis.plot_loss,
                 'field': process.thermal_mechanical.vis.vis_2d_multi,
@@ -179,6 +191,7 @@ MAP = {
             'domain': process.thermal_moisture.domain.get_2d_domain,
             'domain_vars': domain_vars.thermal_moisture_2d_domain,
             'config': config.thermalMoisture2DConfig,
+            'scale' : process.thermal_moisture.scale.Scale,
             'vis' : {
                 'loss': vis.plot_loss,
                 'field': process.thermal_moisture.vis.vis_2d_multi,
