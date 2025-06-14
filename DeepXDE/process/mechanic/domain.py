@@ -13,7 +13,7 @@ def du_dxx_zero(x, y, _):
 def du_dxx_one(x, y, _):
     return dde.grad.hessian(y, x)[:,0] - 1.0
 
-def get_fest_los_domain(domain_vars):
+def get_fest_los_domain(domain_vars: Domain, scale: Scale):
     x_min, x_max = domain_vars.spatial['x']
     geom = dde.geometry.Interval(x_min, x_max)
     bc_left_w = dde.DirichletBC(geom, lambda x: 0, lambda x, _ :_ and np.isclose(x[0], x_min))
@@ -29,8 +29,7 @@ def get_fest_los_domain(domain_vars):
     #data.set_weights([1, 1, 1, 1])
     return data
 
-def get_einspannung_domain_2d(domain_vars):
-    scale = Scale(domain_vars)
+def get_einspannung_domain_2d(domain_vars: Domain, scale: Scale):
     x_min, x_max = domain_vars.spatial['x']
     y_min, y_max = domain_vars.spatial['y']
     geom = dde.geometry.Rectangle(xmin=[x_min/scale.L, y_min/scale.L], xmax=[x_max/scale.L, y_max/scale.L])
@@ -47,7 +46,7 @@ def get_einspannung_domain_2d(domain_vars):
                         num_boundary=500)
     return data
 
-def get_einspannung_domain(domain_vars):
+def get_einspannung_domain(domain_vars: Domain, scale: Scale):
     x_min, x_max = domain_vars.spatial['x']
     geom = dde.geometry.Interval(x_min, x_max)
 

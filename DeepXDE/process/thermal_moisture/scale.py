@@ -1,6 +1,8 @@
-from config import concreteData
+from utils.metadata import BSaver
+from material import concreteData
+materialData = concreteData
 
-class Scale:
+class Scale(BSaver):
     def __init__(self, domain_variables):
         x_min, x_max = domain_variables.spatial['x']
         y_min, y_max = domain_variables.spatial['y']
@@ -13,4 +15,6 @@ class Scale:
         self.theta = 0.6
 
         self.c0 = 1.6e5  # J/m^3/K
-        self.lamda = concreteData.lamda_dry  # 
+        self.lamda = materialData.lamda_dry  # 
+        print('GEHE SICER, dass materialData ist CONCRETE')
+

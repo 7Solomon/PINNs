@@ -1,23 +1,25 @@
 from process.thermal_moisture.scale import Scale
-from config import concreteData
+from material import concreteData
 import deepxde as dde
 import torch
 
+materialData = concreteData
+
 def c_eff(theta, T):  # for sml range of T, is not dependent on T
-    return (concreteData.rho*concreteData.cp*(1-concreteData.phi) 
-        + theta*concreteData.rho_w*concreteData.cp_w
-        + (concreteData.phi - theta)*concreteData.rho_a*concreteData.cp_a
+    return (materialData.rho*materialData.cp*(1-materialData.phi) 
+        + theta*materialData.rho_w*materialData.cp_w
+        + (materialData.phi - theta)*materialData.rho_a*materialData.cp_a
     )
 
 def thermal_conductivity(theta, T):  # again T little influence, but can be changed
-    return (concreteData.lamda_dry
-        - (concreteData.lamda_sat - concreteData.lamda_dry) * (theta/concreteData.theta_s)**concreteData.n
+    return (materialData.lamda_dry
+        - (materialData.lamda_sat - materialData.lamda_dry) * (theta/materialData.theta_s)**materialData.n_vg
     )
 
 def residual(x,y,scale: Scale):
     T_phys = y[:,0:1] * scale.Temperature
     theta_phys = y[:,1:2] * scale.theta
-    theta_phys_pos = torch.clamp(theta_phys, min=1e-8, max=concreteData.theta_s - 1e-8)
+    theta_phys_pos = torch.clamp(theta_phys, min=1e-8, max=materialData.theta_s - 1e-8)
 
     ceff = c_eff(theta_phys_pos, T_phys)  / scale.c0
     dT_dt = dde.grad.jacobian(y, x, i=0, j=2)
@@ -33,7 +35,7 @@ def residual(x,y,scale: Scale):
     heat_conduction = pi_one * (dde.grad.jacobian(lamda_grad_T, x, i=0, j=0) + dde.grad.jacobian(lamda_grad_T, x, i=1, j=1))
 
     d_theta_dt = dde.grad.jacobian(y, x, i=1, j=2)
-    pi_two = scale.theta / (scale.c0 * scale.Temperature) * concreteData.L_v  # HERe Added LV to make pitwo  some good stuff
+    pi_two = scale.theta / (scale.c0 * scale.Temperature) * materialData.L_v  # HERe Added LV to make pitwo  some good stuff
     latent_heat_through_m_change = pi_two  * d_theta_dt
 
     #print('------')
@@ -52,5 +54,5 @@ def residual(x,y,scale: Scale):
     #print(f'pi_two: {pi_two}')
     #print(f'scale.L: {scale.L}, scale.t: {scale.t}, scale.Temperature: {scale.Temperature}, scale.theta: {scale.theta}')
     #print(f'scale.c0: {scale.c0}, scale.lamda: {scale.lamda}')
-    #print(f'concreteData.L_v: {concreteData.L_v}, concreteData.rho_w: {concreteData.rho_w}, concreteData.cp_w: {concreteData.cp_w}')
+    #print(f'materialData.L_v: {materialData.L_v}, materialData.rho_w: {materialData.rho_w}, materialData.cp_w: {materialData.cp_w}')
     return heat_conduction + latent_heat_through_m_change - time_term

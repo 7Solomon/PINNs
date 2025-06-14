@@ -2,10 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from process.thermal_moisture.scale import Scale
-from config import concreteData
 from domain_vars import thermal_moisture_2d_domain
 
-def vis_2d_multi(model, interval=600, **kwargs):
+def vis_2d_multi(model, scale: Scale, interval=600, **kwargs):
     """
     Creates an animation showing thermal-moisture 2D results with specialized visualizations.
     
@@ -18,9 +17,7 @@ def vis_2d_multi(model, interval=600, **kwargs):
     var_names = ['Temperature (T)', 'Moisture Content (θ)', 'Temperature Gradient', 'Moisture Gradient', 'Moisture Flow Vectors', 'Phase Diagram']
     cmaps = ['plasma', 'Blues', 'hot', 'viridis', None, None]  # None for vector and scatter plots
     units = ['°C', 'm³/m³', '°C/m', 'm³/m³/m', 'm/s', '']
-    
-    scale = Scale(thermal_moisture_2d_domain)
-    
+        
     # Domain and grid setup
     x_start, x_end = thermal_moisture_2d_domain.spatial['x']
     y_start, y_end = thermal_moisture_2d_domain.spatial['y']

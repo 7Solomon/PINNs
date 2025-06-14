@@ -1,14 +1,13 @@
-from vis import get_2d_domain
 from utils.metadata import Domain
 from domain_vars import moisture_1d_domain, moisture_2d_domain
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from process.moisture.scale import Scale
+from process.moisture.scale import *
 
-from vis import get_2d_time_domain
 
-def vis_1d_head(model, interval=2000, xlabel='z', ylabel='u(z,t)', **kwargs):
+
+def vis_1d_head(model, scale: HeadScale, interval=2000, xlabel='z', ylabel='u(z,t)', **kwargs):
     """
     Generates an animation of a 1D model's prediction changing over time.
 
@@ -26,7 +25,6 @@ def vis_1d_head(model, interval=2000, xlabel='z', ylabel='u(z,t)', **kwargs):
     t_start, t_end = moisture_1d_domain.temporal['t']
     num_x_points = 100
     num_t_points = 100
-    scale = Scale(moisture_1d_domain)
 
     z_points = np.linspace(z_start, z_end, num_x_points)
     t_points = np.linspace(t_start, t_end, num_t_points)
@@ -69,14 +67,13 @@ def vis_1d_head(model, interval=2000, xlabel='z', ylabel='u(z,t)', **kwargs):
     #plt.show() # geht glaube nocht auf ssh
     return {'field': ani}
 
-def vis_1d_saturation(model, interval=2000, xlabel='z', ylabel='u(z,t)', **kwargs):
+def vis_1d_saturation(model, scale: SaturationScale, interval=2000, xlabel='z', ylabel='u(z,t)', **kwargs):
 
     title= f'Richards 1d' if 'title' not in kwargs else kwargs['title']
     z_start, z_end = moisture_1d_domain.spatial['z']
     t_start, t_end = moisture_1d_domain.temporal['t']
     num_x_points = 100
     num_t_points = 100
-    scale = Scale(moisture_1d_domain)
 
     z_points = np.linspace(z_start, z_end, num_x_points)
     t_points = np.linspace(t_start, t_end, num_t_points)
@@ -128,12 +125,20 @@ def vis_1d_saturation(model, interval=2000, xlabel='z', ylabel='u(z,t)', **kwarg
     return {'field': ani}
 
 
-def visualize_2d_mixed(model, **kwargs):
+def visualize_2d_mixed(model, scale, **kwargs):
 
-    scale = Scale(moisture_2d_domain)
-    domain = get_2d_domain(moisture_2d_domain, scale)
-    points, X, Y, nx, ny = domain['normal']
-    scaled_points, X_scaled, Y_scaled, _, _ = domain['scaled']
+    raise NotImplementedError("Hier scale stuff noch nicht implementiert und mage nicht domain defininition")
+
+    # Get domain and points
+    x_min, x_max = moisture_2d_domain.spatial['x']
+    y_min, y_max = moisture_2d_domain.spatial['y']
+    nx, ny = 100, 50  # Number of points in x and y directions
+    x_points = np.linspace(x_min, x_max, nx)
+    y_points = np.linspace(y_min, y_max, ny)
+
+    X, Y = np.meshgrid(x_points, y_points)
+    points = np.vstack((X.flatten(), Y.flatten())).T
+    scaled_points = points / np.array([scale.L, scale.L])  # Assuming scale has L attribute for length
 
     # Get predictions
     predictions = model.predict(scaled_points)

@@ -1,9 +1,41 @@
-from config import BConfig
+from dataclasses import dataclass
+import json
 
+class BSaver:
+    def __init__(self, **attributes):
+        """
+        Initializes a BSaver instance with given attributes.
+        Primarily used by load_from_json.
+        """
+        self.__dict__.update(attributes)
+
+    def save_to_json(self, filepath):
+        """Saves all instance attributes to a JSON file."""
+        with open(filepath, 'w') as f:
+            json.dump(self.__dict__, f, indent=4)
+
+    @classmethod
+    def load_from_json(cls, filepath):
+        """
+        Loads attributes from a JSON file and creates a new BSaver instance.
+        """
+        with open(filepath, 'r') as f:
+            data = json.load(f)
+        return cls(**data)
+
+class BConfig(BSaver):
+    def get(self, attr_name, default=None):
+        return getattr(self, attr_name, default)
+
+        
 class Domain:
     def __init__(self, spatial, temporal = None):
         self.spatial = spatial
         self.temporal = temporal
+        #self.scale = BScale(self)
+
+    def set_scale(self, scale):
+        self.scale = scale
 
     def to_dict(self):
         return {
@@ -17,20 +49,3 @@ class Domain:
     def __repr__(self):
         return f"Domain(spatial={self.spatial}, temporal={self.temporal})"
 
-class METADATA:
-    def __init__(self, domain:Domain, config:BConfig, lr:float, loss_label:list):
-        self.config = config
-        self.lr = lr
-        self.domain = domain
-        self.loss_label = loss_label
-
-    def to_dict(self):
-        return {
-            "config": self.config,
-            "lr": self.lr,
-            "domain": self.domain
-        }
-    def from_dict(self, data):
-        self.config = data["config"]
-        self.lr = data["lr"]
-        self.domain = data["domain"]

@@ -1,29 +1,25 @@
+from utils.metadata import BSaver
 from domain_vars import transient_heat_2d_domain
 from domain_vars import steady_heat_2d_domain
 
-MIN = 0.0
-MAX = 100.0
+from material import concreteData
 
-
-def scale_value(input):
-    return (input - MIN) / (MAX - MIN)
-def rescale_value(input):
-    return input * (MAX - MIN) + MIN
-
-
-class Scale:
+class Scale(BSaver):
     def __init__(self, domain_variables):
         self.x_min, self.x_max = list(domain_variables.spatial.values())[0]
         self.y_min, self.y_max = list(domain_variables.spatial.values())[1]
         self.t_min, self.t_max = list(domain_variables.temporal.values())[0]
 
-        self.Lx = self.x_max - self.x_min
-        self.Ly = self.y_max - self.y_min
+        self.L = max(self.x_max - self.x_min, self.y_max - self.y_min)
         self.t = self.t_max - self.t_min
         self.T = 100
+        self.alpha = concreteData.alpha_thermal_diffusivity
+        #print('GEHE SICER, dass materialData ist CONCRETE')
+    
+    #@property
+    #def alpha(self):
+    #    return (self.t / (self.L)**2)  # s_t/s_x²
 
-        self.alpha_x = (self.t / (self.x_max - self.x_min)**2)  # s_t/s_x²
-        self.alpha_y = (self.t / (self.y_max - self.y_min)**2)  # s_t/s_y²
 
         #self.Lx = 1
         #self.Ly = 1

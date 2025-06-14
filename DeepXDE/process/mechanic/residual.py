@@ -3,7 +3,8 @@ from utils.functions import voigt_to_tensor
 from process.mechanic.scale import Scale
 import deepxde as dde
 import torch
-from config import bernoulliBalkenTConfig, cooksMembranConfig, bernoulliBalken2DConfig, concreteData
+from config import bernoulliBalkenTConfig, cooksMembranConfig, bernoulliBalken2DConfig
+from material import concreteData
     
 def pde_1d_residual(x, y):
   w_x = dde.grad.jacobian(y,x, i=0)
@@ -17,7 +18,7 @@ def pde_2d_residual(x, y, scale: Scale):
   e_y = dde.grad.jacobian(y,x, i=1, j=1)
   g_xy = dde.grad.jacobian(y,x, i=0, j=1) + dde.grad.jacobian(y,x, i=1, j=0)
   voigt = torch.cat([e_x, e_y, g_xy], dim=1)
-  C_scaled = concreteData.C() / scale.sigma(concreteData.E)  # [N/L**2]
+  C_scaled = concreteData.C_stiffness_matrix() / scale.sigma(concreteData.E)  # [N/L**2]
   sigma_voigt = torch.matmul(voigt, C_scaled)   # [1/L**2]
 
   sigmax_x = dde.grad.jacobian(sigma_voigt, x, i=0, j=0)  

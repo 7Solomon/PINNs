@@ -3,16 +3,14 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from process.thermal_mechanical.scale import Scale
 
-from config import concreteData
 from domain_vars import thermal_mechanical_2d_domain
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from process.thermal_mechanical.scale import Scale
-from config import concreteData
 from domain_vars import thermal_mechanical_2d_domain
 
-def vis_2d_multi(model, interval=600, **kwargs):
+def vis_2d_multi(model, scale: Scale, interval=600, **kwargs):
     """
     Creates an animation showing thermal-mechanical 2D results with all variables.
     
@@ -25,9 +23,7 @@ def vis_2d_multi(model, interval=600, **kwargs):
     var_names = ['X-Displacement (u)', 'Y-Displacement (v)', 'Temperature (T)', 'Displacement Magnitude']
     cmaps = ['RdBu_r', 'RdBu_r', 'plasma', 'viridis']
     units = ['m', 'm', '°C', 'm']
-    
-    scale = Scale(thermal_mechanical_2d_domain)
-    
+        
     # Domain and grid setup
     x_start, x_end = thermal_mechanical_2d_domain.spatial['x']
     y_start, y_end = thermal_mechanical_2d_domain.spatial['y']
@@ -63,6 +59,29 @@ def vis_2d_multi(model, interval=600, **kwargs):
     
     all_predictions = np.array(all_predictions)  # Shape: (nt, 4, ny, nx)
     
+    ##### Calculate amplification factor for visualization
+    max_u_abs = np.max(np.abs(all_predictions[:, 0, :, :]))
+    max_v_abs = np.max(np.abs(all_predictions[:, 1, :, :]))
+    
+    all_u_data = all_predictions[:, 0, :, :]
+    all_v_data = all_predictions[:, 1, :, :]
+    all_displacement_magnitudes = np.sqrt(all_u_data**2 + all_v_data**2)
+    max_actual_displacement = np.max(all_displacement_magnitudes)
+    
+    target_visual_displacement = 0.05  # Target for the maximum displayed deformation (in meters)
+    
+    if max_actual_displacement > 1e-9:  # Avoid division by zero or very small numbers
+        amplification = target_visual_displacement / max_actual_displacement
+    else:
+        amplification = 10  # Default amplification if displacements are negligible
+        
+    # Optional: Cap the amplification factor to a reasonable range
+    min_amplification = 1.0
+    max_amplification = 500.0 # Adjust as needed
+    amplification = int(np.clip(amplification, min_amplification, max_amplification))
+    
+
+
     # Setup figure with 2x3 layout (4 field plots + 2 mesh plots)
     fig, axes = plt.subplots(2, 3, figsize=(18, 12))
     axes = axes.flatten()
@@ -100,41 +119,38 @@ def vis_2d_multi(model, interval=600, **kwargs):
     X_mesh = X[::mesh_subsample, ::mesh_subsample] 
     Y_mesh = Y[::mesh_subsample, ::mesh_subsample]
     
-    # Original mesh plot (subplot 5)
-    original_ax = axes[4]
-    original_ax.plot(X_mesh, Y_mesh, 'k-', alpha=0.5, linewidth=0.8)
-    original_ax.plot(X_mesh.T, Y_mesh.T, 'k-', alpha=0.5, linewidth=0.8)
-    original_ax.set_title('Original Mesh')
-    original_ax.set_xlabel('X Position [m]')
-    original_ax.set_ylabel('Y Position [m]')
-    original_ax.set_aspect('equal')
-    original_ax.grid(True, alpha=0.3)
+    # Combined Original and Deformed Mesh Plot (subplot 5, using axes[4])
+    combined_mesh_ax = axes[4] # Use the 5th subplot (index 4)
     
-    # Deformed mesh plot (subplot 6)
-    deformed_ax = axes[5]
-    deformed_lines_h = []  # Horizontal lines
-    deformed_lines_v = []  # Vertical lines
+    # Plot original mesh as a reference (lighter color, thinner lines)
+    combined_mesh_ax.plot(X_mesh, Y_mesh, 'k-', alpha=0.3, linewidth=0.7, label='Original Mesh')
+    combined_mesh_ax.plot(X_mesh.T, Y_mesh.T, 'k-', alpha=0.3, linewidth=0.7)
     
-    # Initialize deformed mesh lines
-    amplification = 1000  # Amplify displacements for visibility
+    deformed_lines_h = []  # Horizontal lines for deformed mesh
+    deformed_lines_v = []  # Vertical lines for deformed mesh
+    
+    # Initialize deformed mesh lines (more prominent color)
     for i in range(X_mesh.shape[0]):
-        line, = deformed_ax.plot([], [], 'r-', linewidth=1)
+        line, = combined_mesh_ax.plot([], [], 'r-', linewidth=1.2, label='Deformed Mesh' if i == 0 else "") # Label only once
         deformed_lines_h.append(line)
     for j in range(X_mesh.shape[1]):
-        line, = deformed_ax.plot([], [], 'r-', linewidth=1)
+        line, = combined_mesh_ax.plot([], [], 'r-', linewidth=1.2)
         deformed_lines_v.append(line)
     
-    deformed_ax.set_title(f'Deformed Mesh ({amplification}x amplified)')
-    deformed_ax.set_xlabel('X Position [m]')
-    deformed_ax.set_ylabel('Y Position [m]')
-    deformed_ax.set_aspect('equal')
-    deformed_ax.grid(True, alpha=0.3)
+    combined_mesh_ax.set_title(f'Original & Deformed Mesh ({amplification}x amplified)')
+    combined_mesh_ax.set_xlabel('X Position [m]')
+    combined_mesh_ax.set_ylabel('Y Position [m]')
+    combined_mesh_ax.set_aspect('equal')
+    combined_mesh_ax.grid(True, alpha=0.3)
+
+    # make last subplot invisible
+    fig.delaxes(axes[5])
     
     def update_frame(frame):
         # Update title with current time
         time_days = t_points[frame] / (24 * 3600)
         fig.suptitle(f'Thermal-Mechanical 2D Animation - Time: {time_days:.2f} days', 
-                    fontsize=16, y=0.95)
+                    fontsize=16, y=0.95) # Adjusted y for suptitle if layout changes
         
         # Update field plots
         for i in range(4):
@@ -154,14 +170,22 @@ def vis_2d_multi(model, interval=600, **kwargs):
         for j, line in enumerate(deformed_lines_v):
             line.set_data(X_deformed[:, j], Y_deformed[:, j])
         
-        # Adjust deformed mesh axis limits
-        x_range = X_deformed.max() - X_deformed.min()
-        y_range = Y_deformed.max() - Y_deformed.min()
-        margin = 0.1
-        deformed_ax.set_xlim(X_deformed.min() - margin * x_range, 
-                           X_deformed.max() + margin * x_range)
-        deformed_ax.set_ylim(Y_deformed.min() - margin * y_range, 
-                           Y_deformed.max() + margin * y_range)
+        # Adjust combined mesh axis limits to encompass both original and deformed states
+        # Consider the extent of both X_mesh, Y_mesh and X_deformed, Y_deformed
+        all_x_points = np.concatenate([X_mesh.ravel(), X_deformed.ravel()])
+        all_y_points = np.concatenate([Y_mesh.ravel(), Y_deformed.ravel()])
+
+        x_min_plot, x_max_plot = all_x_points.min(), all_x_points.max()
+        y_min_plot, y_max_plot = all_y_points.min(), all_y_points.max()
+        
+        x_range = x_max_plot - x_min_plot
+        y_range = y_max_plot - y_min_plot
+        margin = 0.1 # Keep a small margin
+
+        combined_mesh_ax.set_xlim(x_min_plot - margin * x_range, 
+                                  x_max_plot + margin * x_range)
+        combined_mesh_ax.set_ylim(y_min_plot - margin * y_range, 
+                                  y_max_plot + margin * y_range)
         
         return field_ims + deformed_lines_h + deformed_lines_v
     
@@ -169,5 +193,5 @@ def vis_2d_multi(model, interval=600, **kwargs):
     ani = animation.FuncAnimation(fig, update_frame, frames=nt, interval=interval, 
                                   blit=False, repeat=True)
     
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0, 1, 0.96])  # Adjust layout to fit suptitle
     return {'field': ani, 'figure': fig}
