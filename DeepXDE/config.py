@@ -117,6 +117,15 @@ class ThermalMoisture2DConfig(BaseModel, BConfig):
     loss_weights: list[float] = [1.0, 1.0, 1.0, 1.0, 1.0]
     loss_labels: list[str] = ['PDE', 'temp_init', 'moisture_init', 'temp_left', 'moisture_left']
 
+class MechanicalMoisture2DConfig(BaseModel, BConfig):
+    input_dim: int = 3
+    output_dim: int = 3
+
+    compile_args: dict = {'optimizer': 'adam', 'lr': 1e-4}
+    #decay: list[str,int,float] = ['step', 10000, 0.5]
+    loss_weights: list[float] = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+    loss_labels: list[str] = ['PDE_U', 'PDE_V', 'PDE_Theta', 'inital_theta', 'Left_U', 'Left_V', 'Top_Theta']
+
 steadyHeatConfig = SteadyHeatConfig()
 bernoulliBalkenConfig = BernoulliBalkenConfig()
 bernoulliBalken2DConfig = BernoulliBalken2DConfig()
@@ -128,6 +137,7 @@ richardsMixed1DConfig = RichardsMixed1DConfig()
 darcy2DConfig = Darcy2DConfig()
 thermalMechanical2DConfig = ThermalMechanical2DConfig()
 thermalMoisture2DConfig = ThermalMoisture2DConfig()
+mechanicalMoisture2DConfig = MechanicalMoisture2DConfig()
 
 
 #concreteData = ConcreteData()

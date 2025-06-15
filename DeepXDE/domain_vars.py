@@ -67,3 +67,12 @@ thermal_moisture_2d_domain = Domain(
             #'t': (0, 3.6e3)  # ca 1 hour
         }
     )
+mechanical_moisture_2d_domain = Domain(
+        spatial={
+            'x': (0, 1),
+            'y': (0, 10)
+        }, temporal={
+            't': (0, 4e6)  # ca 1 week
+            #'t': (0, 3.6e3)  # ca 1 hour
+        }
+    )

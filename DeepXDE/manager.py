@@ -4,7 +4,7 @@ from utils.dynamic_loss import DynamicLossWeightCallback
 import vis
 from utils.model_utils import load_function, save_function
 from model import create_model
-
+from utils.test import create_dde_data, heat_problem
 import deepxde as dde
 import matplotlib.pyplot as plt
 
@@ -52,6 +52,17 @@ def manage_args(args):
         model, domain_vars, config, scale = load_function(process_type, subtype, output_transform=lambda x,y: output_transform(x,y, scale))
     elif args.command == 'list':
         raise NotImplementedError('List not implemented')
+    elif args.command == 'test':
+        #raise NotImplementedError('Test not implemented')
+        config = MAP['heat']['transient']['config']
+        domain_vars = MAP['heat']['transient']['domain_vars']
+        scale = MAP['heat']['transient']['scale'](domain_vars)
+        data = create_dde_data(heat_problem, {
+            'num_domain': 1000,
+            'num_boundary': 500,
+            'num_initial': 200,
+        })
+        model = create_model(data, config, output_transform=None if not output_transform else lambda x,y: output_transform(x,y, scale))
     else:
         raise ValueError('UNVALIDEr cOMmAND DU KEK')
     

@@ -9,6 +9,9 @@ class Material:
     rho_w: float = 998.0
     cp_w: float = 4182.0
 
+    # Base
+    g:float = 9.81  # [m/s^2]  
+
 #class CellularConcrete1:
 #    def __init__(self):
 #        # van Genuchten parameters
@@ -58,6 +61,11 @@ class ConcreteData(Material):
     lamda_dry: float = 1.0  # [W/(m*K)]
     lamda_sat: float = 1.8  # [W/(m*K)]
 
+    # Moisture Mechanical
+    alpha_biot: float = 0.8  # Biot coefficient for moisture coupling
+    D_moisture: float = 5e-10  # [m^2/s]  # Moisture diffusivity
+    strain_moisture_coulling_coef: float = 1.0 #NON STANDART, but needed for coupling, describes how much strain influences moisture diffusivity 
+    
     @property
     def m_vg(self) -> float:
         return 1.0 - 1.0 / self.n_vg if self.n_vg != 0 else 0.0

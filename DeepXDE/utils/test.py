@@ -2,18 +2,19 @@ import deepxde as dde
 import numpy as np
 import functools
 class ProblemDefinition:
-    def __init__(self, name, description, domain_coords, variables, 
+    def __init__(self, name, description, domain_coords, variables, residual_func,
                  boundary_conditions, initial_conditions=None):
         self.name = name
         self.description = description
         self.domain_coords = domain_coords
         self.variables = variables
+
+        self.residual_func = residual_func
         
-        # We now have two distinct lists
         self.boundary_conditions = boundary_conditions
         self.initial_conditions = initial_conditions if initial_conditions is not None else []
 
-        # Helper maps remain the same
+        # Helper maps
         self.coord_map = {name: i for i, name in enumerate(domain_coords.keys())}
         self.var_map = {name: i for i, name in enumerate(variables)}
 
@@ -119,19 +120,16 @@ def create_dde_geometry(problem: ProblemDefinition):
         return spatial_geom
 
 
-def create_dde_data(problem: ProblemDefinition, pde_residual_func, net, training_params: dict):
+def create_dde_data(problem: ProblemDefinition, training_params: dict):
     """
     Creates a dde.data.PDE or dde.data.TimePDE object from a ProblemDefinition.
 
     Args:
         problem (ProblemDefinition): The abstract definition of the problem.
-        pde_residual_func (callable): The function that defines the PDE residual(s),
-            taking (x, y) as input, where y is the network output.
-        net: The neural network model (e.g., a dde.maps.FNN).
         training_params (dict): A dictionary with keys like 'num_domain',
             'num_boundary', 'num_initial', etc.
 
-    Returns:
+    Returns:<
         A dde.data.PDE or dde.data.TimePDE object ready for model training.
     """
     print(f"--- Creating DDE data for problem: '{problem.name}' ---")
@@ -157,7 +155,7 @@ def create_dde_data(problem: ProblemDefinition, pde_residual_func, net, training
         # The 'bcs' and 'ics' keyword arguments are the clearest way to do this
         data = dde.data.TimePDE(
             geom,
-            pde_residual_func,
+            problem.residual_func,  
             bcs=bcs,
             ics=ics,
             num_domain=training_params.get('num_domain', 1000),
@@ -173,7 +171,7 @@ def create_dde_data(problem: ProblemDefinition, pde_residual_func, net, training
         # Create PDE object
         data = dde.data.PDE(
             geom,
-            pde_residual_func,
+            problem.residual_func,
             bcs,
             num_domain=training_params.get('num_domain', 1000),
             num_boundary=training_params.get('num_boundary', 500),
@@ -182,30 +180,36 @@ def create_dde_data(problem: ProblemDefinition, pde_residual_func, net, training
         
     return data
 
+from process.mechanic.residual import pde_2d_residual
+from process.heat.residual import lp_residual
 
 beam_problem = ProblemDefinition(
     name="2D Plain Strain Beam",
     description="2D plane strain.",
     domain_coords={'x': [0.0, 1.0], 'y': [0.0, 10.0]},
     variables=['u', 'v'],
+    residual_func=pde_2d_residual,
     boundary_conditions=[
         {'type': 'Dirichlet', 'variable': 'u', 'value': 0.0, 'location_on': {'x': 'min'}},
         {'type': 'Dirichlet', 'variable': 'v', 'value': 0.0, 'location_on': {'x': 'min'}},
     ]
 )
 heat_problem = ProblemDefinition(
-    name="1D Transient Heat",
-    description="Heat equation in a 1D rod over time.",
-    domain_coords={'x': [0.0, 1.0], 't': [0.0, 2.0]},
+    name="2D Transient Heat",
+    description="Heat equation in a 2D domain over time.",
+    domain_coords={'x': [0.0, 0.5], 'y': [0.0, 1.0], 't': [0.0, 8.6e4]},
     variables=['T'],
-    
+
+    residual_func=lp_residual,
+
     boundary_conditions=[
-        {'type': 'Dirichlet', 'variable': 'T', 'value': 0.0, 'location_on': {'x': 'min'}},
+        {'type': 'Dirichlet', 'variable': 'T', 'value': 100.0, 'location_on': {'x': 'min'}},
         {'type': 'Dirichlet', 'variable': 'T', 'value': 0.0, 'location_on': {'x': 'max'}},
     ],
     
     initial_conditions=[
-        {'type': 'IC', 'variable': 'T', 'value': lambda x: np.sin(np.pi * x[:, 0:1])}
+        #{'type': 'IC', 'variable': 'T', 'value': lambda x: np.sin(np.pi * x[:, 0:1])}
+        {'type': 'IC', 'variable': 'T', 'value': 0.0}
     ]
 )
 

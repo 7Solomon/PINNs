@@ -200,5 +200,21 @@ MAP = {
             },
             'path': 'models/thermal_moisture/2d',
         }
+    },
+    'mechanical_moisture': {
+        '2d': {
+            'domain': process.mechanical_moisture.domain.domain_2d,
+            'domain_vars': domain_vars.mechanical_moisture_2d_domain,
+            'config': config.mechanicalMoisture2DConfig,
+            'scale' : process.mechanical_moisture.scale.Scale,
+            'output_transform': process.mechanical_moisture.output_transform.output_transform_2d,
+            'vis' : {
+                'loss': vis.plot_loss,
+                'field': process.mechanical_moisture.vis.vis_2d_mechanical_moisture,
+                #'div': process.mechanical_moisture.vis.visualize_divergence,
+            },
+            'path': 'models/mechanical_moisture/2d',
+        }
     }
+
 }
