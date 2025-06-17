@@ -1,12 +1,6 @@
-from utils.metadata import Domain 
 import deepxde as dde
 import matplotlib.pyplot as plt
 import numpy as np
-import torch
-import mplcursors
-
-from matplotlib import cm
-import matplotlib.animation as animation
 
 
 def plot_loss(Loss, labels=None):

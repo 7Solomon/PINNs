@@ -29,7 +29,11 @@ def parse_args():
                              help='Display options')
     
     test_parser = subparsers.add_parser('test', help='test stuff')
-    test_parser.add_argument('--type', nargs='+', default=['mechanic', 'fest_los'])
+    test_parser.add_argument('--epochs', type=int, default=0, help='Training')
+    test_parser.add_argument('--type', nargs='+', default=['heat', 'transient'],)
+
+
+
     return parser.parse_args()
 
 
@@ -49,20 +53,25 @@ def manage_args(args):
         data = domain_func(domain_vars, scale)
         model = create_model(data, config, output_transform=None if not output_transform else lambda x,y: output_transform(x,y, scale))
     elif args.command == 'load':
-        model, domain_vars, config, scale = load_function(process_type, subtype, output_transform=lambda x,y: output_transform(x,y, scale))
+        model, domain_vars, config, scale = load_function(process_type, subtype, output_transform=None if not output_transform else lambda x,y: output_transform(x,y, scale))
     elif args.command == 'list':
         raise NotImplementedError('List not implemented')
     elif args.command == 'test':
         #raise NotImplementedError('Test not implemented')
-        config = MAP['heat']['transient']['config']
-        domain_vars = MAP['heat']['transient']['domain_vars']
-        scale = MAP['heat']['transient']['scale'](domain_vars)
-        data = create_dde_data(heat_problem, {
-            'num_domain': 1000,
-            'num_boundary': 500,
-            'num_initial': 200,
-        })
-        model = create_model(data, config, output_transform=None if not output_transform else lambda x,y: output_transform(x,y, scale))
+        #config = MAP['heat']['transient']['config']
+        #domain_vars = MAP['heat']['transient']['domain_vars']
+        #scale = MAP['heat']['transient']['scale'](domain_vars)
+        #data = create_dde_data(heat_problem, {
+        #    'num_domain': 1000,
+        #    'num_boundary': 500,
+        #    'num_initial': 200,
+        #})
+        #model = create_model(data, config, output_transform=None if not output_transform else lambda x,y: output_transform(x,y, scale))
+        from process.heat.gnd import get_transient_fem
+        from domain_vars import steady_heat_2d_domain, transient_heat_2d_domain
+        #get_steady_fem(steady_heat_2d_domain)
+        get_transient_fem(transient_heat_2d_domain)
+        return
     else:
         raise ValueError('UNVALIDEr cOMmAND DU KEK')
     
@@ -100,14 +109,14 @@ def visualize(vis_type, process_type, subtype, model, loss_history, args, domain
             print(f"Error generating loss visualization: {e}")
     
     if vis_type in ['field', 'all']:
-        try:
+        #try:
             kwargs = MAP[process_type][subtype]['vis'].get('kwargs', {})
             field_figures = MAP[process_type][subtype]['vis']['field'](model, scale, **kwargs)
             vis.update(field_figures)
-        except KeyError as e:
-            print(f"Warning: Field visualization not available for {process_type}/{subtype}: {e}")
-        except Exception as e:
-            print(f"Error generating field visualization: {e}")
+        #except KeyError as e:
+        #    print(f"Warning: Field visualization not available for {process_type}/{subtype}: {e}")
+        #except Exception as e:
+        #    print(f"Error generating field visualization: {e}")
     
     #print(f"Generated visualizations: {list(vis.keys())}")
     return vis

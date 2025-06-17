@@ -6,7 +6,7 @@ from utils.metadata import Domain # Assuming Domain is in utils.metadata
 
 from domain_vars import mechanical_moisture_2d_domain
 
-def vis_2d_mechanical_moisture(model, scale: Scale, interval=600, **kwargs):
+def vis_2d_mechanical_moisture(model, scale: Scale, interval=1200, **kwargs):
     """
     Creates an animation showing mechanical-moisture 2D results.
     
@@ -116,9 +116,9 @@ def vis_2d_mechanical_moisture(model, scale: Scale, interval=600, **kwargs):
     vector_ax.set_ylim(y_start, y_end)
     vector_ax.grid(True, alpha=0.3)
     
+    time_scale = ((60*60), 'Hours') if t_points.max()/(60*60*24) < 2 else ((60*60*24), 'Days')
     def update_frame(frame):
-        time_val = t_points[frame] # Assuming t_points are in seconds
-        fig.suptitle(f'Mechanical-Moisture 2D Animation - Time: {time_val:.2e} s', 
+        fig.suptitle(f'Mechanical-Moisture 2D Animation - Time: {( t_points[frame]/time_scale[0]):.2f} {time_scale[1]}', 
                     fontsize=16, y=0.98) # Adjusted y for suptitle
         
         for i in range(5):

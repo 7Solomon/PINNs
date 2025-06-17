@@ -43,7 +43,7 @@ def residual(x, y, scale: Scale):
     tauxy_x = dde.grad.jacobian(sigma_voigt_with_moisture, x, i=2, j=0) 
 
     res_x = sigmax_x + tauxy_y
-    res_y = sigmay_y + tauxy_x - 1.0/scale.f 
+    res_y = sigmay_y + tauxy_x - 1.3e4/scale.f 
     
     vx = dde.grad.jacobian(y, x, i=0, j=2)
     vy = dde.grad.jacobian(y, x, i=1, j=2)
@@ -70,14 +70,6 @@ def residual(x, y, scale: Scale):
     res_theta = theta_t + transient_coupling - (div_x + div_y)
 
     #print('----')
-    #print(f'sigma_voigt: {sigma_voigt.min().item()}, {sigma_voigt.max().item()}')
-    #print(f'sigma_voigt_with_moisture: {sigma_voigt_with_moisture.min().item()}, {sigma_voigt_with_moisture.max().item()}')
-    #print(f'sigmax_x: {sigmax_x.min().item()}, {sigmax_x.max().item()}')
-    #print(f'sigmay_y: {sigmay_y.min().item()}, {sigmay_y.max().item()}')
-    #print(f'tauxy_y: {tauxy_y.min().item()}, {tauxy_y.max().item()}')
-    #print(f'tauxy_x: {tauxy_x.min().item()}, {tauxy_x.max().item()}')
-    #print(f'res_x: {res_x.min().item()}, {res_x.max().item()}')
-    #print(f'res_y: {res_y.min().item()}, {res_y.max().item()}')
     #print(f'vx: {vx.min().item()}, {vx.max().item()}')
     #print(f'vy: {vy.min().item()}, {vy.max().item()}')
     #print(f'dvx_dx: {dvx_dx.min().item()}, {dvx_dx.max().item()}')
@@ -95,6 +87,8 @@ def residual(x, y, scale: Scale):
     #print(f'div_x: {div_x.min().item()}, {div_x.max().item()}')
     #print(f'div_y: {div_y.min().item()}, {div_y.max().item()}')
     #print(f'res_theta: {res_theta.min().item()}, {res_theta.max().item()}')
+    #print(f'res_x: {res_x.min().item()}, {res_x.max().item()}')
+    #print(f'res_y: {res_y.min().item()}, {res_y.max().item()}')
     #print(f'scale.L: {scale.L}, scale.t: {scale.t}, scale.epsilon: {scale.epsilon}, scale.theta: {scale.theta}')
     #print(f'scale.sigma: {scale.sigma}, scale.f: {scale.f}')
 

@@ -61,7 +61,7 @@ def load_function(type:str, subtype:str, output_transform=None):
 
     # CONFIG
     config_path = os.path.join(core_folder, 'config.json')
-    config = BConfig.load_from_json(load_dict_from_json(config_path))
+    config = BConfig.load_from_json(config_path)
 
     # MODEL
     model_path = filter_for_model_path(core_folder)

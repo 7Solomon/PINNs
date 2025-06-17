@@ -2,7 +2,7 @@ import deepxde as dde
 import numpy as np
 import functools
 class ProblemDefinition:
-    def __init__(self, name, description, domain_coords, variables, residual_func,
+    def __init__(self, name, description, domain_coords, variables, residual_func, scale,
                  boundary_conditions, initial_conditions=None):
         self.name = name
         self.description = description
@@ -10,6 +10,7 @@ class ProblemDefinition:
         self.variables = variables
 
         self.residual_func = residual_func
+        self.scale = scale
         
         self.boundary_conditions = boundary_conditions
         self.initial_conditions = initial_conditions if initial_conditions is not None else []
@@ -155,9 +156,8 @@ def create_dde_data(problem: ProblemDefinition, training_params: dict):
         # The 'bcs' and 'ics' keyword arguments are the clearest way to do this
         data = dde.data.TimePDE(
             geom,
-            problem.residual_func,  
-            bcs=bcs,
-            ics=ics,
+            lambda x,y : problem.residual_func(x, y, problem.scale), 
+            [*ics, *bcs],  
             num_domain=training_params.get('num_domain', 1000),
             num_boundary=training_params.get('num_boundary', 500),
             num_initial=training_params.get('num_initial', 200),
@@ -171,7 +171,7 @@ def create_dde_data(problem: ProblemDefinition, training_params: dict):
         # Create PDE object
         data = dde.data.PDE(
             geom,
-            problem.residual_func,
+            lambda x,y : problem.residual_func(x, y, problem.scale),
             bcs,
             num_domain=training_params.get('num_domain', 1000),
             num_boundary=training_params.get('num_boundary', 500),
@@ -182,18 +182,21 @@ def create_dde_data(problem: ProblemDefinition, training_params: dict):
 
 from process.mechanic.residual import pde_2d_residual
 from process.heat.residual import lp_residual
+from process.heat.scale import Scale
+from domain_vars import transient_heat_2d_domain
 
-beam_problem = ProblemDefinition(
-    name="2D Plain Strain Beam",
-    description="2D plane strain.",
-    domain_coords={'x': [0.0, 1.0], 'y': [0.0, 10.0]},
-    variables=['u', 'v'],
-    residual_func=pde_2d_residual,
-    boundary_conditions=[
-        {'type': 'Dirichlet', 'variable': 'u', 'value': 0.0, 'location_on': {'x': 'min'}},
-        {'type': 'Dirichlet', 'variable': 'v', 'value': 0.0, 'location_on': {'x': 'min'}},
-    ]
-)
+#beam_problem = ProblemDefinition(
+#    name="2D Plain Strain Beam",
+#    description="2D plane strain.",
+#    domain_coords={'x': [0.0, 1.0], 'y': [0.0, 10.0]},
+#    variables=['u', 'v'],
+#    residual_func=pde_2d_residual,
+#    #scale=Scale()
+#    boundary_conditions=[
+#        {'type': 'Dirichlet', 'variable': 'u', 'value': 0.0, 'location_on': {'x': 'min'}},
+#        {'type': 'Dirichlet', 'variable': 'v', 'value': 0.0, 'location_on': {'x': 'min'}},
+#    ]
+#)
 heat_problem = ProblemDefinition(
     name="2D Transient Heat",
     description="Heat equation in a 2D domain over time.",
@@ -201,6 +204,7 @@ heat_problem = ProblemDefinition(
     variables=['T'],
 
     residual_func=lp_residual,
+    scale= Scale(transient_heat_2d_domain),
 
     boundary_conditions=[
         {'type': 'Dirichlet', 'variable': 'T', 'value': 100.0, 'location_on': {'x': 'min'}},
@@ -209,7 +213,7 @@ heat_problem = ProblemDefinition(
     
     initial_conditions=[
         #{'type': 'IC', 'variable': 'T', 'value': lambda x: np.sin(np.pi * x[:, 0:1])}
-        {'type': 'IC', 'variable': 'T', 'value': 0.0}
+        {'type': 'IC', 'variable': 'T', 'value': lambda x: 0.0}
     ]
 )
 

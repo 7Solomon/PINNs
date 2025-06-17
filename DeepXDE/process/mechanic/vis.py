@@ -1,5 +1,6 @@
 import math
 from scipy.interpolate import griddata
+from utils.fem import evaluate_fem_at_points
 from utils.COMSOL import load_comsol_data_mechanic_2d
 from utils.metadata import Domain
 from process.mechanic.scale import Scale
@@ -7,7 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from domain_vars import fest_lost_2d_domain
-from process.mechanic.base_line import base_mapping
+from process.mechanic.gnd import base_mapping, get_einspannung_2d_fem
 
 
 def visualize_field_1d(model, **kwargs):
@@ -48,6 +49,12 @@ def visualize_field_2d(model, scale: Scale, **kwargs):
     predictions = model.predict(scaled_points)
     predictions = predictions * scale.U
 
+
+    # GROUND
+    GROUND = get_einspannung_2d_fem(fest_lost_2d_domain)
+    ground_values_at_points = evaluate_fem_at_points(GROUND, points)
+    #print(GROUND)
+
     # --- Extract min/max for bounds (Needed for outline/limits) ---
     x_min, x_max = fest_lost_2d_domain.spatial['x']
     y_min, y_max = fest_lost_2d_domain.spatial['y']
@@ -62,14 +69,14 @@ def visualize_field_2d(model, scale: Scale, **kwargs):
     displacement_magnitude_2d = displacement_magnitude.reshape(ny, nx)
     
     # Calculate base magnitude for comparison
-    data = load_comsol_data_mechanic_2d('BASELINE/mechanic/einspannung_2d.txt')
-    comsol_u_interp = griddata((data[:,0], data[:,1]), data[:,2], (X.flatten(), Y.flatten()), 
-                               method='linear', fill_value=0.0)
-    comsol_v_interp = griddata((data[:,0], data[:,1]), data[:,3], (X.flatten(), Y.flatten()), 
-                               method='linear', fill_value=0.0)
-
+    #data = load_comsol_data_mechanic_2d('BASELINE/mechanic/einspannung_2d.txt')
+    #comsol_u_interp = griddata((data[:,0], data[:,1]), data[:,2], (X.flatten(), Y.flatten()), 
+    #                           method='linear', fill_value=0.0)
+    #comsol_v_interp = griddata((data[:,0], data[:,1]), data[:,3], (X.flatten(), Y.flatten()), 
+    #                           method='linear', fill_value=0.0)
+#
     # Calculate base magnitude from interpolated data
-    base_magnitude = np.sqrt(comsol_u_interp**2 + comsol_v_interp**2)
+    base_magnitude = np.sqrt(ground_values_at_points[:,0]**2 + ground_values_at_points[:,1]**2)
     base_magnitude_2d = base_magnitude.reshape(ny, nx)
     
     # Calculate error
@@ -101,7 +108,7 @@ def visualize_field_2d(model, scale: Scale, **kwargs):
     # Calculate deformed shape (assuming X, Y are 2D: [ny, nx])
     u_x = predictions[:, 0].reshape(ny, nx)
     u_y = predictions[:, 1].reshape(ny, nx)
-    scale_factor = 2.0  # Adjust for visibility
+    scale_factor = 2.0 
     deformed_X = X - scale_factor * u_x
     deformed_Y = Y - scale_factor * u_y
 

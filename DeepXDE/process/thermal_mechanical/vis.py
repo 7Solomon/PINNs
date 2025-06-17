@@ -146,10 +146,10 @@ def vis_2d_multi(model, scale: Scale, interval=600, **kwargs):
     # make last subplot invisible
     fig.delaxes(axes[5])
     
+    time_scale = ((60*60), 'Hours') if t_points.max()/(60*60*24) < 2 else ((60*60*24), 'Days')
     def update_frame(frame):
         # Update title with current time
-        time_days = t_points[frame] / (24 * 3600)
-        fig.suptitle(f'Thermal-Mechanical 2D Animation - Time: {time_days:.2f} days', 
+        fig.suptitle(f'Thermal-Mechanical 2D Animation - Time: {time_scale[0]:.2f} {time_scale[1]}', 
                     fontsize=16, y=0.95) # Adjusted y for suptitle if layout changes
         
         # Update field plots

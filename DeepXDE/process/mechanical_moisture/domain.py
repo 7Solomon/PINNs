@@ -32,11 +32,11 @@ def domain_2d(domain_vars: Domain, scale: Scale):
     geom_time = dde.geometry.GeometryXTime(geom, time)
 
     bc_left_u = dde.DirichletBC(geom_time, lambda x: 0.0, 
-                                       lambda x, _ :_ and np.isclose(x[0], x_min/scale.L)  , component=0)
+                                       lambda x, _ :_ and np.isclose(x[0], x_min/scale.L) , component=0)
     bc_left_v = dde.DirichletBC(geom_time, lambda x: 0.0, 
-                                       lambda x, _ :_ and np.isclose(x[0], x_min/scale.L)  , component=1)
+                                       lambda x, _ :_ and np.isclose(x[0], x_min/scale.L), component=1)
     bc_top_theta = dde.DirichletBC(geom_time, lambda x: 0.9,
-                                       lambda x, _ :_ and np.isclose(x[1], y_max/scale.L)  , component=2)
+                                       lambda x, _ :_ and np.isclose(x[1], y_max/scale.L), component=2)
     ic_theta = dde.IC(geom_time, 
                         lambda x: 0.0, 
                         lambda _, on_initial: on_initial, component=2)

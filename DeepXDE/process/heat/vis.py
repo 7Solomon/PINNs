@@ -1,4 +1,6 @@
 import os
+from utils.fem import evaluate_fem_at_points, evaluate_fem_at_points_transient
+from process.heat.gnd import get_transient_fem
 from utils.metadata import Domain
 from process.moisture.scale import *
 from domain_vars import transient_heat_2d_domain, steady_heat_2d_domain
@@ -56,38 +58,71 @@ def visualize_transient_field(model, scale: Scale, **kwargs):
     scaled_points = np.vstack((scaled_X.flatten(), scaled_Y.flatten(), scaled_T.flatten())).T
 
     
-    print('scaled_points: ', scaled_points.shape)
-    print('X_scaled', scaled_X.shape)
-    print('Y_scaled', scaled_Y.shape)
     predictions = model.predict(scaled_points)
     predictions = predictions.reshape(ny, nx, nt)
     predictions = predictions * scale.T
 
-    fig, ax = plt.subplots(figsize=(10, 5))
 
+    # Ground
+    GROUND = get_transient_fem(transient_heat_2d_domain)
+    ground_eval = GROUND.eval(np.column_stack((X.flatten(), Y.flatten(), T.flatten())))
+    ground_truth = evaluate_fem_at_points_transient()
+    
+    difference = predictions - ground_truth
+
+    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+    
+    # BAR
+    pred_vmin, pred_vmax = predictions.min(), predictions.max()
+    ground_vmin, ground_vmax = ground_truth.min(), ground_truth.max()
+    diff_vmin, diff_vmax = difference.min(), difference.max()
+    
     
     # First frame
-    cont = ax.contourf(X[:,:,0], Y[:,:,0], predictions[:,:,0], 50, cmap=cm.jet, vmin=predictions.min().item(), vmax=predictions.max().item())
-    cbar = fig.colorbar(cont, ax=ax)
-    cbar.set_label('Field Prediction')
-    ax.set_xlabel('x')
-    ax.set_ylabel('y')
-    ax.set_title(f'Distribution at [t={(t[0]/(60*60*24)):.3f} days]')
+    cont1 = axes[0].contourf(X[:,:,0], Y[:,:,0], predictions[:,:,0], 50, cmap=cm.jet, vmin=pred_vmin, vmax=pred_vmax)
+    cont2 = axes[1].contourf(X[:,:,0], Y[:,:,0], ground_truth[:,:,0], 50, cmap=cm.jet, vmin=ground_vmin, vmax=ground_vmax)
+    cont3 = axes[2].contourf(X[:,:,0], Y[:,:,0], difference[:,:,0], 50, cmap=cm.RdBu_r, vmin=diff_vmin, vmax=diff_vmax)
     
-    def update(frame):
-        ax.clear()
-        cont = ax.contourf(X[:,:,frame], Y[:,:,frame], predictions[:,:,frame], 50, cmap=cm.jet, vmin=predictions.min().item(), vmax=predictions.max().item())
+    # Colorbars
+    cbar1 = fig.colorbar(cont1, ax=axes[0])
+    cbar2 = fig.colorbar(cont2, ax=axes[1])
+    cbar3 = fig.colorbar(cont3, ax=axes[2])
+    
+    # Labels
+    axes[0].set_title(f'Prediction at t={(t[0]/(60*60*24)):.3f} days')
+    axes[1].set_title(f'Ground Truth at t={(t[0]/(60*60*24)):.3f} days')
+    axes[2].set_title(f'Difference at t={(t[0]/(60*60*24)):.3f} days')
+    
+    for ax in axes:
         ax.set_xlabel('x')
         ax.set_ylabel('y')
-        ax.set_title(f'Distribution at [t={(t[frame]/(60*60*24)):.3f} days]')
-        cbar.update_normal(cont)
-        return cont
+
+    def update(frame):
+        for ax in axes:
+            ax.clear()
+        
+        cont1 = axes[0].contourf(X[:,:,frame], Y[:,:,frame], predictions[:,:,frame], 50, cmap=cm.jet, vmin=pred_vmin, vmax=pred_vmax)
+        cont2 = axes[1].contourf(X[:,:,frame], Y[:,:,frame], ground_truth[:,:,frame], 50, cmap=cm.jet, vmin=ground_vmin, vmax=ground_vmax)
+        cont3 = axes[2].contourf(X[:,:,frame], Y[:,:,frame], difference[:,:,frame], 50, cmap=cm.RdBu_r, vmin=diff_vmin, vmax=diff_vmax)
+        
+        axes[0].set_title(f'Prediction at t={(t[frame]/(60*60*24)):.3f} days')
+        axes[1].set_title(f'Ground Truth at t={(t[frame]/(60*60*24)):.3f} days')
+        axes[2].set_title(f'Difference at t={(t[frame]/(60*60*24)):.3f} days')
+        
+        for ax in axes:
+            ax.set_xlabel('x')
+            ax.set_ylabel('y')
+        
+        cbar1.update_normal(cont1)
+        cbar2.update_normal(cont2)
+        cbar3.update_normal(cont3)
+        
+        return [cont1, cont2, cont3]
     
     ani = animation.FuncAnimation(fig, update, frames=nt, interval=100)
-
     plt.tight_layout()
-    #return {'field': fig}
-    return {'field': ani, 'fig': fig}
+    
+    return {'field': ani, 'fig': fig}#, 'difference': difference}
 
 
 #def visualize_field(model, type, inverse_scale=None):
