@@ -28,6 +28,8 @@ class TransientHeatConfig(BaseModel, BConfig):
     loss_weights: list[float] = [1.0, 1.0, 1.0, 1.0]
     loss_labels: list[str] = ['PDE', 'Left', 'Right', 'Initial']
 
+    decay: list[str,int,float] = ['step', 1000, 0.9]
+
 
 
 ####

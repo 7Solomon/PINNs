@@ -31,8 +31,10 @@ def load_dict_from_json(path):
 def load_specific_process(type, subtype):
     # Get base path
     local_MODEL_PATH = get_model_path(type, subtype)
-    dir = [d for d in os.listdir(local_MODEL_PATH) 
-           if os.path.isdir(os.path.join(local_MODEL_PATH, d))]
+    dir = sorted([
+                d for d in os.listdir(local_MODEL_PATH) 
+                if os.path.isdir(os.path.join(local_MODEL_PATH, d))
+            ])
     
     # PRINT
     print('------------------------------')

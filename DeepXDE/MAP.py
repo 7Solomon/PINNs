@@ -210,7 +210,7 @@ MAP = {
             'output_transform': process.mechanical_moisture.output_transform.output_transform_2d,
             'vis' : {
                 'loss': vis.plot_loss,
-                'field': process.mechanical_moisture.vis.vis_2d_mechanical_moisture,
+                'field': process.mechanical_moisture.vis.visualize_transient_mechanical_moisture_comparison,
                 #'div': process.mechanical_moisture.vis.visualize_divergence,
             },
             'path': 'models/mechanical_moisture/2d',

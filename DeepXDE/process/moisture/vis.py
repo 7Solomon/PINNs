@@ -1,9 +1,14 @@
+from FEM.output import load_fem_results, save_fem_results
+
+from process.moisture.gnd import get_richards_1d_head_fem
 from utils.metadata import Domain
 from domain_vars import moisture_1d_domain, moisture_2d_domain
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from process.moisture.scale import *
+
+from mpi4py import MPI
 
 
 
@@ -23,10 +28,10 @@ def vis_1d_head(model, scale: HeadScale, interval=2000, xlabel='z', ylabel='u(z,
     title= f'Richards 1d' if 'title' not in kwargs else kwargs['title']
     z_start, z_end = moisture_1d_domain.spatial['z']
     t_start, t_end = moisture_1d_domain.temporal['t']
-    num_x_points = 100
-    num_t_points = 100
+    num_z_points = 25
+    num_t_points = 20
 
-    z_points = np.linspace(z_start, z_end, num_x_points)
+    z_points = np.linspace(z_start, z_end, num_z_points)
     t_points = np.linspace(t_start, t_end, num_t_points)
 
     Z, T = np.meshgrid(z_points, t_points)
@@ -36,28 +41,67 @@ def vis_1d_head(model, scale: HeadScale, interval=2000, xlabel='z', ylabel='u(z,
     ZT_scaled = np.vstack((Z_scaled.ravel(), T_scaled.ravel())).T
 
 
+    ground_eval_flat_time_spatial = load_fem_results("BASELINE/moisture/1d/ground_truth.npy")
+    #_, ground_eval_flat_time_spatial = get_richards_1d_head_fem(
+    #        moisture_1d_domain,
+    #        nz=num_z_points,
+    #        evaluation_times=t_points,
+    #        evaluation_spatial_points_z= z_points.reshape(-1, 1),
+    #    )
+    #save_fem_results("BASELINE/moisture/1d/ground_truth.npy", ground_truth_data)
+
+    ground_truth_data = np.full((num_z_points, num_t_points), np.nan) 
+    if ground_eval_flat_time_spatial is not None and ground_eval_flat_time_spatial.size > 0:
+        try:
+            # Reshape the flattened [time, space] data into [nt, nz]
+            # then transpose to get [nz, nt] for plotting consistency.
+            ground_truth_data = ground_eval_flat_time_spatial.reshape(num_t_points, num_z_points).transpose(1, 0)
+        except ValueError as e:
+            print(f"Error reshaping FEM results: {e}")
+            print(f"ground_eval_flat_time_spatial shape: {ground_eval_flat_time_spatial.shape}")
+            print(f"Target reshape dimensions: ({num_t_points}, {num_z_points})")
+    else:
+        print("Warning: FEM evaluation data is None or empty on rank 0. Plotting with NaNs.")
+
+
     # Get predictions from the model
     predictions = model.predict(ZT_scaled)
     predictions = predictions * scale.H
-    # 
-    data = predictions.reshape(num_t_points, num_x_points).T
+    pinn_data = predictions.reshape(num_t_points, num_z_points).T
 
+    error_data = pinn_data - ground_truth_data
 
+    # --- Setup Plot ---
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6), sharey=True)
     
-    fig, ax = plt.subplots()
-    line, = ax.plot(z_points, data[:, 0])
+    # Calculate global limits for stable y-axis
+    global_min = min(pinn_data.min(), ground_truth_data.min()) * 1.1
+    global_max = max(pinn_data.max(), ground_truth_data.max()) * 1.1
+    error_max = np.max(np.abs(error_data)) * 1.1
 
-    ax.set_xlim(z_points.min(), z_points.max())
-    ax.set_ylim(data.min(), data.max())
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
+    # --- Create Line Artists ONCE ---
+    line_pinn, = axes[0].plot(z_points, pinn_data[:, 0], 'b-')
+    line_gt, = axes[1].plot(z_points, ground_truth_data[:, 0], 'r-')
+    line_err, = axes[2].plot(z_points, error_data[:, 0], 'g-')
 
-    time_scale = ((60*60), 'Hours') if t_points.max()/(60*60*24) < 2 else ((60*60*24), 'Days')
-
+    # --- Formatting ---
+    axes[0].set(title='PINN Prediction', xlabel=xlabel, ylabel=ylabel, xlim=(z_start, z_end), ylim=(global_min, global_max))
+    axes[1].set(title='Ground Truth', xlabel=xlabel, xlim=(z_start, z_end))
+    axes[2].set(title='Absolute Error', xlabel=xlabel, xlim=(z_start, z_end), ylim=(-error_max, error_max))
+    
+    time_scale_val, time_scale_unit = ((60*60), 'Hours') if t_end / (60*60*24) < 2 else ((60*60*24), 'Days')
+    fig.suptitle(f'{title} (t=0.00 {time_scale_unit})')
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     def update(frame):
-        line.set_ydata(data[:, frame])
-        ax.set_title(f'{title} (t={(t_points[frame]/time_scale[0]):.3f} {time_scale[1]})')
-        return line,
+        line_pinn.set_ydata(pinn_data[:, frame])
+        line_gt.set_ydata(ground_truth_data[:, frame])
+        line_err.set_ydata(error_data[:, frame])
+
+        current_time = t_points[frame] / time_scale_val
+        fig.suptitle(f'{title} (t={current_time:.2f} {time_scale_unit})')
+        return line_pinn, line_gt, line_err
+
+
 
 
     ani = animation.FuncAnimation(fig, update, frames=num_t_points,

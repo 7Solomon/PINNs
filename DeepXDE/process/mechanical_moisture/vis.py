@@ -1,202 +1,195 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+from matplotlib import cm # For colormaps
 from process.mechanical_moisture.scale import Scale
 from utils.metadata import Domain # Assuming Domain is in utils.metadata
 
+# Import the FEM solver
+from process.mechanical_moisture.gnd import get_coupled_transient_fem_solution_dolfinx
+
 from domain_vars import mechanical_moisture_2d_domain
 
-def vis_2d_mechanical_moisture(model, scale: Scale, interval=1200, **kwargs):
+from mpi4py import MPI # For checking rank if needed, though vis usually runs on rank 0
+
+def visualize_transient_mechanical_moisture_comparison(
+    pinn_model, 
+    scale: Scale, 
+    fem_nx=20, fem_ny=10, fem_dt=None, # FEM discretization params
+    vis_nx=50, vis_ny=25, vis_nt=30,   # Visualization grid params
+    interval=200,
+    **kwargs):
     """
-    Creates an animation showing mechanical-moisture 2D results.
-    
-    Args:
-        model: Trained model with predict() method.
-        scale: Scale object for unscaling variables.
-        interval: Animation delay in ms (default: 600).
+    Visualizes PINN predictions vs. FEM ground truth for mechanical-moisture problem.
+    Creates a 3x3 animation: (u_x, u_y, theta) x (PINN, FEM, Difference).
     """
+    comm = MPI.COMM_WORLD
+    rank = comm.rank
+
+    x_min, x_max = mechanical_moisture_2d_domain.spatial['x']
+    y_min, y_max = mechanical_moisture_2d_domain.spatial['y']
+    t_min, t_max = mechanical_moisture_2d_domain.temporal['t']
+
+    # Visualization grid
+    x_vis = np.linspace(x_min, x_max, vis_nx)
+    y_vis = np.linspace(y_min, y_max, vis_ny)
+    t_vis = np.linspace(t_min, t_max, vis_nt)
+    X_vis, Y_vis = np.meshgrid(x_vis, y_vis) # Shape (vis_ny, vis_nx)
     
-    var_names = ['u-displacement', 'v-displacement', 'Moisture Content (θ)', 
-                 'Volumetric Strain (ε_v)', 'Shear Strain (γ_xy)', 'Displacement Vectors']
-    cmaps = ['viridis', 'viridis', 'Blues', 'coolwarm', 'coolwarm', None] 
-    units = ['m', 'm', 'm³/m³', '-', '-', 'm']
+    # Prepare spatial points for FEM evaluation (must match vis grid for direct comparison)
+    evaluation_spatial_points_xy = np.stack((X_vis.ravel(), Y_vis.ravel()), axis=-1)
+
+    # --- Get FEM Ground Truth ---
+    if rank == 0:
+        print("Running FEM to get ground truth for visualization...")
+    
+    # Use a reasonable dt for FEM if not specified, could be related to t_vis interval
+    fem_dt_actual = fem_dt if fem_dt is not None else (t_max - t_min) / (vis_nt * 5) # Heuristic
+    if fem_dt_actual <= 0 : fem_dt_actual = (t_max - t_min) / 100.0
+
+
+    # The FEM solution will be run by all processes if get_coupled_transient_fem_solution_dolfinx is MPI parallel
+    _fem_sol_obj, fem_eval_data_dict = get_coupled_transient_fem_solution_dolfinx(
+        mechanical_moisture_2d_domain,
+        num_elements_x=fem_nx,
+        num_elements_y=fem_ny,
+        dt_value=fem_dt_actual,
+        evaluation_times=t_vis, # Evaluate FEM at the visualization time points
+        evaluation_spatial_points_xy=evaluation_spatial_points_xy
+    )
+    
+    u_fem_gridded = np.full((vis_nt, vis_ny, vis_nx, 2), np.nan) # dim=2 for u_x, u_y
+    theta_fem_gridded = np.full((vis_nt, vis_ny, vis_nx, 1), np.nan)
+
+    if fem_eval_data_dict:
+        if 'u' in fem_eval_data_dict and fem_eval_data_dict['u'].size > 0:
+            # Expected shape from FEM: (vis_nt, vis_ny*vis_nx, dim)
+            u_fem_raw = fem_eval_data_dict['u']
+            if u_fem_raw.shape[0] == vis_nt and u_fem_raw.shape[1] == (vis_ny * vis_nx):
+                u_fem_gridded = u_fem_raw.reshape(vis_nt, vis_ny, vis_nx, 2)
+            elif rank == 0:
+                 print(f"Warning: FEM 'u' data shape mismatch. Got {u_fem_raw.shape}, expected {(vis_nt, vis_ny*vis_nx, 2)}")
+        elif rank == 0:
+            print("Warning: FEM 'u' data not found or empty in fem_eval_data_dict.")
+
+        if 'theta' in fem_eval_data_dict and fem_eval_data_dict['theta'].size > 0:
+            # Expected shape from FEM: (vis_nt, vis_ny*vis_nx, 1)
+            theta_fem_raw = fem_eval_data_dict['theta']
+            if theta_fem_raw.shape[0] == vis_nt and theta_fem_raw.shape[1] == (vis_ny*vis_nx):
+                theta_fem_gridded = theta_fem_raw.reshape(vis_nt, vis_ny, vis_nx, 1)
+            elif rank == 0:
+                print(f"Warning: FEM 'theta' data shape mismatch. Got {theta_fem_raw.shape}, expected {(vis_nt, vis_ny*vis_nx, 1)}")
+        elif rank == 0:
+            print("Warning: FEM 'theta' data not found or empty in fem_eval_data_dict.")
+    elif rank == 0:
+        print("Warning: fem_eval_data_dict is empty.")
+
+
+    # --- Get PINN Predictions ---
+    if rank == 0:
+        print("Getting PINN predictions...")
+    u_pinn_gridded = np.zeros((vis_nt, vis_ny, vis_nx, 2))
+    theta_pinn_gridded = np.zeros((vis_nt, vis_ny, vis_nx, 1))
+
+    for i, t_current in enumerate(t_vis):
+        if rank == 0 and i % (vis_nt // 5 + 1) == 0:
+            print(f"  PINN predicting for time step {i+1}/{vis_nt}")
         
-    x_start, x_end = mechanical_moisture_2d_domain.spatial['x']
-    y_start, y_end = mechanical_moisture_2d_domain.spatial['y']
-    t_start, t_end = mechanical_moisture_2d_domain.temporal['t']
+        T_current_grid = np.full_like(X_vis, t_current) # Shape (vis_ny, vis_nx)
+        # Create input for PINN: (N, 3) where N = vis_ny * vis_nx
+        pinn_input_points = np.stack((X_vis.ravel(), Y_vis.ravel(), T_current_grid.ravel()), axis=-1)
+        pinn_input_scaled = pinn_input_points / np.array([scale.L, scale.L, scale.t])
+        
+        # PINN model prediction (usually only on rank 0 or if model is broadcasted)
+        # Assuming pinn_model.predict can be called by any rank or is handled internally by DeepXDE
+        predictions_scaled = pinn_model.predict(pinn_input_scaled) # Expected (N, 3) for u,v,theta
+        
+        # Unscale and reshape
+        u_pinn_gridded[i, :, :, 0] = (predictions_scaled[:, 0] * scale.epsilon).reshape(vis_ny, vis_nx) # u_x
+        u_pinn_gridded[i, :, :, 1] = (predictions_scaled[:, 1] * scale.epsilon).reshape(vis_ny, vis_nx) # u_y
+        theta_pinn_gridded[i, :, :, 0] = (predictions_scaled[:, 2] * scale.theta).reshape(vis_ny, vis_nx) # theta
+
+    # --- Calculate Differences ---
+    # Broadcasting will handle the (..., 1) shape for theta against (...,) if needed
+    u_diff_gridded = u_pinn_gridded - u_fem_gridded
+    theta_diff_gridded = theta_pinn_gridded - theta_fem_gridded
     
-    nx, ny, nt = 50, 50, 30 # Reduced nt for faster generation, adjust as needed
-    x_points = np.linspace(x_start, x_end, nx)
-    y_points = np.linspace(y_start, y_end, ny)
-    t_points = np.linspace(t_start, t_end, nt)
-    X, Y = np.meshgrid(x_points, y_points)
-    
-    print(f"Generating {nt} time steps for mechanical-moisture visualization...")
-    all_plot_data = [] # To store [u, v, theta, vol_strain, g_xy] for each time step
-    
-    for i, t in enumerate(t_points):
-        if i % 5 == 0 or i == nt -1 :
-            print(f"  Step {i+1}/{nt}")
+    # --- Animation Setup ---
+    if rank == 0: # Matplotlib plotting should ideally be on rank 0
+        fig, axes = plt.subplots(3, 3, figsize=(18, 15), sharex=True, sharey=True)
+        fig.suptitle(f'PINN vs FEM Comparison (Mechanical-Moisture)', fontsize=16, y=0.97)
+
+        plot_titles = [
+            ["PINN u_x", "FEM u_x", "Difference u_x"],
+            ["PINN u_y", "FEM u_y", "Difference u_y"],
+            ["PINN θ", "FEM θ", "Difference θ"]
+        ]
+        
+        data_to_plot = [
+            [u_pinn_gridded[:,:,:,0], u_fem_gridded[:,:,:,0], u_diff_gridded[:,:,:,0]], # u_x data
+            [u_pinn_gridded[:,:,:,1], u_fem_gridded[:,:,:,1], u_diff_gridded[:,:,:,1]], # u_y data
+            [theta_pinn_gridded[:,:,:,0], theta_fem_gridded[:,:,:,0], theta_diff_gridded[:,:,:,0]] # theta data
+        ]
+
+        cmaps_fields = [cm.viridis, cm.viridis, cm.RdBu_r] # PINN, FEM, Diff
+        
+        ims = [[None]*3 for _ in range(3)]
+        cbars = [[None]*3 for _ in range(3)]
+
+        # Determine global vmin/vmax for each row (u_x, u_y, theta) for PINN/FEM, and for Diff
+        vmins_maxs = []
+        for r in range(3): # u_x, u_y, theta
+            pinn_data_row = data_to_plot[r][0]
+            fem_data_row = data_to_plot[r][1]
+            diff_data_row = data_to_plot[r][2]
             
-        T_grid = np.full_like(X, t)
-        XYT = np.vstack((X.ravel(), Y.ravel(), T_grid.ravel())).T
-        XYT_scaled = XYT / np.array([scale.L, scale.L, scale.t])
-        
-        predictions = model.predict(XYT_scaled) # Should output u_scaled, v_scaled, theta_scaled
-        
-        u_data = predictions[:, 0].reshape(X.shape) * scale.epsilon
-        v_data = predictions[:, 1].reshape(X.shape) * scale.epsilon
-        theta_data = predictions[:, 2].reshape(X.shape) * scale.theta
-        
-        dx = x_points[1] - x_points[0]
-        dy = y_points[1] - y_points[0]
-        
-        du_dx, du_dy = np.gradient(u_data, dx, dy, axis=(1,0)) # d/dx is change along columns, d/dy along rows
-        dv_dx, dv_dy = np.gradient(v_data, dx, dy, axis=(1,0))
-        
-        e_x = du_dx
-        e_y = dv_dy
-        g_xy = du_dy + dv_dx # Engineering shear strain
-        
-        vol_strain = e_x + e_y
-        
-        all_plot_data.append([u_data, v_data, theta_data, vol_strain, g_xy])
-    
-    all_plot_data = np.array(all_plot_data)  # Shape: (nt, 5, ny, nx)
-    
-    fig, axes = plt.subplots(2, 3, figsize=(20, 12))
-    axes = axes.flatten()
-    
-    field_ims = []
-    for i in range(5): # For u, v, theta, vol_strain, g_xy
-        ax = axes[i]
-        
-        vmin = all_plot_data[:, i].min()
-        vmax = all_plot_data[:, i].max()
-        # Ensure vmin and vmax are different for stable color mapping
-        if vmin == vmax:
-            vmin -= 1e-9 # Add small epsilon
-            vmax += 1e-9
+            # Valid min/max (ignoring NaNs from FEM if any)
+            valid_pinn_min = np.nanmin(pinn_data_row)
+            valid_pinn_max = np.nanmax(pinn_data_row)
+            valid_fem_min = np.nanmin(fem_data_row)
+            valid_fem_max = np.nanmax(fem_data_row)
             
-        im = ax.imshow(all_plot_data[0, i], 
-                      extent=[x_start, x_end, y_start, y_end],
-                      origin='lower', aspect='equal',
-                      vmin=vmin, vmax=vmax, cmap=cmaps[i])
-        field_ims.append(im)
-        
-        cbar = plt.colorbar(im, ax=ax, shrink=0.8)
-        cbar.set_label(f'{var_names[i]} [{units[i]}]')
-        ax.set_title(var_names[i])
-        ax.set_xlabel('X Position [m]')
-        ax.set_ylabel('Y Position [m]')
-        ax.grid(True, alpha=0.3)
-    
-    # Displacement vectors plot (subplot 6)
-    vector_ax = axes[5]
-    vector_subsample = 5 
-    X_vec = X[::vector_subsample, ::vector_subsample]
-    Y_vec = Y[::vector_subsample, ::vector_subsample]
-    
-    # Initial quiver with placeholder zeros, scale will be dynamic or fixed
-    # Determine a reasonable scale for quiver based on max displacement magnitude
-    max_disp_magnitude = np.sqrt(all_plot_data[0,0]**2 + all_plot_data[0,1]**2).max()
-    quiver_scale_val = max_disp_magnitude * 20 # Heuristic, adjust as needed
-    if quiver_scale_val == 0: quiver_scale_val = 1.0
+            field_min = min(valid_pinn_min, valid_fem_min)
+            field_max = max(valid_pinn_max, valid_fem_max)
+            
+            diff_abs_max = np.nanmax(np.abs(diff_data_row))
+            diff_min, diff_max = -diff_abs_max, diff_abs_max
+            
+            if field_min == field_max: field_max += 1e-9 # Avoid vmin=vmax
+            if diff_min == diff_max: diff_max += 1e-9
+
+            vmins_maxs.append([(field_min, field_max), (field_min, field_max), (diff_min, diff_max)])
 
 
-    quiver = vector_ax.quiver(X_vec, Y_vec, 
-                             all_plot_data[0, 0][::vector_subsample, ::vector_subsample], # u-component
-                             all_plot_data[0, 1][::vector_subsample, ::vector_subsample], # v-component
-                             scale=quiver_scale_val, angles='xy', scale_units='xy', color='blue', alpha=0.7)
-    vector_ax.set_title(var_names[5])
-    vector_ax.set_xlabel('X Position [m]')
-    vector_ax.set_ylabel('Y Position [m]')
-    vector_ax.set_aspect('equal') # Keep aspect equal for vectors
-    vector_ax.set_xlim(x_start, x_end)
-    vector_ax.set_ylim(y_start, y_end)
-    vector_ax.grid(True, alpha=0.3)
-    
-    time_scale = ((60*60), 'Hours') if t_points.max()/(60*60*24) < 2 else ((60*60*24), 'Days')
-    def update_frame(frame):
-        fig.suptitle(f'Mechanical-Moisture 2D Animation - Time: {( t_points[frame]/time_scale[0]):.2f} {time_scale[1]}', 
-                    fontsize=16, y=0.98) # Adjusted y for suptitle
-        
-        for i in range(5):
-            field_ims[i].set_array(all_plot_data[frame, i])
-        
-        u_vec_data = all_plot_data[frame, 0][::vector_subsample, ::vector_subsample]
-        v_vec_data = all_plot_data[frame, 1][::vector_subsample, ::vector_subsample]
-        quiver.set_UVC(u_vec_data, v_vec_data)
-        
-        return field_ims + [quiver]
-    
-    ani = animation.FuncAnimation(fig, update_frame, frames=nt, interval=interval, 
-                                  blit=False, repeat=True) # blit=False is often more robust
-    
-    plt.tight_layout(rect=[0, 0, 1, 0.96]) # Adjust rect to make space for suptitle
-    return {'animation': ani, 'figure': fig}
+        for r in range(3): # Rows: u_x, u_y, theta
+            for c in range(3): # Cols: PINN, FEM, Difference
+                ax = axes[r, c]
+                current_data_all_t = data_to_plot[r][c]
+                vmin, vmax = vmins_maxs[r][c]
 
+                im = ax.imshow(current_data_all_t[0], origin='lower', aspect='auto',
+                               extent=[x_min, x_max, y_min, y_max],
+                               cmap=cmaps_fields[c], vmin=vmin, vmax=vmax)
+                ims[r][c] = im
+                cbars[r][c] = fig.colorbar(im, ax=ax, shrink=0.8)
+                ax.set_title(plot_titles[r][c])
+                if r == 2: ax.set_xlabel("x (m)")
+                if c == 0: ax.set_ylabel("y (m)")
 
-def vis_mechanical_moisture_profiles(model, scale: Scale, 
-                                     times_relative=[0, 0.25, 0.5, 0.75, 1.0], 
-                                     num_points_profile=100, **kwargs):
-    """
-    Creates displacement (u, v) and moisture (θ) profiles at different times along a centerline.
-    
-    Args:
-        model: Trained model.
-        scale: Scale object.
-        domain_vars: Domain object.
-        times_relative: List of relative times (0 to 1) to show profiles.
-        num_points_profile: Number of points for the profile line.
-    """
-    
-    x_start, x_end = mechanical_moisture_2d_domain.spatial['x']
-    y_start, y_end = mechanical_moisture_2d_domain.spatial['y']
-    t_start, t_end = mechanical_moisture_2d_domain.temporal['t']
-    
-    x_line = np.linspace(x_start, x_end, num_points_profile)
-    y_center = (y_start + y_end) / 2.0 # Centerline in y
-    
-    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 5))
-    
-    colors = plt.cm.viridis(np.linspace(0, 1, len(times_relative)))
-    
-    for i, rel_time in enumerate(times_relative):
-        t_actual = t_start + rel_time * (t_end - t_start)
-        
-        XYT = np.column_stack([x_line, 
-                              np.full_like(x_line, y_center), 
-                              np.full_like(x_line, t_actual)])
-        XYT_scaled = XYT / np.array([scale.L, scale.L, scale.t])
-        
-        predictions = model.predict(XYT_scaled)
-        u_line = predictions[:, 0] * scale.epsilon
-        v_line = predictions[:, 1] * scale.epsilon
-        theta_line = predictions[:, 2] * scale.theta
-        
-        time_label = f't = {t_actual:.2e} s'
-        ax1.plot(x_line, u_line, color=colors[i], label=time_label, linewidth=2)
-        ax2.plot(x_line, v_line, color=colors[i], label=time_label, linewidth=2)
-        ax3.plot(x_line, theta_line, color=colors[i], label=time_label, linewidth=2)
-    
-    ax1.set_xlabel('X Position [m]')
-    ax1.set_ylabel('u-displacement [m]')
-    ax1.set_title('u-displacement Profiles')
-    ax1.legend()
-    ax1.grid(True, alpha=0.3)
-    
-    ax2.set_xlabel('X Position [m]')
-    ax2.set_ylabel('v-displacement [m]')
-    ax2.set_title('v-displacement Profiles')
-    ax2.legend()
-    ax2.grid(True, alpha=0.3)
+        time_text = fig.text(0.5, 0.93, '', ha='center', fontsize=12)
 
-    ax3.set_xlabel('X Position [m]')
-    ax3.set_ylabel('Moisture Content (θ) [m³/m³]')
-    ax3.set_title('Moisture Content Profiles')
-    ax3.legend()
-    ax3.grid(True, alpha=0.3)
-    
-    plt.tight_layout()
-    return fig
+        def update(frame):
+            current_t_val = t_vis[frame]
+            time_text.set_text(f'Time = {current_t_val:.2e} s')
+            for r_idx in range(3):
+                for c_idx in range(3):
+                    data_at_frame = data_to_plot[r_idx][c_idx][frame]
+                    ims[r_idx][c_idx].set_data(data_at_frame)
+            return [im for row_im in ims for im in row_im] + [time_text]
+
+        ani = animation.FuncAnimation(fig, update, frames=vis_nt, interval=interval, blit=True, repeat_delay=1000)
+        plt.tight_layout(rect=[0, 0, 1, 0.92]) # Adjust for suptitle and time_text
+        
+        return {'animation': ani, 'figure': fig}
+    else: # Other ranks
+        return None # Only rank 0 creates and returns the plot

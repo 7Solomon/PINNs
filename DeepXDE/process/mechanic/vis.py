@@ -1,11 +1,14 @@
 import math
 from scipy.interpolate import griddata
+from FEM.output import evaluate_solution_at_points_on_rank_0, initialize_point_evaluation, save_fem_results
 from utils.fem import evaluate_fem_at_points
 from utils.COMSOL import load_comsol_data_mechanic_2d
 from utils.metadata import Domain
 from process.mechanic.scale import Scale
 import numpy as np
 import matplotlib.pyplot as plt
+
+from mpi4py import MPI
 
 from domain_vars import fest_lost_2d_domain
 from process.mechanic.gnd import base_mapping, get_einspannung_2d_fem
@@ -52,10 +55,27 @@ def visualize_field_2d(model, scale: Scale, **kwargs):
 
     # GROUND
     GROUND = get_einspannung_2d_fem(fest_lost_2d_domain)
-    ground_values_at_points = evaluate_fem_at_points(GROUND, points)
-    #print(GROUND)
+    
+    comm = MPI.COMM_WORLD
+    domain = GROUND.function_space.mesh
+    _perform_eval, eval_points_3d, bb_tree = initialize_point_evaluation(
+        domain, points, comm
+    )
+    ground_values_at_points = evaluate_solution_at_points_on_rank_0(
+        GROUND, eval_points_3d, bb_tree, domain, comm
+    )
+    save_fem_results("BASELINE/mechanic/2d/ground_truth.npy", ground_values_at_points)
 
-    # --- Extract min/max for bounds (Needed for outline/limits) ---
+
+    if comm.rank != 0:
+        return {'field': None}
+
+    if ground_values_at_points is None:
+        print("Warning: FEM ground truth evaluation failed. Plotting with zeros.")
+        ground_values_at_points = np.zeros((points.shape[0], domain.geometry.dim))
+
+
+    # --- Extract min/max for bounds ---
     x_min, x_max = fest_lost_2d_domain.spatial['x']
     y_min, y_max = fest_lost_2d_domain.spatial['y']
     # -------------------------------------------------------------

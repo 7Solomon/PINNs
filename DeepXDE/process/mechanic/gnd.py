@@ -5,6 +5,7 @@ import ufl
 from petsc4py import PETSc
 from mpi4py import MPI
 from dolfinx.fem.petsc import LinearProblem
+from FEM.init_helper import create_dirichlet_bcs, create_mesh_and_function_space, create_solver
 from material import concreteData, sandData
 
 materialData = concreteData
@@ -24,7 +25,6 @@ base_mapping = {
     #'einspannung_2d': solution_2d_einspannung
     }
 
-
     
 def strain(u):
     return 0.5 * (ufl.grad(u) + ufl.grad(u).T)
@@ -35,49 +35,44 @@ def stress(u):
 
 def clamped_boundary_condition(x, x_min):
     return np.isclose(x[0], x_min)
-    
-def get_einspannung_2d_fem(domain_vars):
+     
+def get_einspannung_2d_fem(domain_vars,
+                           grid_resolution=(10, 10),
+                           ):
+    """
+    Calculates the displacement of a 2D clamped beam using FEM helpers.
+    """
+    comm = MPI.COMM_WORLD
     x_min, x_max = domain_vars.spatial['x']
     y_min, y_max = domain_vars.spatial['y']
+    nx, ny = grid_resolution
 
-    mesh = df.mesh.create_rectangle(
-        MPI.COMM_WORLD,
-        [[x_min, y_min], [x_max, y_max]],
-        [10, 10], 
-        df.mesh.CellType.triangle
+    # MESH
+    element_desc = {"family": "Lagrange", "degree": 1, "type": "vector"}
+    mesh, V = create_mesh_and_function_space(
+        comm,
+        domain_extents=[[x_min, y_min], [x_max, y_max]],
+        domain_resolution=[nx, ny],
+        element_desc=element_desc
     )
 
-    # For 2D vector problem (u,v displacement) this is VectorFunctionSpace
-    V = df.fem.functionspace(mesh, ('P', 1, (2,)))
-    
-    # BCs
-    dofs = df.fem.locate_dofs_geometrical(V, lambda x: clamped_boundary_condition(x, x_min))
-    bc = df.fem.dirichletbc(np.array([0.0, 0.0]), dofs, V)
+    # BC
+    bc_definitions = [
+        {"where": lambda x: np.isclose(x[0], x_min), "value": (0.0, 0.0)}
+    ]
+    bcs = create_dirichlet_bcs(V, bc_definitions)
 
-    f_body = df.fem.Constant(mesh, (1.0, 0.0))
+    #  MABYE DIFFRENT VALS
+    f_body = df.fem.Constant(mesh, PETSc.ScalarType((0, -1)))
 
-
-    # WF
     u = ufl.TrialFunction(V)
     v = ufl.TestFunction(V)
-
-    # integral(sigma(u) : epsilon(v)) * dx = integral(f_body . v) * dx
     a = ufl.inner(stress(u), strain(v)) * ufl.dx
     L = ufl.dot(f_body, v) * ufl.dx
 
-    # SOL
-    #u_sol = df.fem.Function(V, name="Displacement")
-    problem = LinearProblem(a, L, bcs=[bc],
-                                        petsc_options={"ksp_type": "preonly", "pc_type": "lu"})
-    u_sol = problem.solve()
+    # SOLVER
+    solver_function = create_solver(mesh, a, L, bcs, problem_type="linear")
+    u_sol = solver_function()
+    u_sol.name = "Displacement"
     
-    
-    #print(f"Solution function space value size: {u_sol.function_space.element.value_size}")
-    
-    #ufl.solve(a == L, u_sol, bc)
-
-    #with df.io.VTKFile(MPI.COMM_WORLD, "displacement_fem_test.pvd", "w") as vtk:
-    #    vtk.write_function(u_sol)
     return u_sol
-
-
