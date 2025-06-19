@@ -10,8 +10,9 @@ from dolfinx import fem, mesh, io, nls, log, geometry # Added geometry
 from dolfinx.fem.petsc import NonlinearProblem
 #from dolfinx.nls.petsc import NewtonSolver
 
-from FEM.init_helper import create_mesh_and_function_space, get_dt, initialize_fem_state
+from FEM.init_helper import create_dirichlet_bcs, create_mesh_and_function_space, create_solver, get_dt, initialize_fem_state
 from FEM.output import evaluate_solution_at_points_on_rank_0, initialize_point_evaluation
+from FEM.run_helper import execute_transient_simulation
 from material import concreteData # Ensure this contains all necessary parameters
 
 materialData = concreteData
@@ -71,9 +72,36 @@ def moisture_diffusivity_D(u_func, mat_data, E_const, nu_const):
     # For the form, u_trial is correct. For D(u_eval), it would be D(u_eval_func)
     return D0 * (1.0 + coupling_coef * epsilon_vol(u_func))
 
+def get_variational_form(V, w, w_n, constants):
+        """Creates the total variational form F(w; w_n) = 0."""
+        w_test=ufl.TestFunction(V)
+        dt = constants["dt"]
+        E = constants["E"]
+        nu = constants["nu"]
+        dim = w.function_space.mesh.geometry.dim
+
+        u, theta = ufl.split(w)
+        u_n, theta_n = ufl.split(w_n)
+        v, q = ufl.split(w_test)
+
+        p_w = pore_pressure(theta, materialData)
+        sigma_eff = effective_stress_sigma(u, E, nu, dim)
+        sigma_total = sigma_eff - p_w * ufl.Identity(dim)
+        
+        F_mech = ufl.inner(sigma_total, epsilon_strain(v)) * ufl.dx
+        
+
+        ### CHANGE, casue simple D
+        D = fem.Constant(w.function_space.mesh, ScalarType(self.mat.D_moisture))
+        moisture_flux = -D * ufl.grad(p_w)
+        F_moisture = ((theta - theta_n) / dt) * q * ufl.dx - ufl.inner(moisture_flux, ufl.grad(q)) * ufl.dx
+        
+        return F_mech + F_moisture
 
 
-def get_coupled_transient_fem_solution_dolfinx(domain_vars, 
+
+
+def get_coupled_transient_fem(domain_vars, 
                                                num_elements_x=32, num_elements_y=16, dt_value=0.1,
                                                evaluation_times: np.ndarray = None,
                                                evaluation_spatial_points_xy: np.ndarray = None):
@@ -95,19 +123,23 @@ def get_coupled_transient_fem_solution_dolfinx(domain_vars,
             {"family": "Lagrange", "degree": 1, "type": "scalar"}
         ]
     }
-    domain, V = create_mesh_and_function_space(
+    mesh, V = create_mesh_and_function_space(
         comm, 
         domain_extents=[[x_min, y_min], [x_max, y_max]], 
         domain_resolution=[num_elements_x, num_elements_y], 
         element_desc=element_description
     )
-    dim = domain.geometry.dim
+    dim = mesh.geometry.dim
     dt_fem_internal = get_dt(comm, evaluation_times)
 
     ## Boundary conditions and initial conditions
-    initial_conditions = {'saturation': 0.0, 'head': -5.0}
+    def initial_w_func(x):
+        u_initial = np.zeros((dim, x.shape[1]))
+        theta_initial = np.full((1, x.shape[1]), materialData.theta_s * 0.9)
+        return np.vstack((u_initial, theta_initial))
+    initial_conditions = {"w": initial_w_func}
     constants_def = {"dt": dt_fem_internal, "E": materialData.E, "nu": materialData.nu}
-    state_vars = ["uh_head", "un_head"]
+    state_vars = ["uh_w", "un_w"]
     fem_states, fem_constants = initialize_fem_state(
         V,
         initial_conditions=initial_conditions,
@@ -115,13 +147,46 @@ def get_coupled_transient_fem_solution_dolfinx(domain_vars,
         state_vars=state_vars
     )
 
-    uh = fem_states["uh_head"]
-    un = fem_states["un_head"]
-    dt_const = fem_constants["dt"]
-    
-    # Set the initial condition for the previous step as well
+    uh = fem_states["uh_w"]
+    un = fem_states["un_w"]
     un.x.array[:] = uh.x.array
-    
+
+    bcs_definition = [{
+        "where": lambda x: np.isclose(x[0], x_min),
+        "value": np.zeros(dim, dtype=ScalarType),
+        "subspace_idx": 0  # Applied to displacement u
+    },
+    {
+        "where": lambda x: np.isclose(x[1], y_max),
+        "value": materialData.theta_s,
+        "subspace_idx": 1  # Applied to moisture theta
+    }]
+    bcs = create_dirichlet_bcs(V, bcs_definition)
+
+    F = get_variational_form(
+        V,
+        w=uh,
+        w_n=un,
+        constants={
+            "dt": fem_constants["dt"],
+            "E": fem_constants["E"],
+            "nu": fem_constants["nu"],
+        }
+    )
+    solver_function = create_solver(mesh, F, None, bcs, 'nonlinear', uh=uh)
+
+    uh, final_evaluated_data = execute_transient_simulation(
+        domain=mesh,
+        t_start=t_min,
+        t_end=t_max,
+        dt_initial=dt_fem_internal,
+        solver_function=solver_function,
+        problem_type="nonlinear",
+        fem_states=fem_states,
+        fem_constants=fem_constants,
+        evaluation_times=evaluation_times,
+        evaluation_spatial_points_xy=evaluation_spatial_points_xy
+    )
 
 
     # --- 2. Define solution, trial, and test functions ---

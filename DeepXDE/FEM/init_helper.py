@@ -2,7 +2,10 @@ import dolfinx as df
 import numpy as np
 from petsc4py import PETSc
 from dolfinx.fem import petsc
+import ufl
 from dolfinx import nls
+import basix
+
 #def _create_mesh_and_function_space(comm, x_min, x_max, y_min, y_max, Nx, Ny):
 #    extent = [[x_min, y_min], [x_max, y_max]]
 #    domain = df.mesh.create_rectangle(comm, extent, [Nx, Ny], df.mesh.CellType.quadrilateral)
@@ -32,19 +35,29 @@ def create_mesh_and_function_space(comm, domain_extents, domain_resolution, elem
         if not isinstance(domain_resolution, int):
             raise ValueError("For a 1D domain, domain_resolution must be an integer (nx).")
         mesh = df.mesh.create_interval(comm, domain_resolution, domain_extents)
-
-
-    family = element_desc["family"]
-    degree = element_desc["degree"]
     
+    dim = mesh.geometry.dim
     if element_desc["type"] == "scalar":
-        V = df.fem.functionspace(mesh, (family, degree))
+        V = df.fem.functionspace(mesh, (element_desc["family"], element_desc["degree"]))
     elif element_desc["type"] == "vector":
-        dim = mesh.geometry.dim
-        V = df.fem.functionspace(mesh, (family, degree, (dim,)))
+        V = df.fem.functionspace(mesh, (element_desc["family"], element_desc["degree"], (dim,)))
     elif element_desc["type"] == "mixed":
-        elements = element_desc["elements"]
-        V = df.fem.functionspace(mesh, [(e["family"], e["degree"]) for e in elements])
+        ufl_elements = []
+        for e_desc in element_desc["elements"]:
+            elem_family = e_desc["family"]
+            elem_degree = e_desc["degree"]
+            cell_name = mesh.ufl_cell().cellname()
+            if e_desc["type"] == "vector":
+                ufl_elements.append(basix.ufl.element(elem_family, cell_name, elem_degree, shape=(dim,)))
+            elif e_desc["type"] == "scalar":
+                ufl_elements.append(basix.ufl.element(elem_family, cell_name, elem_degree))
+            else:
+                raise ValueError(f"Unsupported element type in mixed space: {e_desc['type']}")
+        
+        mixed_element = ufl.MixedElement(ufl_elements)
+        V = df.fem.functionspace(mesh, mixed_element)
+    else:
+        raise ValueError(f"Unknown element description type: {element_desc['type']}")
     return mesh, V
 
 

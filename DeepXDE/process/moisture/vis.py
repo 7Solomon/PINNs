@@ -41,14 +41,14 @@ def vis_1d_head(model, scale: HeadScale, interval=2000, xlabel='z', ylabel='u(z,
     ZT_scaled = np.vstack((Z_scaled.ravel(), T_scaled.ravel())).T
 
 
-    ground_eval_flat_time_spatial = load_fem_results("BASELINE/moisture/1d/ground_truth.npy")
-    #_, ground_eval_flat_time_spatial = get_richards_1d_head_fem(
-    #        moisture_1d_domain,
-    #        nz=num_z_points,
-    #        evaluation_times=t_points,
-    #        evaluation_spatial_points_z= z_points.reshape(-1, 1),
-    #    )
-    #save_fem_results("BASELINE/moisture/1d/ground_truth.npy", ground_truth_data)
+    #ground_eval_flat_time_spatial = load_fem_results("BASELINE/moisture/1d/ground_truth.npy")
+    _, ground_eval_flat_time_spatial = get_richards_1d_head_fem(
+            moisture_1d_domain,
+            nz=num_z_points,
+            evaluation_times=t_points,
+            evaluation_spatial_points_z= z_points.reshape(-1, 1),
+        )
+    save_fem_results("BASELINE/moisture/1d/ground_truth.npy", ground_truth_data)
 
     ground_truth_data = np.full((num_z_points, num_t_points), np.nan) 
     if ground_eval_flat_time_spatial is not None and ground_eval_flat_time_spatial.size > 0:
@@ -70,37 +70,43 @@ def vis_1d_head(model, scale: HeadScale, interval=2000, xlabel='z', ylabel='u(z,
     pinn_data = predictions.reshape(num_t_points, num_z_points).T
 
     error_data = pinn_data - ground_truth_data
+    #mse = np.mean(np.square(error_data), axis=0)
 
     # --- Setup Plot ---
     fig, axes = plt.subplots(1, 3, figsize=(18, 6), sharey=True)
     
-    # Calculate global limits for stable y-axis
-    global_min = min(pinn_data.min(), ground_truth_data.min()) * 1.1
-    global_max = max(pinn_data.max(), ground_truth_data.max()) * 1.1
-    error_max = np.max(np.abs(error_data)) * 1.1
 
-    # --- Create Line Artists ONCE ---
+    # --- Create Lines ---
     line_pinn, = axes[0].plot(z_points, pinn_data[:, 0], 'b-')
     line_gt, = axes[1].plot(z_points, ground_truth_data[:, 0], 'r-')
     line_err, = axes[2].plot(z_points, error_data[:, 0], 'g-')
 
+    #abs_error_T = np.abs(error_data).T # Transpose for plotting
+    #contour = axes[3].contourf(z_points, t_points, abs_error_T, cmap='Reds', levels=20)
+    #fig.colorbar(contour, ax=axes[3], label='Absolute Error Magnitude')
+    #time_indicator = axes[3].axhline(y=t_points[0], color='black', linestyle='--')
+
+
     # --- Formatting ---
-    axes[0].set(title='PINN Prediction', xlabel=xlabel, ylabel=ylabel, xlim=(z_start, z_end), ylim=(global_min, global_max))
+    axes[0].set(title='PINN Prediction', xlabel=xlabel, ylabel=ylabel, xlim=(z_start, z_end))
     axes[1].set(title='Ground Truth', xlabel=xlabel, xlim=(z_start, z_end))
-    axes[2].set(title='Absolute Error', xlabel=xlabel, xlim=(z_start, z_end), ylim=(-error_max, error_max))
+    axes[2].set(title='Absolute Error', xlabel=xlabel, xlim=(z_start, z_end))
+    #axes[3].set(title='Error Contour (Z-T Plane)', xlabel=xlabel, ylabel='Time [s]')
+    #axes[3].sharey = False 
     
     time_scale_val, time_scale_unit = ((60*60), 'Hours') if t_end / (60*60*24) < 2 else ((60*60*24), 'Days')
-    fig.suptitle(f'{title} (t=0.00 {time_scale_unit})')
+    fig.suptitle(f'{title} (t=0.00 {time_scale_unit})')# | Overall MSE: {mse:.2e}')    
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     def update(frame):
         line_pinn.set_ydata(pinn_data[:, frame])
         line_gt.set_ydata(ground_truth_data[:, frame])
         line_err.set_ydata(error_data[:, frame])
 
-        current_time = t_points[frame] / time_scale_val
-        fig.suptitle(f'{title} (t={current_time:.2f} {time_scale_unit})')
-        return line_pinn, line_gt, line_err
+        #time_indicator.set_ydata(t_points[frame])
 
+        current_time = t_points[frame] / time_scale_val
+        fig.suptitle(f'{title} (t={current_time:.2f} {time_scale_unit})')# | Overall MSE: {mse:.2e}')
+        return line_pinn, line_gt, line_err#, time_indicator
 
 
 

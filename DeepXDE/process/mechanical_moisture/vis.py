@@ -6,7 +6,7 @@ from process.mechanical_moisture.scale import Scale
 from utils.metadata import Domain # Assuming Domain is in utils.metadata
 
 # Import the FEM solver
-from process.mechanical_moisture.gnd import get_coupled_transient_fem_solution_dolfinx
+from process.mechanical_moisture.gnd import get_coupled_transient_fem
 
 from domain_vars import mechanical_moisture_2d_domain
 
@@ -49,7 +49,7 @@ def visualize_transient_mechanical_moisture_comparison(
 
 
     # The FEM solution will be run by all processes if get_coupled_transient_fem_solution_dolfinx is MPI parallel
-    _fem_sol_obj, fem_eval_data_dict = get_coupled_transient_fem_solution_dolfinx(
+    _fem_sol_obj, fem_eval_data_dict = get_coupled_transient_fem(
         mechanical_moisture_2d_domain,
         num_elements_x=fem_nx,
         num_elements_y=fem_ny,
@@ -68,7 +68,7 @@ def visualize_transient_mechanical_moisture_comparison(
             if u_fem_raw.shape[0] == vis_nt and u_fem_raw.shape[1] == (vis_ny * vis_nx):
                 u_fem_gridded = u_fem_raw.reshape(vis_nt, vis_ny, vis_nx, 2)
             elif rank == 0:
-                 print(f"Warning: FEM 'u' data shape mismatch. Got {u_fem_raw.shape}, expected {(vis_nt, vis_ny*vis_nx, 2)}")
+                print(f"Warning: FEM 'u' data shape mismatch. Got {u_fem_raw.shape}, expected {(vis_nt, vis_ny*vis_nx, 2)}")
         elif rank == 0:
             print("Warning: FEM 'u' data not found or empty in fem_eval_data_dict.")
 

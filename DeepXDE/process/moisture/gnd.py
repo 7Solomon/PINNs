@@ -112,7 +112,6 @@ def get_richards_1d_head_fem(domain_vars,
 
     F = define_moisture_1d_head_weak_form(V, dt_const, uh, un, material)
 
-
     bcs = [
             {"where": lambda x: np.isclose(x[0], z_min), "value": bc_left_value, "component": None},
             {"where": lambda x: np.isclose(x[0], z_max), "value": bc_right_value, "component": None}
