@@ -49,7 +49,7 @@ def visualize_transient_mechanical_moisture_comparison(
 
 
     # The FEM solution will be run by all processes if get_coupled_transient_fem_solution_dolfinx is MPI parallel
-    _fem_sol_obj, fem_eval_data_dict = get_coupled_transient_fem(
+    _fem_sol_obj, final_evaluated_data = get_coupled_transient_fem(
         mechanical_moisture_2d_domain,
         num_elements_x=fem_nx,
         num_elements_y=fem_ny,
@@ -61,28 +61,24 @@ def visualize_transient_mechanical_moisture_comparison(
     u_fem_gridded = np.full((vis_nt, vis_ny, vis_nx, 2), np.nan) # dim=2 for u_x, u_y
     theta_fem_gridded = np.full((vis_nt, vis_ny, vis_nx, 1), np.nan)
 
-    if fem_eval_data_dict:
-        if 'u' in fem_eval_data_dict and fem_eval_data_dict['u'].size > 0:
-            # Expected shape from FEM: (vis_nt, vis_ny*vis_nx, dim)
-            u_fem_raw = fem_eval_data_dict['u']
-            if u_fem_raw.shape[0] == vis_nt and u_fem_raw.shape[1] == (vis_ny * vis_nx):
-                u_fem_gridded = u_fem_raw.reshape(vis_nt, vis_ny, vis_nx, 2)
-            elif rank == 0:
-                print(f"Warning: FEM 'u' data shape mismatch. Got {u_fem_raw.shape}, expected {(vis_nt, vis_ny*vis_nx, 2)}")
-        elif rank == 0:
-            print("Warning: FEM 'u' data not found or empty in fem_eval_data_dict.")
+    if final_evaluated_data is not None and final_evaluated_data.size > 0:
+        # Expected shape from FEM: (num_times, num_points, num_components)
+        # For this problem: (vis_nt, vis_ny * vis_nx, 3) where components are (u_x, u_y, theta)
+        expected_shape = (vis_nt, vis_ny * vis_nx, 3)
+        if final_evaluated_data.shape == expected_shape:
+            # Extract displacement (first 2 components)
+            u_fem_raw = final_evaluated_data[:, :, 0:2]
+            u_fem_gridded = u_fem_raw.reshape(vis_nt, vis_ny, vis_nx, 2)
 
-        if 'theta' in fem_eval_data_dict and fem_eval_data_dict['theta'].size > 0:
-            # Expected shape from FEM: (vis_nt, vis_ny*vis_nx, 1)
-            theta_fem_raw = fem_eval_data_dict['theta']
-            if theta_fem_raw.shape[0] == vis_nt and theta_fem_raw.shape[1] == (vis_ny*vis_nx):
-                theta_fem_gridded = theta_fem_raw.reshape(vis_nt, vis_ny, vis_nx, 1)
-            elif rank == 0:
-                print(f"Warning: FEM 'theta' data shape mismatch. Got {theta_fem_raw.shape}, expected {(vis_nt, vis_ny*vis_nx, 1)}")
-        elif rank == 0:
-            print("Warning: FEM 'theta' data not found or empty in fem_eval_data_dict.")
+            # Extract moisture (3rd component)
+            theta_fem_raw = final_evaluated_data[:, :, 2]
+            theta_fem_gridded = theta_fem_raw.reshape(vis_nt, vis_ny, vis_nx, 1)
+        else:
+            if rank == 0:
+                print(f"Warning: FEM data shape mismatch. Got {final_evaluated_data.shape}, expected {expected_shape}")
     elif rank == 0:
-        print("Warning: fem_eval_data_dict is empty.")
+        print("Warning: FEM evaluation data is empty or None.")
+
 
 
     # --- Get PINN Predictions ---

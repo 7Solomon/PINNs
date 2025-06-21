@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import json
+import inspect
 
 class BSaver:
     def __init__(self, **attributes):
@@ -10,9 +11,14 @@ class BSaver:
         self.__dict__.update(attributes)
 
     def save_to_json(self, filepath):
-        """Saves all instance attributes to a JSON file."""
+        """Saves all instance attributes and properties to a JSON file."""
+        data_to_save = self.__dict__.copy()
+        
+        for name, _ in inspect.getmembers(self.__class__, lambda o: isinstance(o, property)):
+            data_to_save[name] = getattr(self, name)
+
         with open(filepath, 'w') as f:
-            json.dump(self.__dict__, f, indent=4)
+            json.dump(data_to_save, f, indent=4)
 
     @classmethod
     def load_from_json(cls, filepath):
@@ -26,6 +32,17 @@ class BSaver:
 class BConfig(BSaver):
     def get(self, attr_name, default=None):
         return getattr(self, attr_name, default)
+    def save_to_json(self, filepath):
+        """
+        Saves the Pydantic model to a JSON file using its built-in serialization.
+        """
+        if hasattr(self, 'model_dump'):
+            data_to_save = self.model_dump()
+        else:
+            data_to_save = self.dict()
+        
+        with open(filepath, 'w') as f:
+            json.dump(data_to_save, f, indent=4)
 
         
 class Domain:

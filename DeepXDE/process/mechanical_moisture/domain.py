@@ -5,6 +5,9 @@ from process.mechanical_moisture.scale import Scale
 import deepxde as dde
 import numpy as np
 
+from material import concreteData
+materialData = concreteData
+
 #def top_flux_function(x, y, scale: Scale):
 #
 #    q_in = 1e-5 / scale.q
@@ -35,10 +38,16 @@ def domain_2d(domain_vars: Domain, scale: Scale):
                                        lambda x, _ :_ and np.isclose(x[0], x_min/scale.L) , component=0)
     bc_left_v = dde.DirichletBC(geom_time, lambda x: 0.0, 
                                        lambda x, _ :_ and np.isclose(x[0], x_min/scale.L), component=1)
-    bc_top_theta = dde.DirichletBC(geom_time, lambda x: 0.9,
+    theta_bottom_val = materialData.theta_r
+    theta_top_val = 0.9 * materialData.theta_s
+    bc_top_theta = dde.DirichletBC(geom_time, lambda x: theta_top_val,
                                        lambda x, _ :_ and np.isclose(x[1], y_max/scale.L), component=2)
+    
+    def initial_theta_smooth(x):
+        y_normalized = (x[1] - y_min) / (y_max - y_min)
+        return theta_bottom_val + (theta_top_val - theta_bottom_val) * y_normalized
     ic_theta = dde.IC(geom_time, 
-                        lambda x: 0.0, 
+                        initial_theta_smooth, 
                         lambda _, on_initial: on_initial, component=2)
 
     data = dde.data.TimePDE(geom_time,

@@ -51,9 +51,7 @@ def initialize_point_evaluation(domain, evaluation_spatial_points, comm):
     return perform_point_evaluation, eval_points_3d, bb_tree
 
 def evaluate_solution_at_points_on_rank_0(uh, eval_points_3d, bb_tree, domain, comm):
-    output_dim = uh.function_space.element.num_sub_elements
-    if output_dim == 0:
-        output_dim = 1 
+    output_dim = uh.function_space.dofmap.bs
 
     local_evals_at_t = []
     if eval_points_3d is not None and bb_tree is not None:

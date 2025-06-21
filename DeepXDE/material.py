@@ -81,7 +81,8 @@ class ConcreteData(Material):
         
         C11 = factor * (1 - self.nu)
         C12 = factor * self.nu
-        C33 = self.E / (2 * (1 + self.nu)) # Plane stress assumption
+        C33 = factor * (1 - 2 * self.nu) / 2  # Plane strain
+        #C33 = self.E / (2 * (1 + self.nu)) 
         
         return torch.tensor([
             [C11, C12, 0],

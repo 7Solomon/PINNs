@@ -81,10 +81,10 @@ class BernoulliBalken2DConfig(BaseModel, BConfig):
     input_dim: int = 2
     output_dim: int = 2
 
-    compile_args: dict = {'optimizer': 'adam', 'lr': 1e-3}
-    decay: list[str,int,float] = None
-    loss_weights: list[float] = [1.0, 1.0, 1.0, 1.0]
-    loss_labels: list[str] = ['PDE_X', 'PDE_Y', 'Left', 'Right']
+    compile_args: dict = {'optimizer': 'adam', 'lr': 1e-4}
+    #decay: list[str,int,float] = ['step', 1000, 0.9]
+    loss_weights: list[float] = [100.0, 10.0, 1.0, 10.0]#, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0]
+    loss_labels: list[str] = ['PDE_X', 'PDE_Y', 'Left_x', 'Left_y']# , 'Right_no_traction_x', 'Right_no_traction_y', 'Top_no_traction_x', 'Top_no_traction_y', 'Bottom_no_traction_x', 'Bottom_no_traction_y']
 
 class BernoulliBalkenTconfig(BaseModel, BConfig):
     input_dim: int = 2

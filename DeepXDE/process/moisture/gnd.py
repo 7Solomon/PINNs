@@ -136,86 +136,117 @@ def get_richards_1d_head_fem(domain_vars,
     )
     return uh, final_evaluated_data
 
+def ufl_get_volumetric_water_content(S_total, material):
+    """Calculates volumetric water content (theta) from total saturation (S)."""
+    return S_total * (material.theta_s - material.theta_r) + material.theta_r
+
+def ufl_get_effective_saturation(S_total, material):
+    """Calculates effective saturation (Se) from total saturation (S)."""
+    theta = ufl_get_volumetric_water_content(S_total, material)
+    return ufl.max_value(0.0, (theta - material.theta_r) / (material.theta_s - material.theta_r))
+
+def ufl_get_pressure_head(Se, material):
+    """Calculates pressure head (h) from effective saturation (Se)."""
+    # Clamp Se to avoid math domain errors (e.g., log(0), x**y where x<0)
+    Se_clamped = ufl.min_value(ufl.max_value(Se, 1e-9), 1.0 - 1e-9)
+    # van Genuchten-Mualem inverse model
+    term = (Se_clamped**(-1.0 / material.m_vg)) - 1.0
+    # Clamp term to be non-negative for the root
+    term_clamped = ufl.max_value(term, 0.0)
+    h_abs = (term_clamped**(1.0 / material.n_vg)) / material.alpha_vg
+    # h is negative in unsaturated zone
+    return -h_abs
+
+def ufl_get_hydraulic_conductivity_from_Se(Se, material):
+    """Calculates hydraulic conductivity (K) from effective saturation (Se)."""
+    Se_clamped = ufl.min_value(ufl.max_value(Se, 1e-9), 1.0 - 1e-9)
+    K_r = Se_clamped**0.5 * (1.0 - (1.0 - Se_clamped**(1.0 / material.m_vg))**material.m_vg)**2
+    return material.K_s * K_r
+
+def define_moisture_1d_saturation_weak_form(V, dt, uh, un, material):
+
+    v = ufl.TestFunction(V)
+
+    theta_h = ufl_get_volumetric_water_content(uh, material)
+    Se_h = ufl_get_effective_saturation(uh, material)
+    h_h = ufl_get_pressure_head(Se_h, material)
+    K_h = ufl_get_hydraulic_conductivity_from_Se(Se_h, material)
+
+    theta_n = ufl_get_volumetric_water_content(un, material)
+
+    # (theta_h - theta_n)/dt * v + K(h) * grad(h) * grad(v) = 0
+    F = (theta_h - theta_n) * v * ufl.dx + dt * ufl.dot(K_h * ufl.grad(h_h), ufl.grad(v)) * ufl.dx
+    return F
 
 
-    ############
-    #############
-    
+def get_richards_1d_saturation_fem(domain_vars,
+                                   nz=25,
+                                   evaluation_times: np.ndarray = None,
+                                   evaluation_spatial_points_z: np.ndarray = None
+                                   ):
+    """
+    Runs a 1D transient FEM simulation for the Richards equation in saturation form.
+    """
+    material = concreteData
 
-    #dt = df.fem.Constant(mesh, PETSc.ScalarType(dt_fem_internal))
-#
-    ## 3. Define functions for solution
-    #uh = df.fem.Function(V)
-    #uh.name = "pressure_head"
-    #un = df.fem.Function(V)
-    #un.name = "h_previous"
-#
-    ## Set initial condition based on your PINN setup
-    #initial_h = -3.5  # [m]
-    #un.interpolate(lambda x: np.full(x.shape[1], initial_h))
-    #uh.x.array[:] = un.x.array
-#
-    ## 4. Define variational problem (weak form)
-    #v = ufl.TestFunction(V)
-    #
-    #C = ufl_specific_moisture_capacity(uh, material)
-    #K = ufl_hydraulic_conductivity(uh, material)
-#
-    ## integral(C(uh)*(uh-un)/dt*v) + integral(K(uh)*grad(uh) . grad(v)) = 0
-    ## no gravity term (dK/dz).
-    #residual = C * (uh - un) * v * ufl.dx + dt * ufl.dot(K * ufl.grad(uh), ufl.grad(v)) * ufl.dx
-    #
-    ## 5. Boundary Conditions
-    #left_h_val = -1.0  # [m]
-    #right_h_val = -7.0 # [m]
-#
-    #left_dofs = df.fem.locate_dofs_geometrical(V, lambda x: np.isclose(x[0], z_min))
-    #right_dofs = df.fem.locate_dofs_geometrical(V, lambda x: np.isclose(x[0], z_max))
-#
-    #bc_left = df.fem.dirichletbc(PETSc.ScalarType(left_h_val), left_dofs, V)
-    #bc_right = df.fem.dirichletbc(PETSc.ScalarType(right_h_val), right_dofs, V)
-    #bcs = [bc_left, bc_right]
-#
-    ## 6. Setup Non-linear Solver
-    #problem = NonlinearProblem(residual, uh, bcs=bcs)
-    #solver = NewtonSolver(comm, problem)
-    #solver.convergence_criterion = "incremental"
-    #solver.rtol = 1e-6
-#
-    ## 7. Setup output file for visualization in ParaView
-    #xdmf = XDMFFile(comm, "richards_simulation.xdmf", "w")
-    #xdmf.write_mesh(mesh)
-    #xdmf.write_function(uh, t_min)
-#
-    ## 8. Time-stepping loop
-    #t = t_min
-    #if comm.rank == 0:
-    #    print(f"Starting simulation from t={t_min} to t={t_max} with dt={dt_fem_internal}")
-#
-    #while t < t_max:
-    #    t += dt_fem_internal
-    #    
-    #    try:
-    #        num_its, converged = solver.solve(uh)
-    #        if not converged:
-    #            if comm.rank == 0:
-    #                print(f"Newton solver did not converge at t={t}. Stopping.")
-    #            break
-    #        uh.x.scatter_forward()
-    #    except RuntimeError as e:
-    #        if comm.rank == 0:
-    #            print(f"Solver failed at t={t} with error: {e}. Stopping.")
-    #        break
-    #        
-    #    un.x.array[:] = uh.x.array
-    #    xdmf.write_function(uh, t)
-#
-    #    if comm.rank == 0:
-    #        print(f"t = {t:6.2f} | Newton iterations: {num_its}")
-#
-    #xdmf.close()
-    #if comm.rank == 0:
-    #    print("Simulation finished. Output saved to richards_simulation.xdmf")
-    #return uh
+    # 1. MESH
+    comm = MPI.COMM_WORLD
+    z_min, z_max = domain_vars.spatial['z']
+    t_min, t_max = domain_vars.temporal['t']
 
+    element_desc = {"type": "scalar", "family": "Lagrange", "degree": 1, "name": "saturation"}
+    mesh, V = create_mesh_and_function_space(comm, [z_min, z_max], nz, element_desc=element_desc)
 
+    # Dt
+    dt_fem_internal = get_dt(comm, evaluation_times)
+
+    # BC and IC (values for total saturation S)
+    bc_left_value = 0.9
+    bc_right_value = 0.2
+    initial_condition_value = 0.5
+
+    initial_conditions = {'saturation': initial_condition_value}
+    constants_def = {"dt": dt_fem_internal}
+    state_vars = ["uh_saturation", "un_saturation"]
+    fem_states, fem_constants = initialize_fem_state(
+        V,
+        initial_conditions=initial_conditions,
+        element_desc=element_desc,
+        state_vars=state_vars,
+        constants_def=constants_def,
+    )
+
+    uh = fem_states["uh_saturation"]
+    un = fem_states["un_saturation"]
+    dt_const = fem_constants["dt"]
+
+    # Set the initial condition for the previous step as well
+    un.x.array[:] = uh.x.array
+
+    # weak Form
+    F = define_moisture_1d_saturation_weak_form(V, dt_const, uh, un, material)
+
+    # BCs
+    bcs_defs = [
+        {"where": lambda x: np.isclose(x[0], z_min), "value": bc_left_value, "component": None},
+        {"where": lambda x: np.isclose(x[0], z_max), "value": bc_right_value, "component": None}
+    ]
+    bcs = create_dirichlet_bcs(V, bcs_defs)
+
+    # SOL
+    solver_function = create_solver(mesh, F, None, bcs, 'nonlinear', uh=uh)
+
+    # LOOP to get f
+    uh, final_evaluated_data = execute_transient_simulation(
+        domain=mesh,
+        t_start=t_min,
+        t_end=t_max,
+        dt_initial=dt_fem_internal,
+        solver_function=solver_function,
+        problem_type="nonlinear",
+        fem_states=fem_states,
+        fem_constants=fem_constants,
+        evaluation_times=evaluation_times,
+        evaluation_spatial_points_xy=evaluation_spatial_points_z
+    )
+    return uh, final_evaluated_data

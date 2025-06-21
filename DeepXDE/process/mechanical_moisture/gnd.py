@@ -43,68 +43,86 @@ def soil_water_retention_curve_head(theta_func, mat_data):
     # Clamp s_eff to avoid issues at limits, e.g., log(0) or powers of non-positive numbers
     s_eff_eps = 1e-6
     s_eff_raw = (theta_func - theta_r) / (theta_s - theta_r)
-    s_eff = ufl.Max(ufl.Min(s_eff_raw, ScalarType(1.0 - s_eff_eps)), ScalarType(s_eff_eps))
+    
+    # Clamp s_eff between [eps, 1-eps] using ufl.conditional
+    # s_eff = ufl.Max(ufl.Min(s_eff_raw, 1.0 - s_eff_eps), s_eff_eps)
+    s_eff_min_clipped = ufl.conditional(ufl.lt(s_eff_raw, ScalarType(1.0 - s_eff_eps)), s_eff_raw, ScalarType(1.0 - s_eff_eps))
+    s_eff = ufl.conditional(ufl.gt(s_eff_min_clipped, ScalarType(s_eff_eps)), s_eff_min_clipped, ScalarType(s_eff_eps))
     
     term_in_pow = s_eff**(-1.0/m_vg) - 1.0
     # Ensure term_in_pow is non-negative for the outer power
-    term_in_pow_safe = ufl.Max(term_in_pow, ScalarType(0.0))
-    
-    head = (1.0 / alpha_vg) * (term_in_pow_safe)**(1.0/n_vg)
-    return -head # Returns capillary head (typically negative for unsaturated)
+    # term_in_pow_safe = ufl.Max(term_in_pow, ScalarType(0.0))
+    head = (1.0 / alpha_vg) * (term_in_pow)**(1.0/n_vg)
+    return head
+
 
 def pore_pressure(theta_func, mat_data):
-    """Computes pore water pressure from capillary head."""
+    """Computes pore pressure from moisture content via the SWRC."""
+    # Note: The head is negative for unsaturated conditions (suction).
+    # p_w = -rho_w * g * head. The PINN returns -head, so we match that.
+    head = soil_water_retention_curve_head(theta_func, mat_data)
     rho_w = fem.Constant(theta_func.ufl_domain(), ScalarType(getattr(mat_data, 'rho_w', 1000.0)))
-    g_accel = fem.Constant(theta_func.ufl_domain(), ScalarType(getattr(mat_data, 'g', 9.81)))
-    # head from SWRC is typically negative (suction head)
-    # pressure p_w = rho_w * g * h_w where h_w is pressure head.
-    # If SWRC returns capillary head (psi_c), then p_w = -rho_w * g * psi_c (if psi_c > 0 for suction)
-    # Or p_w = rho_w * g * psi_c (if psi_c < 0 for suction, which our SWRC returns)
-    return rho_w * g_accel * soil_water_retention_curve_head(theta_func, mat_data)
+    g = fem.Constant(theta_func.ufl_domain(), ScalarType(getattr(mat_data, 'g', 9.81)))
+    return rho_w * g * (-head)
 
 
-def moisture_diffusivity_D(u_func, mat_data, E_const, nu_const):
-    """Computes moisture diffusivity D, dependent on volumetric strain of solid."""
-    D0 = fem.Constant(u_func.ufl_domain(), ScalarType(getattr(mat_data, 'D_moisture', 1e-9)))
-    coupling_coef = fem.Constant(u_func.ufl_domain(), ScalarType(getattr(mat_data, 'strain_moisture_coulling_coef', 0.1)))
-    # Ensure epsilon_vol is called with a ufl expression if u_func is ufl.TrialFunction or part of w_sol for forms
-    # If u_func is a fem.Function for evaluation, its ufl_expression should be used or direct evaluation
-    # For the form, u_trial is correct. For D(u_eval), it would be D(u_eval_func)
-    return D0 * (1.0 + coupling_coef * epsilon_vol(u_func))
+def moisture_diffusivity_D(u_func, mat_data):
+    """Computes moisture diffusivity as a function of volumetric strain."""
+    D0 = fem.Constant(u_func.ufl_domain(), ScalarType(getattr(mat_data, 'D_moisture', 1e-10)))
+    coupling_coef = fem.Constant(u_func.ufl_domain(), ScalarType(getattr(mat_data, 'strain_moisture_coulling_coef', 0.0)))
+    return D0 * (1 + coupling_coef * epsilon_vol(u_func))
+
 
 def get_variational_form(V, w, w_n, constants):
-        """Creates the total variational form F(w; w_n) = 0."""
+        """Creates the total variational form F(w; w_n) = 0 for the fully coupled problem."""
         w_test=ufl.TestFunction(V)
-        dt = constants["dt"]
-        E = constants["E"]
-        nu = constants["nu"]
-        dim = w.function_space.mesh.geometry.dim
-
         u, theta = ufl.split(w)
         u_n, theta_n = ufl.split(w_n)
         v, q = ufl.split(w_test)
 
+        dt = constants["dt"]
+        E = constants["E"]
+        nu = constants["nu"]
+        dim = V.mesh.geometry.dim
+        
+        # --- Mechanical part ---
         p_w = pore_pressure(theta, materialData)
+        alpha_biot = fem.Constant(V.mesh, ScalarType(materialData.alpha_biot))
         sigma_eff = effective_stress_sigma(u, E, nu, dim)
-        sigma_total = sigma_eff - p_w * ufl.Identity(dim)
+        sigma_total = sigma_eff - alpha_biot * p_w * ufl.Identity(dim)
         
-        F_mech = ufl.inner(sigma_total, epsilon_strain(v)) * ufl.dx
+        # Body force (gravity) as in the PINN residual
+        rho_bulk = fem.Constant(V.mesh, ScalarType(1.3e4)) # Matching PINN's res_y
+        f_body = ufl.as_vector([0, -rho_bulk])
         
+        F_mech = ufl.inner(sigma_total, epsilon_strain(v)) * ufl.dx - ufl.inner(f_body, v) * ufl.dx
 
-        ### CHANGE, casue simple D
-        D = fem.Constant(w.function_space.mesh, ScalarType(self.mat.D_moisture))
-        moisture_flux = -D * ufl.grad(p_w)
-        F_moisture = ((theta - theta_n) / dt) * q * ufl.dx - ufl.inner(moisture_flux, ufl.grad(q)) * ufl.dx
+        # --- Moisture part ---
+        # Time derivative of volumetric strain for coupling term
+        eps_vol = epsilon_vol(u)
+        eps_vol_n = epsilon_vol(u_n)
+        deps_vol_dt = (eps_vol - eps_vol_n) / dt
         
-        return F_mech + F_moisture
+        # Strain-dependent diffusivity
+        D = moisture_diffusivity_D(u, materialData)
+        
+        # Moisture flux q_m = -D * grad(theta)
+        moisture_flux = -D * ufl.grad(theta)
+        
+        # Weak form of: d(theta)/dt + alpha*d(eps_vol)/dt - div(D*grad(theta)) = 0
+        F_moisture = (((theta - theta_n) / dt) * q + alpha_biot * deps_vol_dt * q - ufl.inner(moisture_flux, ufl.grad(q))) * ufl.dx
+        
+        F_total = F_mech + F_moisture
+        J = ufl.derivative(F_total, w)
+        return F_total, J
 
 
 
 
 def get_coupled_transient_fem(domain_vars, 
-                                               num_elements_x=32, num_elements_y=16, dt_value=0.1,
-                                               evaluation_times: np.ndarray = None,
-                                               evaluation_spatial_points_xy: np.ndarray = None):
+                            num_elements_x=32, num_elements_y=16, dt_value=0.1,
+                            evaluation_times: np.ndarray = None,
+                            evaluation_spatial_points_xy: np.ndarray = None):
     """
     Solves the coupled transient poromechanics problem using DOLFINx.
     """
@@ -119,8 +137,8 @@ def get_coupled_transient_fem(domain_vars,
     element_description = {
         "type": "mixed",
         "elements": [
-            {"family": "Lagrange", "degree": 1, "type": "vector"},
-            {"family": "Lagrange", "degree": 1, "type": "scalar"}
+            {"family": "Lagrange", "degree": 2, "type": "vector", "name": "u"},    # DEGREE 2 wichtig für COUPLING da  "LADYHENADA BUBUZSKA"
+            {"family": "Lagrange", "degree": 1, "type": "scalar", "name": "theta"}
         ]
     }
     mesh, V = create_mesh_and_function_space(
@@ -132,17 +150,23 @@ def get_coupled_transient_fem(domain_vars,
     dim = mesh.geometry.dim
     dt_fem_internal = get_dt(comm, evaluation_times)
 
+    theta_bottom_val = materialData.theta_r
+    theta_top_val = 0.9 * materialData.theta_s
+    def initial_theta_smooth(x):
+        y_normalized = (x[1] - y_min) / (y_max - y_min)
+        return theta_bottom_val + (theta_top_val - theta_bottom_val) * y_normalized
+
     ## Boundary conditions and initial conditions
-    def initial_w_func(x):
-        u_initial = np.zeros((dim, x.shape[1]))
-        theta_initial = np.full((1, x.shape[1]), materialData.theta_s * 0.9)
-        return np.vstack((u_initial, theta_initial))
-    initial_conditions = {"w": initial_w_func}
+    initial_conditions = {
+        "u": lambda x: np.zeros((dim, x.shape[1])),
+        "theta": initial_theta_smooth
+    }
     constants_def = {"dt": dt_fem_internal, "E": materialData.E, "nu": materialData.nu}
     state_vars = ["uh_w", "un_w"]
     fem_states, fem_constants = initialize_fem_state(
         V,
         initial_conditions=initial_conditions,
+        element_desc=element_description,
         constants_def=constants_def,
         state_vars=state_vars
     )
@@ -158,12 +182,12 @@ def get_coupled_transient_fem(domain_vars,
     },
     {
         "where": lambda x: np.isclose(x[1], y_max),
-        "value": materialData.theta_s,
+        "value": 0.9 * materialData.theta_s,
         "subspace_idx": 1  # Applied to moisture theta
     }]
     bcs = create_dirichlet_bcs(V, bcs_definition)
 
-    F = get_variational_form(
+    F, J = get_variational_form(
         V,
         w=uh,
         w_n=un,
@@ -173,7 +197,7 @@ def get_coupled_transient_fem(domain_vars,
             "nu": fem_constants["nu"],
         }
     )
-    solver_function = create_solver(mesh, F, None, bcs, 'nonlinear', uh=uh)
+    solver_function = create_solver(mesh, F, J, bcs, 'nonlinear', uh=uh, J_form=J)
 
     uh, final_evaluated_data = execute_transient_simulation(
         domain=mesh,
@@ -187,6 +211,7 @@ def get_coupled_transient_fem(domain_vars,
         evaluation_times=evaluation_times,
         evaluation_spatial_points_xy=evaluation_spatial_points_xy
     )
+    return uh, final_evaluated_data
 
 
     # --- 2. Define solution, trial, and test functions ---

@@ -1,5 +1,7 @@
 
 from utils.metadata import BSaver
+from material import concreteData
+materialData = concreteData
 
 
 class Scale(BSaver):
@@ -8,8 +10,10 @@ class Scale(BSaver):
         self.y_min, self.y_max = domain_variables.spatial['y']
 
         self.L = max(self.x_max - self.x_min, self.y_max - self.y_min)
-        self.U = 1 # [L]
-        self.f = self.U / self.L**2
     
-    def sigma(self, E):
-        return (E * self.U) / self.L
+    @property
+    def sigma(self):
+        return materialData.rho* materialData.g * self.L
+    @property
+    def U(self):
+        return (self.sigma * self.L) / materialData.E

@@ -7,6 +7,7 @@ from model import create_model
 from utils.test import create_dde_data, heat_problem
 import deepxde as dde
 import matplotlib.pyplot as plt
+from mpi4py import MPI
 
 def parse_args():
     parser = argparse.ArgumentParser(description='DeepXDE model manager')
@@ -38,9 +39,14 @@ def parse_args():
 
 
 def manage_args(args):
+    comm = MPI.COMM_WORLD
+    rank = comm.rank
+
+    model, domain_vars, config, scale, loss_history = None, None, None, None, None
+
     process_type = args.type[0]
     subtype = args.type[1] if len(args.type) > 1 else None
-
+    #if rank == 0:
     output_transform = MAP[process_type][subtype].get('output_transform', None)
 
     if args.command == 'add':
@@ -48,7 +54,6 @@ def manage_args(args):
         domain_vars = MAP[process_type][subtype]['domain_vars']
         config = MAP[process_type][subtype]['config']
         scale = MAP[process_type][subtype]['scale'](domain_vars)
-
     
         data = domain_func(domain_vars, scale)
         model = create_model(data, config, output_transform=None if not output_transform else lambda x,y: output_transform(x,y, scale))
@@ -74,7 +79,7 @@ def manage_args(args):
         return
     else:
         raise ValueError('UNVALIDEr cOMmAND DU KEK')
-    
+        
 
     ### Train
     if hasattr(args, 'epochs') and args.epochs > 0:
@@ -92,8 +97,9 @@ def manage_args(args):
     Vis = visualize(args.vis, process_type, subtype, model, loss_history, args, domain_vars, config, scale)
 
     ### SAVE
-    if args.save:
-        save_function(model, domain_vars, loss_history, config, scale, Vis, process_type, subtype)    
+
+    #if rank == 0 and args.save:
+    save_function(model, domain_vars, loss_history, config, scale, Vis, process_type, subtype)    
 
 
 

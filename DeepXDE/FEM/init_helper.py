@@ -54,7 +54,7 @@ def create_mesh_and_function_space(comm, domain_extents, domain_resolution, elem
             else:
                 raise ValueError(f"Unsupported element type in mixed space: {e_desc['type']}")
         
-        mixed_element = ufl.MixedElement(ufl_elements)
+        mixed_element = basix.ufl.mixed_element(ufl_elements)
         V = df.fem.functionspace(mesh, mixed_element)
     else:
         raise ValueError(f"Unknown element description type: {element_desc['type']}")
@@ -77,43 +77,87 @@ def create_mesh_and_function_space(comm, domain_extents, domain_resolution, elem
     #theta_eval_func.name = "theta_eval"
 
 
-def initialize_fem_state(V, initial_conditions, state_vars=["uh", "un"], constants_def=None):
+def initialize_fem_state(V, initial_conditions, element_desc, state_vars=["uh", "un"], constants_def=None):
     """
-    Initializes state functions and constants.
+    Initializes state functions and constants. Handles mixed element spaces correctly.
 
     Args:
         V: The function space.
-        initial_conditions (dict): Maps state variable name to its initial value function or constant.
+        initial_conditions (dict): Maps component name to its initial value.
                                    E.g., {"temperature": 20.0, "pressure_head": -5.0}
+        element_desc (dict): The same description used to create V. Crucial for mixed spaces.
         state_vars (list): Names of the state functions to create (e.g., current, previous).
         constants_def (dict): Definitions for dolfinx.fem.Constant objects.
-                              E.g., {"dt": 0.1, "alpha": 0.001}
     """
     domain = V.mesh
     
-    # Create state functions (uh, un, ..)
     fem_states = {}
-    for name in state_vars:
+    for name in state_vars:  # e.g., name = "uh"
         func = df.fem.Function(V, name=name)
         
-        # CORRECTED LOGIC: Robustly get the base name (e.g., 'head' from 'uh_head')
-        # The previous lstrip logic was buggy.
-        if '_' in name:
-            key_name = name.split('_', 1)[1]
-        else:
-            key_name = name.lstrip('u').lstrip('n') # Fallback for simple names like 'uh'
+        is_mixed = V.element.num_sub_elements > 1
+        
+        if is_mixed and len(initial_conditions) == 1:
+            # Get the single function provided, regardless of its key name.
+            init_func_for_whole_space = list(initial_conditions.values())[0]
+            if callable(init_func_for_whole_space):
+                try:
+                    func.interpolate(init_func_for_whole_space)
+                    fem_states[name] = func
+                    continue  # Skip to the next state_var (e.g., "un")
+                except (RuntimeError, ValueError) as e:
+                    if V.mesh.comm.rank == 0:
+                        print(f"Warning: Failed to interpolate '{name}' with single function ({e}). Falling back to subspace initialization.")
 
-        if key_name in initial_conditions:
-            val = initial_conditions[key_name]
-            # Interpolate a function or a constant value
-            if callable(val):
-                func.interpolate(val)
-            else:
-                func.interpolate(lambda x: np.full(x.shape[1], val))
+        if is_mixed:
+            # --- Mixed Space Initialization ---
+            if element_desc.get("type") != "mixed":
+                raise ValueError("Function space is mixed, but element_desc is not.")
+            
+            for i, sub_elem_desc in enumerate(element_desc["elements"]):
+                sub_func = func.sub(i)
+                key_name = sub_elem_desc.get("name")
+                
+                if key_name and key_name in initial_conditions:
+                    val = initial_conditions[key_name]
+                    
+                    if callable(val):
+                        sub_func.interpolate(val)
+                    else:
+                        V_sub, _ = V.sub(i).collapse()
+                        shape = V_sub.value_shape
+                        if not shape:  # Scalar subspace
+                            sub_func.interpolate(lambda x: np.full(x.shape[1], val))
+                        else:  # Vector subspace
+                            const_vals = np.array(val, dtype=PETSc.ScalarType)
+                            if const_vals.shape != shape:
+                                raise ValueError(f"Initial value shape {const_vals.shape} for '{key_name}' does not match subspace shape {shape}.")
+                            sub_func.interpolate(lambda x: np.outer(const_vals, np.ones(x.shape[1])))
+                else:
+                    if V.mesh.comm.rank == 0:
+                        print(f"Warning: No initial condition for component '{key_name}' (subspace {i}) of '{name}'. Defaulting to zero.")
         else:
-            # This is a good place for a warning if an initial condition is expected but not found
-            if V.mesh.comm.rank == 0:
-                print(f"Warning: No initial condition found for state variable '{name}'. Defaulting to zero.")
+            # --- Standard (Scalar/Vector) Space Initialization ---
+            key_name = element_desc.get("name")
+            if not (key_name and key_name in initial_conditions) and len(initial_conditions) == 1:
+                key_name = list(initial_conditions.keys())[0]
+
+            if key_name and key_name in initial_conditions:
+                val = initial_conditions[key_name]
+                if callable(val):
+                    func.interpolate(val)
+                else:
+                    shape = func.function_space.value_shape
+                    if not shape:  # Scalar space
+                        func.interpolate(lambda x: np.full(x.shape[1], val))
+                    else:  # Vector space
+                        const_vals = np.array(val, dtype=PETSc.ScalarType)
+                        if const_vals.shape != shape:
+                            raise ValueError(f"Initial value shape {const_vals.shape} for '{key_name}' does not match space shape {shape}.")
+                        func.interpolate(lambda x: np.outer(const_vals, np.ones(x.shape[1])))
+            else:
+                if V.mesh.comm.rank == 0:
+                    print(f"Warning: No initial condition found for state variable '{name}'. Defaulting to zero.")
 
         fem_states[name] = func
     
@@ -124,6 +168,8 @@ def initialize_fem_state(V, initial_conditions, state_vars=["uh", "un"], constan
             fem_constants[name] = df.fem.Constant(domain, PETSc.ScalarType(value))
             
     return fem_states, fem_constants
+
+
 
 
 def create_dirichlet_bcs(V, bc_definitions):
@@ -171,7 +217,7 @@ def create_dirichlet_bcs(V, bc_definitions):
         
     return bcs
 
-def create_solver(domain, a_form, L_form, bcs, problem_type="linear", uh=None):
+def create_solver(domain, a_form, L_form, bcs, problem_type="linear", uh=None, J_form=None):
     """
     Creates a solver for a linear or non-linear problem.
     """
@@ -180,21 +226,26 @@ def create_solver(domain, a_form, L_form, bcs, problem_type="linear", uh=None):
         problem = petsc.LinearProblem(a_form, L_form, bcs=bcs, u=uh,
                                       petsc_options={"ksp_type": "cg", "pc_type": "hypre"})
         return problem.solve
-        
+         
     elif problem_type == "nonlinear":
         if uh is None:
             raise ValueError("For nonlinear problems, you must provide the solution function 'uh'.")
         F = a_form
-        problem = petsc.NonlinearProblem(F, uh, bcs=bcs)
+        J = J_form
+        problem = petsc.NonlinearProblem(F, uh, bcs=bcs, J=J)
         
         solver = nls.petsc.NewtonSolver(domain.comm, problem)
+        solver.relaxation_parameter = 0.8
         solver.convergence_criterion = "incremental"
+        solver.max_it = 50
         
         # --- ROBUST SOLVER SETTINGS ---
-        # For stiff problems like Richards equation, the default linear solver
-        # within Newton's method can fail. We switch to a robust direct solver (LU).
-        solver.ksp_type = "preonly"
-        solver.pc_type = "lu"
+        solver.ksp_type = "gmres"
+        solver.pc_type = "hypre"
+        solver.pc_hypre_type = "boomeramg"
+        solver.snes_lag_jacobian = -1
+        #solver.ksp_type = "preonly"
+        #solver.pc_type = "lu"
         return solver.solve
     
 def get_dt(comm, evaluation_times):

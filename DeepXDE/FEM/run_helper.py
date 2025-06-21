@@ -1,14 +1,43 @@
 from FEM.output import evaluate_solution_at_points_on_rank_0, initialize_point_evaluation
-from dolfinx import geometry
+from dolfinx import geometry,   fem
 from dolfinx.fem import petsc
 from petsc4py import PETSc
 import numpy as np
 
-def perform_fem_step(dt_const_fem, current_dt_value,
-                      b_vec, compiled_L_form, compiled_a_form_matrix_part, bcs_list,
-                      ksp_solver, uh_solution, un_previous_solution):
-    pass
-    
+def _evaluate_at_points_wrapper(comm, rank, solution_func, points, bb_tree, domain):
+        """
+        Handles evaluation for both mixed and simple (scalar/vector) elements.
+        If the element is mixed, it evaluates each subspace and stacks the results.
+        """
+        is_mixed = solution_func.function_space.element.num_sub_elements > 0
+        if not is_mixed:
+            # Standard case for scalar or vector functions
+            return evaluate_solution_at_points_on_rank_0(solution_func, points, bb_tree, domain, comm)
+
+        # Handle mixed elements by evaluating each component
+        all_sub_evals = []
+        V = solution_func.function_space
+        for i in range(V.element.num_sub_elements):
+            # --- ROBUST WORKAROUND for collapse() bug ---
+            # Manually create the sub-function.
+            # 1. Get the collapsed subspace definition and the degree-of-freedom map.
+            V_sub, dof_map = V.sub(i).collapse()
+            # 2. Create a new, separate function on that subspace.
+            sub_func = fem.Function(V_sub)
+            # 3. Copy the relevant data from the main mixed function into the new sub-function.
+            sub_func.x.array[:] = solution_func.x.array[dof_map]
+            
+            sub_eval_data = evaluate_solution_at_points_on_rank_0(sub_func, points, bb_tree, domain, comm)
+            
+            if rank == 0 and sub_eval_data is not None:
+                # Ensure data is 2D for consistent horizontal stacking
+                if sub_eval_data.ndim == 1:
+                    sub_eval_data = sub_eval_data[:, np.newaxis]
+                all_sub_evals.append(sub_eval_data)
+        
+        if rank == 0 and all_sub_evals:
+            return np.hstack(all_sub_evals)
+        return None
 
 def execute_transient_simulation(
     domain,
@@ -38,10 +67,10 @@ def execute_transient_simulation(
     dt_const.value = dt_initial
 
     # Generalize getting the solution variables
-    uh = next((v for k, v in fem_states.items() if k.startswith("uh_")), None)
-    un = next((v for k, v in fem_states.items() if k.startswith("un_")), None)
+    uh = next((v for k, v in fem_states.items() if k.startswith("uh")), None)
+    un = next((v for k, v in fem_states.items() if k.startswith("un")), None)
     if uh is None or un is None:
-        raise KeyError("Could not find 'uh_' and 'un_' variables in fem_states.")
+        raise KeyError("Could not find 'uh' and 'un' variables in fem_states.")
 
     all_evaluated_data_rank0 = []
     evaluation_times_sorted = np.sort(np.unique(evaluation_times)) if evaluation_times is not None else []
@@ -50,8 +79,8 @@ def execute_transient_simulation(
     # --- Initial evaluation at t_start ---
     if perform_eval and eval_idx < len(evaluation_times_sorted) and np.isclose(evaluation_times_sorted[eval_idx], t_start):
         if rank == 0: print(f"Evaluating at initial time t={t_start}")
-        eval_data = evaluate_solution_at_points_on_rank_0(uh, eval_points_3d, bb_tree, domain, comm)
-        if rank == 0: all_evaluated_data_rank0.append(eval_data)
+        eval_data = _evaluate_at_points_wrapper(comm, rank, uh, eval_points_3d, bb_tree, domain)
+        if rank == 0 and eval_data is not None: all_evaluated_data_rank0.append(eval_data)
         eval_idx += 1
 
     # --- Adaptive stepping parameters ---
@@ -72,8 +101,10 @@ def execute_transient_simulation(
             while retries < max_retries and not converged:
                 try:
                     # Attempt to solve with the current dt
-                    solver_function(uh)
+                    num_its = solver_function(uh)
                     converged = True
+                    if rank == 0 and num_its[0] > 10: # Optional: print if many iterations were needed
+                        print(f"Newton solver took {num_its[0]} iterations.")
                 except RuntimeError as e:
                     if "Newton solver did not converge" in str(e):
                         # Backtrack time and solution
@@ -98,8 +129,8 @@ def execute_transient_simulation(
 
         if perform_eval and eval_idx < len(evaluation_times_sorted) and np.isclose(t_fem_current, evaluation_times_sorted[eval_idx]):
             if rank == 0: print(f"Evaluating at t={t_fem_current:.2f}")
-            eval_data = evaluate_solution_at_points_on_rank_0(uh, eval_points_3d, bb_tree, domain, comm)
-            if rank == 0: all_evaluated_data_rank0.append(eval_data)
+            eval_data = _evaluate_at_points_wrapper(comm, rank, uh, eval_points_3d, bb_tree, domain)
+            if rank == 0 and eval_data is not None: all_evaluated_data_rank0.append(eval_data)
             eval_idx += 1
         
         # Optional: Increase dt again if convergence was easy
