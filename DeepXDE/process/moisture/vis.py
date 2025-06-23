@@ -12,7 +12,7 @@ from mpi4py import MPI
 
 
 
-def vis_1d_head(model, scale: HeadScale, interval=2000, xlabel='z', ylabel='u(z,t)', **kwargs):
+def vis_1d_head(model, scale: HeadScale, interval=1000, xlabel='z', ylabel='u(z,t)', **kwargs):
     title= f'Richards 1d' if 'title' not in kwargs else kwargs['title']
     z_start, z_end = moisture_1d_domain.spatial['z']
     t_start, t_end = moisture_1d_domain.temporal['t']
@@ -36,7 +36,8 @@ def vis_1d_head(model, scale: HeadScale, interval=2000, xlabel='z', ylabel='u(z,
             evaluation_times=t_points,
             evaluation_spatial_points_z= z_points.reshape(-1, 1),
         )
-    save_fem_results("BASELINE/moisture/1d/ground_truth.npy", ground_eval_flat_time_spatialyy)
+    
+    save_fem_results("BASELINE/moisture/1d/ground_truth.npy", ground_eval_flat_time_spatial)
 
     ground_truth_data = np.full((num_z_points, num_t_points), np.nan) 
     if ground_eval_flat_time_spatial is not None and ground_eval_flat_time_spatial.size > 0:
@@ -61,7 +62,7 @@ def vis_1d_head(model, scale: HeadScale, interval=2000, xlabel='z', ylabel='u(z,
     #mse = np.mean(np.square(error_data), axis=0)
 
     # --- Setup Plot ---
-    fig, axes = plt.subplots(1, 3, figsize=(18, 6), sharey=True)
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
     
 
     # --- Create Lines ---
@@ -76,12 +77,20 @@ def vis_1d_head(model, scale: HeadScale, interval=2000, xlabel='z', ylabel='u(z,
 
 
     # --- Formatting ---
-    axes[0].set(title='PINN Prediction', xlabel=xlabel, ylabel=ylabel, xlim=(z_start, z_end))
-    axes[1].set(title='Ground Truth', xlabel=xlabel, xlim=(z_start, z_end))
-    axes[2].set(title='Absolute Error', xlabel=xlabel, xlim=(z_start, z_end))
-    #axes[3].set(title='Error Contour (Z-T Plane)', xlabel=xlabel, ylabel='Time [s]')
-    #axes[3].sharey = False 
+    axes[0].set(title='PINN Prediction', xlabel=xlabel, ylabel=ylabel, xlim=(z_start, z_end), ylim=(0,-10))
+    axes[1].set(title='Ground Truth', xlabel=xlabel, ylabel=ylabel, xlim=(z_start, z_end), ylim=(0,-10))
+    axes[2].set(title='Absolute Error', xlabel=xlabel, ylabel='Error', xlim=(z_start, z_end))
     
+    # For error
+    error_min, error_max = np.nanmin(error_data), np.nanmax(error_data)
+    margin = (error_max - error_min) * 0.1  # 10% margin
+    axes[2].set_ylim(error_min - margin, error_max + margin)
+    axes[2].sharey = False # Unshare the y-axis for the error plot
+
+    error_range_text = f'Global Min: {error_min:.2e}\nGlobal Max: {error_max:.2e}'
+    axes[2].text(0.02, 0.98, error_range_text, transform=axes[2].transAxes,
+                 fontsize=9, verticalalignment='top', bbox=dict(boxstyle='round,pad=0.3', fc='wheat', alpha=0.5))
+
     time_scale_val, time_scale_unit = ((60*60), 'Hours') if t_end / (60*60*24) < 2 else ((60*60*24), 'Days')
     fig.suptitle(f'{title} (t=0.00 {time_scale_unit})')# | Overall MSE: {mse:.2e}')    
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
@@ -99,14 +108,14 @@ def vis_1d_head(model, scale: HeadScale, interval=2000, xlabel='z', ylabel='u(z,
 
 
     ani = animation.FuncAnimation(fig, update, frames=num_t_points,
-                                  interval=interval, blit=True, repeat=False)
+                                  interval=interval, repeat=False)
     
     #ani.save('animation.mp4', writer='ffmpeg', fps=1000/interval)
     #plt.show() # geht glaube nocht auf ssh
     return {'field': ani}
 
 
-def vis_1d_saturation(model, scale: SaturationScale, interval=200, xlabel='z [m]', ylabel='Saturation [-]', **kwargs):
+def vis_1d_saturation(model, scale: SaturationScale, interval=1000, xlabel='z [m]', ylabel='Saturation [-]', **kwargs):
     title = 'Richards 1D (Saturation)' if 'title' not in kwargs else kwargs['title']
     z_start, z_end = moisture_1d_domain.spatial['z']
     t_start, t_end = moisture_1d_domain.temporal['t']
@@ -117,14 +126,14 @@ def vis_1d_saturation(model, scale: SaturationScale, interval=200, xlabel='z [m]
     t_points = np.linspace(t_start, t_end, num_t_points)
 
     # --- Get Ground Truth Data ---
-    #_, ground_eval_flat_time_spatial = get_richards_1d_saturation_fem(
-    #    moisture_1d_domain,
-    #    nz=num_z_points,
-    #    evaluation_times=t_points,
-    #    evaluation_spatial_points_z=z_points.reshape(-1, 1),
-    #)
-    #save_fem_results("BASELINE/moisture/1d/saturation_ground_truth.npy", ground_eval_flat_time_spatial)
-    ground_eval_flat_time_spatial = load_fem_results("BASELINE/moisture/1d/saturation_ground_truth.npy")
+    _, ground_eval_flat_time_spatial = get_richards_1d_saturation_fem(
+        moisture_1d_domain,
+        nz=num_z_points,
+        evaluation_times=t_points,
+        evaluation_spatial_points_z=z_points.reshape(-1, 1),
+    )
+    save_fem_results("BASELINE/moisture/1d/saturation_ground_truth.npy", ground_eval_flat_time_spatial)
+    #ground_eval_flat_time_spatial = load_fem_results("BASELINE/moisture/1d/saturation_ground_truth.npy")
 
     ground_truth_data = np.full((num_z_points, num_t_points), np.nan)
     if ground_eval_flat_time_spatial is not None and ground_eval_flat_time_spatial.size > 0:
@@ -149,7 +158,7 @@ def vis_1d_saturation(model, scale: SaturationScale, interval=200, xlabel='z [m]
     error_data = pinn_data - ground_truth_data
 
     # --- Setup Plot ---
-    fig, axes = plt.subplots(1, 3, figsize=(18, 6), sharey=True)
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
 
     # --- Create Lines ---
     line_pinn, = axes[0].plot(z_points, pinn_data[:, 0], 'b-')
@@ -157,9 +166,9 @@ def vis_1d_saturation(model, scale: SaturationScale, interval=200, xlabel='z [m]
     line_err, = axes[2].plot(z_points, error_data[:, 0], 'g-')
 
     # --- Formatting ---
-    axes[0].set(title='PINN Prediction', xlabel=xlabel, ylabel=ylabel, xlim=(z_start, z_end))
-    axes[1].set(title='Ground Truth', xlabel=xlabel, xlim=(z_start, z_end))
-    axes[2].set(title='Absolute Error', xlabel=xlabel, xlim=(z_start, z_end))
+    axes[0].set(title='PINN Prediction', xlabel=xlabel, ylabel=ylabel, xlim=(z_start, z_end), ylim=(0, 1))
+    axes[1].set(title='Ground Truth', xlabel=xlabel, ylabel=ylabel, xlim=(z_start, z_end), ylim=(0, 1))
+    axes[2].set(title='Absolute Error', xlabel=xlabel, ylabel='Error', xlim=(z_start, z_end))
 
 
     time_scale_val, time_scale_unit = ((60*60), 'Hours') if t_end / (60*60*24) < 2 else ((60*60*24), 'Days')
@@ -176,7 +185,7 @@ def vis_1d_saturation(model, scale: SaturationScale, interval=200, xlabel='z [m]
         return line_pinn, line_gt, line_err
 
     ani = animation.FuncAnimation(fig, update, frames=num_t_points,
-                                  interval=interval, blit=True, repeat=False)
+                                  interval=interval, repeat=False)
 
     return {'field': ani}
 

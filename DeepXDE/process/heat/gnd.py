@@ -130,7 +130,7 @@ def define_heat_equation_forms(V, dt, alpha, un):
 def get_transient_fem(domain_vars, 
                         grid_resolution: tuple = (80, 60),
                         evaluation_times: np.ndarray = None, 
-                        evaluation_spatial_points_z: np.ndarray = None):
+                        evaluation_spatial_points_xy: np.ndarray = None):
 
 
     # DEF VARS

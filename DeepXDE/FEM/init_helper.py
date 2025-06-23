@@ -165,7 +165,10 @@ def initialize_fem_state(V, initial_conditions, element_desc, state_vars=["uh", 
     fem_constants = {}
     if constants_def:
         for name, value in constants_def.items():
-            fem_constants[name] = df.fem.Constant(domain, PETSc.ScalarType(value))
+            if isinstance(value, (np.ndarray, list, tuple)):
+                fem_constants[name] = df.fem.Constant(domain, np.asarray(value, dtype=PETSc.ScalarType))
+            else:
+                fem_constants[name] = df.fem.Constant(domain, PETSc.ScalarType(value))
             
     return fem_states, fem_constants
 
@@ -211,6 +214,7 @@ def create_dirichlet_bcs(V, bc_definitions):
                 const_vals = np.array(value, dtype=PETSc.ScalarType)
                 uD.interpolate(lambda x: np.outer(const_vals, np.ones(x.shape[1])))
             else:
+                ###
                 uD.interpolate(lambda x: np.full(x.shape[1], value))
 
         bcs.append(bc_obj)

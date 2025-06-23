@@ -43,6 +43,16 @@ class BConfig(BSaver):
         
         with open(filepath, 'w') as f:
             json.dump(data_to_save, f, indent=4)
+    
+    
+    def dict(self):
+        """
+        Returns the model as a dictionary.
+        """
+        if hasattr(self, 'model_dump'):
+            return self.model_dump()
+        else:
+            return self.__dict__
 
         
 class Domain:

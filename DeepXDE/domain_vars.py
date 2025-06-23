@@ -35,7 +35,7 @@ moisture_1d_domain = Domain(
             'z': (0, 1),
         }, temporal={
             #'t': (0, 1.3e7)  #4e6 seconds started  makes time derivative WAAAAAAY to small which leads to no learning there just steady output whihc is pretty interesting
-            't': (0, 6.04e5) # ca 1 week
+            't': (0, 18.12e5) # ca 3 week
         #    't': (0, 8.6e4)  # ca 1 day
             #'t': (0, 7.2e3)  # ca 2 hour
             #'t': (0, 1.4e3)  # ca 20 minutes

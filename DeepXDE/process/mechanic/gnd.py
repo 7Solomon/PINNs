@@ -28,21 +28,20 @@ base_mapping = {
     
 def strain(u):
     return 0.5 * (ufl.grad(u) + ufl.grad(u).T)
-def stress(u):
-    # Plane stress
-    # lambda_ = materialData.E * materialData.nu / ((1 + materialData.nu) * (1 - materialData.nu))
-    
-    # Plane strain
-    lambda_ = materialData.E * materialData.nu / ((1 + materialData.nu) * (1 - 2 * materialData.nu))
-    mu = materialData.E / (2 * (1 + materialData.nu))
-    return lambda_ * ufl.tr(strain(u)) * ufl.Identity(len(u)) + 2 * mu * strain(u)
-def get_einspannung_weak_form(V):
+def stress(u_vec, C):
+    eps_u_voigt = ufl.as_vector([strain(u_vec)[0, 0], strain(u_vec)[1, 1], 2 * strain(u_vec)[0, 1]])
+    sigma_voigt = ufl.dot(C, eps_u_voigt)
+    return ufl.as_tensor([[sigma_voigt[0], sigma_voigt[2]],
+                          [sigma_voigt[2], sigma_voigt[1]]])
+
+
+def get_einspannung_weak_form(V, C):
     u = ufl.TrialFunction(V)
     v = ufl.TestFunction(V)
 
-    f_body = df.fem.Constant(V.mesh, (0.0,-materialData.rho * materialData.g))
+    f_body = df.fem.Constant(V.mesh, PETSc.ScalarType((0, -materialData.rho * materialData.g)))
 
-    a = ufl.inner(stress(u), strain(v)) * ufl.dx
+    a = ufl.inner(stress(u, C), strain(v)) * ufl.dx
     L = ufl.dot(f_body, v) * ufl.dx
     return a, L
 def clamped_boundary_condition(x, x_min):
@@ -76,8 +75,10 @@ def get_einspannung_2d_fem(domain_vars,
 
     #  MABYE DIFFRENT VALS
     #f_body = df.fem.Constant(mesh, PETSc.ScalarType((0, -materialData.rho*materialData.g)))
+    C = materialData.C_stiffness_matrix().cpu().numpy()
+    C = df.fem.Constant(mesh, np.asarray(C, dtype=PETSc.ScalarType))
 
-    a, L = get_einspannung_weak_form(V)
+    a, L = get_einspannung_weak_form(V, C)
 
     # SOLVER
     solver_function = create_solver(mesh, a, L, bcs, problem_type="linear")

@@ -45,3 +45,19 @@ def plot_loss(Loss, labels=None):
     
     return {'loss': plt.gcf()}
 
+
+def get_deformation_amplifier(u,v):
+    all_displacement_magnitudes = np.sqrt(u**2 + v**2)
+    max_actual_displacement = np.max(all_displacement_magnitudes)
+    
+    target_visual_displacement = 0.05 
+    
+    if max_actual_displacement > 1e-9: 
+        amplification = target_visual_displacement / max_actual_displacement
+    else:
+        amplification = 10
+        
+    min_amplification = 1.0
+    max_amplification = 500.0
+    amplification = int(np.clip(amplification, min_amplification, max_amplification))
+    return amplification

@@ -50,32 +50,32 @@ def get_einspannung_domain_2d(domain_vars: Domain, scale: Scale):
                                        lambda x, _ :_ and np.isclose(x[0], x_min/scale.L), component=1)
 
     # traction-free boundary at right (sigma_xx=0, sigma_xy=0)
-    #bc_right_u_xx = dde.OperatorBC(geom,
-    #                            lambda x,y,_: get_sigma_voigt_nd(x, y, scale)[:,0:1],
-    #                            lambda x, _ :_ and np.isclose(x[0], x_max/scale.L))
-    #bc_right_u_yxx = dde.OperatorBC(geom,
-    #                            lambda x,y,_: get_sigma_voigt_nd(x, y, scale)[:,1:2],
-    #                            lambda x, _ :_ and np.isclose(x[0], x_max/scale.L))
-    
-    
+    bc_right_u_xx = dde.OperatorBC(geom,
+                                lambda x,y,_: get_sigma_voigt_nd(x, y, scale)[:,0:1],
+                                lambda x, _ :_ and np.isclose(x[0], x_max/scale.L))
+    bc_right_u_yxx = dde.OperatorBC(geom,
+                                lambda x,y,_: get_sigma_voigt_nd(x, y, scale)[:,1:2],
+                                lambda x, _ :_ and np.isclose(x[0], x_max/scale.L))
+
+
     # traction-free boundary at top (sigma_yy=0, tau_xy=0)
-    #bc_top_sigma_yy = dde.OperatorBC(geom,
-    #                                 lambda x, y, _: get_sigma_voigt_nd(x, y, scale)[:, 1:2],
-    #                                 lambda x, on_boundary: on_boundary and np.isclose(x[1], y_max/scale.L))
-    #bc_top_tau_xy = dde.OperatorBC(geom,
-    #                               lambda x, y, _: get_sigma_voigt_nd(x, y, scale)[:, 2:3],
-    #                               lambda x, on_boundary: on_boundary and np.isclose(x[1], y_max/scale.L))
-    ## traction-free boundary at bottom (sigma_yy=0, tau_xy=0)
-    #bc_bottom_sigma_yy = dde.OperatorBC(geom,
-    #                                    lambda x, y, _: get_sigma_voigt_nd(x, y, scale)[:, 1:2],
-    #                                    lambda x, on_boundary: on_boundary and np.isclose(x[1], y_min/scale.L))
-    #bc_bottom_tau_xy = dde.OperatorBC(geom,
-    #                                  lambda x, y, _: get_sigma_voigt_nd(x, y, scale)[:, 2:3],
-    #                                  lambda x, on_boundary: on_boundary and np.isclose(x[1], y_min/scale.L))
+    bc_top_sigma_yy = dde.OperatorBC(geom,
+                                     lambda x, y, _: get_sigma_voigt_nd(x, y, scale)[:, 1:2],
+                                     lambda x, on_boundary: on_boundary and np.isclose(x[1], y_max/scale.L))
+    bc_top_tau_xy = dde.OperatorBC(geom,
+                                   lambda x, y, _: get_sigma_voigt_nd(x, y, scale)[:, 2:3],
+                                   lambda x, on_boundary: on_boundary and np.isclose(x[1], y_max/scale.L))
+    # traction-free boundary at bottom (sigma_yy=0, tau_xy=0)
+    bc_bottom_sigma_yy = dde.OperatorBC(geom,
+                                        lambda x, y, _: get_sigma_voigt_nd(x, y, scale)[:, 1:2],
+                                        lambda x, on_boundary: on_boundary and np.isclose(x[1], y_min/scale.L))
+    bc_bottom_tau_xy = dde.OperatorBC(geom,
+                                      lambda x, y, _: get_sigma_voigt_nd(x, y, scale)[:, 2:3],
+                                      lambda x, on_boundary: on_boundary and np.isclose(x[1], y_min/scale.L))
 
     data = dde.data.PDE(geom,
                         lambda x,y : pde_2d_residual(x, y, scale),
-                        [bc_left_u_x, bc_left_u_y], #,bc_right_u_xx, bc_right_u_yxx, bc_top_sigma_yy, bc_top_tau_xy, bc_bottom_sigma_yy, bc_bottom_tau_xy],
+                        [bc_left_u_x, bc_left_u_y, bc_right_u_xx, bc_right_u_yxx, bc_top_sigma_yy, bc_top_tau_xy, bc_bottom_sigma_yy, bc_bottom_tau_xy],
                         num_domain=2000,
                         num_boundary=500)
     return data

@@ -9,6 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from mpi4py import MPI
+import dolfinx as df
 
 from domain_vars import fest_lost_2d_domain
 from process.mechanic.gnd import base_mapping, get_einspannung_2d_fem
@@ -58,13 +59,30 @@ def visualize_field_2d(model, scale: Scale, **kwargs):
     comm = MPI.COMM_WORLD
     GROUND = get_einspannung_2d_fem(fest_lost_2d_domain)
     #GROUND = load_fem_results("BASELINE/mechanic/2d/ground_truth.npy")
+    
     domain = GROUND.function_space.mesh
     _perform_eval, eval_points_3d, bb_tree = initialize_point_evaluation(
         domain, points, comm
     )
-    ground_values_at_points = evaluate_solution_at_points_on_rank_0(
-        GROUND, eval_points_3d, bb_tree, domain, comm
-    )
+
+    ### FIXED EVAL
+    V = GROUND.function_space
+    V_x, dof_map_x = V.sub(0).collapse()
+    V_y, dof_map_y = V.sub(1).collapse()
+
+    u_x_func = df.fem.Function(V_x)
+    u_y_func = df.fem.Function(V_y)
+
+    u_x_func.x.array[:] = GROUND.x.array[dof_map_x]
+    u_y_func.x.array[:] = GROUND.x.array[dof_map_y]
+
+    gt_u_x_flat = evaluate_solution_at_points_on_rank_0(u_x_func, eval_points_3d, bb_tree, domain, comm)
+    gt_u_y_flat = evaluate_solution_at_points_on_rank_0(u_y_func, eval_points_3d, bb_tree, domain, comm)
+
+    if comm.rank == 0:
+        ground_values_at_points = np.hstack((gt_u_x_flat[:, np.newaxis], gt_u_y_flat[:, np.newaxis]))
+    else:
+        ground_values_at_points = None
     save_fem_results("BASELINE/mechanic/2d/ground_truth.npy", ground_values_at_points)
 
 

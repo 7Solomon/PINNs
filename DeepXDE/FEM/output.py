@@ -25,28 +25,30 @@ def initialize_point_evaluation(domain, evaluation_spatial_points, comm):
 
         # Generalize point padding for 1D, 2D, or 3D input
         if num_cols == 1: # 1D case (z) -> pad to (z, 0, 0)
+            print('1d eval')
             eval_points_3d = np.zeros((num_points, 3), dtype=np.float64)
             eval_points_3d[:, 0] = evaluation_spatial_points[:, 0]
         elif num_cols == 2: # 2D case (x, y) -> pad to (x, y, 0)
             eval_points_3d = np.zeros((num_points, 3), dtype=np.float64)
             eval_points_3d[:, :2] = evaluation_spatial_points
         elif num_cols == 3: # 3D case
+            print('3d eval')
             eval_points_3d = evaluation_spatial_points.astype(np.float64)
         else:
             raise ValueError(f"evaluation_spatial_points must have 1, 2, or 3 columns, but got {num_cols}.")
 
         eval_points_3d = np.ascontiguousarray(eval_points_3d)
         
-        try:
-            bb_tree = geometry.BoundingBoxTree(domain, domain.topology.dim)
-        except TypeError: # Try older API
-            try:
-                bb_tree = geometry.bb_tree(domain, domain.topology.dim)
-            except (TypeError, AttributeError) as e:
-                if comm.rank == 0:
-                    print(f"Error creating BoundingBoxTree: {e}")
-                    print("Available geometry functions:", [attr for attr in dir(geometry) if 'tree' in attr.lower() or 'bound' in attr.lower()])
-                raise RuntimeError("Could not create BoundingBoxTree with available API") from e
+        #try:
+        #bb_tree = geometry.BoundingBoxTree(domain, domain.topology.dim)
+        #except TypeError: # Try older API
+        #    try:
+        bb_tree = geometry.bb_tree(domain, domain.topology.dim)
+        #    except (TypeError, AttributeError) as e:
+        #        if comm.rank == 0:
+        #            print(f"Error creating BoundingBoxTree: {e}")
+        #            print("Available geometry functions:", [attr for attr in dir(geometry) if 'tree' in attr.lower() or 'bound' in attr.lower()])
+        #        raise RuntimeError("Could not create BoundingBoxTree with available API") from e
                 
     return perform_point_evaluation, eval_points_3d, bb_tree
 
@@ -82,6 +84,7 @@ def evaluate_solution_at_points_on_rank_0(uh, eval_points_3d, bb_tree, domain, c
                     for global_idx, val in rank_data:
                         results_for_t[global_idx] = val
         return results_for_t
+
     return None
 
 

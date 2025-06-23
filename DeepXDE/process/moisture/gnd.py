@@ -81,7 +81,11 @@ def get_richards_1d_head_fem(domain_vars,
     t_min, t_max = domain_vars.temporal['t']
     
     element_desc = {"type": "scalar", "family": "Lagrange", "degree": 1}
-    mesh, V = create_mesh_and_function_space(comm, [z_min, z_max], nz, element_desc=element_desc)
+    mesh, V = create_mesh_and_function_space(comm=comm, 
+                                            domain_extents=[z_min, z_max], 
+                                            domain_resolution=nz, 
+                                            element_desc=element_desc
+                                        )
     
     # 2. Get dt
     dt_fem_internal = get_dt(comm, evaluation_times)
@@ -99,6 +103,7 @@ def get_richards_1d_head_fem(domain_vars,
     fem_states, fem_constants = initialize_fem_state(
         V,
         initial_conditions=initial_conditions,
+        element_desc=element_desc,
         constants_def=constants_def,
         state_vars=state_vars
     )

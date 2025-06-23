@@ -2,196 +2,130 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from process.thermal_mechanical.scale import Scale
-
 from domain_vars import thermal_mechanical_2d_domain
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
-from process.thermal_mechanical.scale import Scale
-from domain_vars import thermal_mechanical_2d_domain
+from process.thermal_mechanical.gnd import get_thermal_mechanical_fem # Import the FEM function
 
-def vis_2d_multi(model, scale: Scale, interval=600, **kwargs):
+def vis_2d_multi(model, scale: Scale, interval=200, **kwargs):
     """
-    Creates an animation showing thermal-mechanical 2D results with all variables.
+    Creates two animations: 
+    1. A 4x1 plot of just the PINN predictions.
+    2. A 4x3 comparison plot: PINN vs. Ground Truth vs. Error.
     
     Args:
         model: Trained model with predict() method
-        interval: Animation delay in ms (default: 600)
+        scale: The scale object for unit conversion
+        interval: Animation delay in ms (default: 200)
     """
-    
-    # Configuration
-    var_names = ['X-Displacement (u)', 'Y-Displacement (v)', 'Temperature (T)', 'Displacement Magnitude']
+    # --- Configuration ---
+    var_names = ['U (X-Disp)', 'V (Y-Disp)', 'Temperature', 'Disp. Magnitude']
+    plot_titles_comp = ['PINN Prediction', 'Ground Truth (FEM)', 'Absolute Error']
     cmaps = ['RdBu_r', 'RdBu_r', 'plasma', 'viridis']
-    units = ['m', 'm', '°C', 'm']
-        
-    # Domain and grid setup
+    
+    # --- Domain and Grid Setup ---
     x_start, x_end = thermal_mechanical_2d_domain.spatial['x']
     y_start, y_end = thermal_mechanical_2d_domain.spatial['y']
     t_start, t_end = thermal_mechanical_2d_domain.temporal['t']
     
-    nx, ny, nt = 50, 50, 50
+    nx, ny, nt = 40, 40, 40  # Grid resolution
     x_points = np.linspace(x_start, x_end, nx)
     y_points = np.linspace(y_start, y_end, ny)
     t_points = np.linspace(t_start, t_end, nt)
     X, Y = np.meshgrid(x_points, y_points)
-    
-    # Generate predictions for all time steps
-    print(f"Generating {nt} time steps...")
-    all_predictions = []
-    
+    XY_flat = np.vstack((X.ravel(), Y.ravel())).T
+
+    # --- 1. Get Ground Truth (FEM) Data ---
+    print("Generating FEM ground truth data...")
+    _, gt_data_raw = get_thermal_mechanical_fem(
+        domain_vars=thermal_mechanical_2d_domain,
+        grid_resolution=(nx, ny),
+        evaluation_times=t_points,
+        evaluation_spatial_points_xy=XY_flat
+    )
+    gt_data = gt_data_raw.reshape(nt, ny, nx, 3)
+    gt_u, gt_v, gt_T = gt_data[:, :, :, 0], gt_data[:, :, :, 1], gt_data[:, :, :, 2]
+    gt_mag = np.sqrt(gt_u**2 + gt_v**2)
+
+    # --- 2. Get PINN Predictions ---
+    print("Generating PINN predictions for all time steps...")
+    pinn_data = np.zeros((nt, ny, nx, 3))
     for i, t in enumerate(t_points):
-        if i % 10 == 0:
-            print(f"  Step {i+1}/{nt}")
-            
-        # Create and scale input points
         T_grid = np.full_like(X, t)
         XYT = np.vstack((X.ravel(), Y.ravel(), T_grid.ravel())).T
         XYT_scaled = XYT / np.array([scale.L, scale.L, scale.t])
         
-        # Get predictions and scale back to physical units
-        predictions = model.predict(XYT_scaled)
-        u_data = predictions[:, 0].reshape(X.shape) * scale.U
-        v_data = predictions[:, 1].reshape(X.shape) * scale.U
-        T_data = predictions[:, 2].reshape(X.shape) * scale.Temperature
-        mag_data = np.sqrt(u_data**2 + v_data**2)
-        
-        all_predictions.append([u_data, v_data, T_data, mag_data])
+        preds_scaled = model.predict(XYT_scaled)
+        pinn_data[i, :, :, 0] = (preds_scaled[:, 0] * scale.U).reshape(ny, nx)
+        pinn_data[i, :, :, 1] = (preds_scaled[:, 1] * scale.U).reshape(ny, nx)
+        pinn_data[i, :, :, 2] = (preds_scaled[:, 2] * scale.Temperature).reshape(ny, nx)
     
-    all_predictions = np.array(all_predictions)  # Shape: (nt, 4, ny, nx)
-    
-    ##### Calculate amplification factor for visualization
-    max_u_abs = np.max(np.abs(all_predictions[:, 0, :, :]))
-    max_v_abs = np.max(np.abs(all_predictions[:, 1, :, :]))
-    
-    all_u_data = all_predictions[:, 0, :, :]
-    all_v_data = all_predictions[:, 1, :, :]
-    all_displacement_magnitudes = np.sqrt(all_u_data**2 + all_v_data**2)
-    max_actual_displacement = np.max(all_displacement_magnitudes)
-    
-    target_visual_displacement = 0.05  # Target for the maximum displayed deformation (in meters)
-    
-    if max_actual_displacement > 1e-9:  # Avoid division by zero or very small numbers
-        amplification = target_visual_displacement / max_actual_displacement
-    else:
-        amplification = 10  # Default amplification if displacements are negligible
-        
-    # Optional: Cap the amplification factor to a reasonable range
-    min_amplification = 1.0
-    max_amplification = 500.0 # Adjust as needed
-    amplification = int(np.clip(amplification, min_amplification, max_amplification))
-    
+    pinn_u, pinn_v, pinn_T = pinn_data[:, :, :, 0], pinn_data[:, :, :, 1], pinn_data[:, :, :, 2]
+    pinn_mag = np.sqrt(pinn_u**2 + pinn_v**2)
 
+    # --- 3. Calculate Error Data ---
+    error_u, error_v, error_T = pinn_u - gt_u, pinn_v - gt_v, pinn_T - gt_T
+    error_mag = pinn_mag - gt_mag
 
-    # Setup figure with 2x3 layout (4 field plots + 2 mesh plots)
-    fig, axes = plt.subplots(2, 3, figsize=(18, 12))
-    axes = axes.flatten()
-    
-    # Initialize field plots (first 4 subplots)
-    field_ims = []
-    for i in range(4):
-        ax = axes[i]
-        
-        # Set color limits
-        if i in [0, 1]:  # Displacements - symmetric around zero
-            vmax = np.max(np.abs(all_predictions[:, i]))
-            vmin = -vmax
-        else:  # Temperature and magnitude - full range
-            vmin = all_predictions[:, i].min()
-            vmax = all_predictions[:, i].max()
-        
-        # Create initial plot
-        im = ax.imshow(all_predictions[0, i], 
-                      extent=[x_start, x_end, y_start, y_end],
-                      origin='lower', aspect='equal', 
-                      vmin=vmin, vmax=vmax, cmap=cmaps[i])
-        field_ims.append(im)
-        
-        # Add colorbar and styling
-        cbar = plt.colorbar(im, ax=ax, shrink=0.8)
-        cbar.set_label(f'{var_names[i]} [{units[i]}]')
-        ax.set_title(var_names[i])
-        ax.set_xlabel('X Position [m]')
-        ax.set_ylabel('Y Position [m]')
-        ax.grid(True, alpha=0.3)
-    
-    # Setup mesh deformation plots (subplots 5 and 6)
-    mesh_subsample = 8  # Every 8th point for cleaner mesh
-    X_mesh = X[::mesh_subsample, ::mesh_subsample] 
-    Y_mesh = Y[::mesh_subsample, ::mesh_subsample]
-    
-    # Combined Original and Deformed Mesh Plot (subplot 5, using axes[4])
-    combined_mesh_ax = axes[4] # Use the 5th subplot (index 4)
-    
-    # Plot original mesh as a reference (lighter color, thinner lines)
-    combined_mesh_ax.plot(X_mesh, Y_mesh, 'k-', alpha=0.3, linewidth=0.7, label='Original Mesh')
-    combined_mesh_ax.plot(X_mesh.T, Y_mesh.T, 'k-', alpha=0.3, linewidth=0.7)
-    
-    deformed_lines_h = []  # Horizontal lines for deformed mesh
-    deformed_lines_v = []  # Vertical lines for deformed mesh
-    
-    # Initialize deformed mesh lines (more prominent color)
-    for i in range(X_mesh.shape[0]):
-        line, = combined_mesh_ax.plot([], [], 'r-', linewidth=1.2, label='Deformed Mesh' if i == 0 else "") # Label only once
-        deformed_lines_h.append(line)
-    for j in range(X_mesh.shape[1]):
-        line, = combined_mesh_ax.plot([], [], 'r-', linewidth=1.2)
-        deformed_lines_v.append(line)
-    
-    combined_mesh_ax.set_title(f'Original & Deformed Mesh ({amplification}x amplified)')
-    combined_mesh_ax.set_xlabel('X Position [m]')
-    combined_mesh_ax.set_ylabel('Y Position [m]')
-    combined_mesh_ax.set_aspect('equal')
-    combined_mesh_ax.grid(True, alpha=0.3)
+    # --- Data Lists for easier looping ---
+    pinn_all = [pinn_u, pinn_v, pinn_T, pinn_mag]
+    comp_all = [
+        [pinn_u, gt_u, error_u], [pinn_v, gt_v, error_v],
+        [pinn_T, gt_T, error_T], [pinn_mag, gt_mag, error_mag]
+    ]
 
-    # make last subplot invisible
-    fig.delaxes(axes[5])
-    
-    time_scale = ((60*60), 'Hours') if t_points.max()/(60*60*24) < 2 else ((60*60*24), 'Days')
-    def update_frame(frame):
-        # Update title with current time
-        fig.suptitle(f'Thermal-Mechanical 2D Animation - Time: {time_scale[0]:.2f} {time_scale[1]}', 
-                    fontsize=16, y=0.95) # Adjusted y for suptitle if layout changes
-        
-        # Update field plots
+    # --- 4. PLOT 1: PINN-only Visualization (1x4) ---
+    fig1, axes1 = plt.subplots(1, 4, figsize=(22, 5))
+    ims1 = []
+    for i in range(4): # Loop over variables
+        ax = axes1[i]
+        data_slice = pinn_all[i][0] # First time step
+        vmin, vmax = np.min(pinn_all[i]), np.max(pinn_all[i])
+        im = ax.imshow(data_slice, vmin=vmin, vmax=vmax, cmap=cmaps[i], origin='lower', extent=[x_start, x_end, y_start, y_end])
+        ims1.append(im)
+        fig1.colorbar(im, ax=ax, shrink=0.8)
+        ax.set_title(f"PINN: {var_names[i]}")
+        ax.set_xlabel("x [m]"), ax.set_ylabel("y [m]")
+
+    def update1(frame):
         for i in range(4):
-            field_ims[i].set_array(all_predictions[frame, i])
-        
-        # Update deformed mesh
-        u_mesh = all_predictions[frame, 0][::mesh_subsample, ::mesh_subsample] * amplification
-        v_mesh = all_predictions[frame, 1][::mesh_subsample, ::mesh_subsample] * amplification
-        X_deformed = X_mesh + u_mesh
-        Y_deformed = Y_mesh + v_mesh
-        
-        # Update horizontal lines
-        for i, line in enumerate(deformed_lines_h):
-            line.set_data(X_deformed[i, :], Y_deformed[i, :])
-        
-        # Update vertical lines  
-        for j, line in enumerate(deformed_lines_v):
-            line.set_data(X_deformed[:, j], Y_deformed[:, j])
-        
-        # Adjust combined mesh axis limits to encompass both original and deformed states
-        # Consider the extent of both X_mesh, Y_mesh and X_deformed, Y_deformed
-        all_x_points = np.concatenate([X_mesh.ravel(), X_deformed.ravel()])
-        all_y_points = np.concatenate([Y_mesh.ravel(), Y_deformed.ravel()])
+            ims1[i].set_data(pinn_all[i][frame])
+        fig1.suptitle(f'PINN Prediction (Time: {t_points[frame]:.2f} s)', fontsize=16)
+        return ims1
 
-        x_min_plot, x_max_plot = all_x_points.min(), all_x_points.max()
-        y_min_plot, y_max_plot = all_y_points.min(), all_y_points.max()
-        
-        x_range = x_max_plot - x_min_plot
-        y_range = y_max_plot - y_min_plot
-        margin = 0.1 # Keep a small margin
+    ani1 = animation.FuncAnimation(fig1, update1, frames=nt, interval=interval, blit=False, repeat=True)
+    fig1.tight_layout(rect=[0, 0, 1, 0.95])
 
-        combined_mesh_ax.set_xlim(x_min_plot - margin * x_range, 
-                                  x_max_plot + margin * x_range)
-        combined_mesh_ax.set_ylim(y_min_plot - margin * y_range, 
-                                  y_max_plot + margin * y_range)
-        
-        return field_ims + deformed_lines_h + deformed_lines_v
-    
-    # Create animation
-    ani = animation.FuncAnimation(fig, update_frame, frames=nt, interval=interval, 
-                                  blit=False, repeat=True)
-    
-    plt.tight_layout(rect=[0, 0, 1, 0.96])  # Adjust layout to fit suptitle
-    return {'field': ani, 'figure': fig}
+    # --- 5. PLOT 2: Comparison Visualization (4x3) ---
+    fig2, axes2 = plt.subplots(4, 3, figsize=(15, 18))
+    ims2 = []
+    for i in range(4):  # Loop over variables
+        vmin_pinn_gt = min(np.min(comp_all[i][0]), np.min(comp_all[i][1]))
+        vmax_pinn_gt = max(np.max(comp_all[i][0]), np.max(comp_all[i][1]))
+        vmax_error = np.max(np.abs(comp_all[i][2]))
+
+        for j in range(3):  # Loop over columns (PINN, GT, Error)
+            ax = axes2[i, j]
+            data_slice = comp_all[i][j][0]
+            
+            if j < 2: # PINN or GT plots
+                im = ax.imshow(data_slice, vmin=vmin_pinn_gt, vmax=vmax_pinn_gt, cmap=cmaps[i], origin='lower', extent=[x_start, x_end, y_start, y_end])
+            else: # Error plot
+                im = ax.imshow(data_slice, vmin=-vmax_error, vmax=vmax_error, cmap='bwr', origin='lower', extent=[x_start, x_end, y_start, y_end])
+            
+            ims2.append(im)
+            fig2.colorbar(im, ax=ax, shrink=0.8)
+            ax.set_title(f"{var_names[i]}: {plot_titles_comp[j]}")
+            ax.set_xlabel("x [m]"), ax.set_ylabel("y [m]")
+
+    def update2(frame):
+        k = 0
+        for i in range(4):
+            for j in range(3):
+                ims2[k].set_data(comp_all[i][j][frame])
+                k += 1
+        fig2.suptitle(f'PINN vs. FEM Comparison (Time: {t_points[frame]:.2f} s)', fontsize=16)
+        return ims2
+
+    ani2 = animation.FuncAnimation(fig2, update2, frames=nt, interval=interval, blit=False, repeat=True)
+    fig2.tight_layout(rect=[0, 0, 1, 0.96])
+
+    return {'pinn_only': ani1, 'comparison': ani2}
