@@ -1,5 +1,5 @@
+from utils.fourier_features import FourierFeatureTransform
 from utils.metadata import BConfig
-from utils.fourier_features import fourier_transform
 import deepxde as dde
 import numpy as np
 
@@ -13,7 +13,12 @@ def create_model(data, config: BConfig, output_transform=None):
     if fourier_transform_features:
         print(f'Using Fourier transform with {fourier_transform_features} features')
         pinn = dde.maps.FNN([config.input_dim*fourier_transform_features]+[50]*4+[config.output_dim], 'tanh', 'Glorot uniform')
-        pinn.apply_feature_transform(lambda x: fourier_transform(x, num_features=fourier_transform_features, sigma=1.0))
+        feature_transform = FourierFeatureTransform(
+            in_dim=config.input_dim, 
+            num_features=fourier_transform_features, 
+            sigma=1.0
+        )
+        pinn.apply_feature_transform(feature_transform)
     else:
         pinn = dde.maps.FNN([config.input_dim]+[50]*4+[config.output_dim], 'tanh', 'Glorot uniform')
 

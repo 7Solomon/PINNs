@@ -43,7 +43,7 @@ class ConcreteData(Material):
     k: float = 1.4 # [W/(m*K)]   # Vielliecht auch lamda, ja wajrsheinlich
     beta_thermal_stress: float = 0.2  # [1/K]  # auch manchmal deriveved
     # Mechanical
-    E: float = 3e9 # [Pa]
+    E: float = 3.3e10 # [Pa]
     nu: float = 0.2
     thermal_expansion_coefficient: float = 1.2e-5  # [1/K]
 
@@ -81,7 +81,7 @@ class ConcreteData(Material):
         
         C11 = factor * (1 - self.nu)
         C12 = factor * self.nu
-        C33 = factor * (1 - 2 * self.nu) / 2  # Plane strain
+        C33 = factor * (1 - 2 * self.nu) / 2  # Plane strain and isotropic assumption
         #C33 = self.E / (2 * (1 + self.nu)) 
         
         return torch.tensor([

@@ -132,8 +132,8 @@ def execute_transient_simulation(
             eval_data = _evaluate_at_points_wrapper(comm, rank, uh, eval_points_3d, bb_tree, domain)
             if rank == 0 and eval_data is not None: all_evaluated_data_rank0.append(eval_data)
             eval_idx += 1
-        
-        # Optional: Increase dt again if convergence was easy
+
+        # Increase dt again if convergence was easy
         if problem_type == "nonlinear":
             dt_const.value = min(dt_const.value * 1.1, dt_initial)
 

@@ -23,12 +23,13 @@ def pde_2d_residual(x, y, scale: Scale):
   C = concreteData.C_stiffness_matrix()
   sigma_voigt_nd = torch.matmul(e_voigt, C) / scale.sigma  # [1/L**2]
 
-  sigmax_x = dde.grad.jacobian(sigma_voigt_nd, x, i=0, j=0)  
-  sigmay_y = dde.grad.jacobian(sigma_voigt_nd, x, i=1, j=1) 
-  tauxy_y = dde.grad.jacobian(sigma_voigt_nd, x, i=2, j=1)
-  tauxy_x = dde.grad.jacobian(sigma_voigt_nd, x, i=2, j=0) 
+  sigmax_x_nd = dde.grad.jacobian(sigma_voigt_nd, x, i=0, j=0)  
+  sigmay_y_nd = dde.grad.jacobian(sigma_voigt_nd, x, i=1, j=1) 
+  tauxy_y_nd = dde.grad.jacobian(sigma_voigt_nd, x, i=2, j=1)
+  tauxy_x_nd = dde.grad.jacobian(sigma_voigt_nd, x, i=2, j=0) 
 
   b_force = (scale.L / scale.sigma) * (-concreteData.rho * concreteData.g)
+
   #print('-----')
   #print('sigmax_x:', sigmax_x.min().item(), sigmax_x.max().item())
   #print('sigmay_y:', sigmay_y.min().item(), sigmay_y.max().item())
@@ -39,7 +40,9 @@ def pde_2d_residual(x, y, scale: Scale):
   #print('scale.L:', scale.L)
   #print('scale.U:', scale.U)
 
-  return [sigmax_x + tauxy_y, sigmay_y + tauxy_x + b_force] #- 1.0/scale.f]
+  return [sigmax_x_nd + tauxy_y_nd, sigmay_y_nd + tauxy_x_nd + b_force] #- 1.0/scale.f]
+
+
 
 def pde_1d_t_residual(x, y): 
   w_tt = dde.grad.hessian(y,x, i=1,j=1)
@@ -68,3 +71,47 @@ def calc_sigma(x,y):
 #  dsigma_dy = dde.grad.jacobian(sigma, x, i=1)
 #
 #  return dsigma_dx + dsigma_dy # + cooksMembranConfig.f(x)
+
+def pde_2d_ensemble_residual(x, y, scale: Scale):
+    e_x_nd = dde.grad.jacobian(y, x, i=0, j=0)
+    e_y_nd = dde.grad.jacobian(y, x, i=1, j=1)
+    g_xy_nd = dde.grad.jacobian(y, x, i=0, j=1) + dde.grad.jacobian(y, x, i=1, j=0)
+    e_voigt_nd = torch.cat([e_x_nd, e_y_nd, g_xy_nd], dim=1)
+
+    e_voigt = e_voigt_nd * (scale.U / scale.L)
+    C = concreteData.C_stiffness_matrix()
+    sigma_voigt_nd = torch.matmul(e_voigt, C) / scale.sigma
+
+    # Stress divergence from constitutive law
+    sigmax_x_nd = dde.grad.jacobian(sigma_voigt_nd, x, i=0, j=0)
+    sigmay_y_nd = dde.grad.jacobian(sigma_voigt_nd, x, i=1, j=1)
+    tauxy_y_nd = dde.grad.jacobian(sigma_voigt_nd, x, i=2, j=1)
+    tauxy_x_nd = dde.grad.jacobian(sigma_voigt_nd, x, i=2, j=0)
+
+    # Stress divergence from predicted stress fields
+    sigmax_x_nd_pred = dde.grad.jacobian(y, x, i=2, j=0)
+    sigmay_y_nd_pred = dde.grad.jacobian(y, x, i=3, j=1)
+    tauxy_y_nd_pred = dde.grad.jacobian(y, x, i=4, j=1)
+    tauxy_x_nd_pred = dde.grad.jacobian(y, x, i=4, j=0)
+
+    # Equilibrium equations 
+    equilibrium_x_constitutive = sigmax_x_nd + tauxy_y_nd
+    equilibrium_y_constitutive = sigmay_y_nd + tauxy_x_nd  # No body
+    
+    equilibrium_x_predicted = sigmax_x_nd_pred + tauxy_y_nd_pred
+    equilibrium_y_predicted = sigmay_y_nd_pred + tauxy_x_nd_pred
+
+    # Consistency equations
+    consistency_sigma_x = sigma_voigt_nd[:, 0:1] - y[:, 2:3]
+    consistency_sigma_y = sigma_voigt_nd[:, 1:2] - y[:, 3:4]
+    consistency_tau_xy = sigma_voigt_nd[:, 2:3] - y[:, 4:5]
+
+    return [
+        equilibrium_x_constitutive,
+        equilibrium_x_predicted,
+        equilibrium_y_constitutive,
+        equilibrium_y_predicted,
+        consistency_sigma_x,
+        consistency_sigma_y,
+        consistency_tau_xy
+    ]

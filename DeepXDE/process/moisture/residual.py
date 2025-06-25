@@ -50,42 +50,31 @@ def hydraulic_conductivity_head(h):
     return materialData.K_s* Se**0.5* (1-(1-Se**(1/materialData.m_vg))**materialData.m_vg)**2
 
 def residual_1d_head(x, y, scale: HeadScale):
-    rescaled_h = y[:, 0] * scale.H 
-    C = specific_moisture_capacity(rescaled_h)  # [1/m]
-    K = hydraulic_conductivity_head(rescaled_h)      # [m/s]
-
-    log_K = torch.log(K + 1e-20)         # smoothing
-    K_smoothed = torch.exp(log_K)        #
-
-    # Convert dimensionless
-    C_scaled = C * scale.H   # [1/m] * [m] = [-]
-    K_scaled = K_smoothed / scale.K  # [m/s] / [m/s] = [-]
-
-
-    dh_dt = dde.grad.jacobian(y,x,i=0,j=1)  # [-]
-    dh_dz = dde.grad.jacobian(y,x,i=0,j=0)  # [-]
+    h_nd = y[:, 0]  # [-]
+    h = h_nd * scale.h_char
     
-    time_term = C_scaled * dh_dt #* ((scale.H*scale.L)/(scale.K*scale.T)) # [now -]
-
-    pi_one = (scale.K*scale.T)/scale.L**2  
-    flux_term = pi_one * K_scaled * dh_dz 
-    spatial_term = dde.grad.jacobian(flux_term, x, i=0, j=0)
-
-    #print('----')
-    #print('rescaled_h', rescaled_h.min().item(), rescaled_h.max().item())
-    #print('C', C.min().item(), C.max().item())
-    #print('K', K.min().item(), K.max().item())
-    #print('C_scaled', C_scaled.min().item(), C_scaled.max().item())
-    #print('K_scaled', K_scaled.min().item(), K_scaled.max().item())
-    #print('dh_dt', dh_dt.min().item(), dh_dt.max().item())
-    #print('dh_dz', dh_dz.min().item(), dh_dz.max().item())
-    #print('time_term', time_term.min().item(), time_term.max().item())
-    #print('spatial_term', spatial_term.min().item(), spatial_term.max().item())
-    #print('ScaleL', scale.L)
-    #print('ScaleT', scale.T)
-    #print('ScaleH', scale.H)
-    #print('ScaleK', scale.K)
-    #print('pi_one', pi_one)
+    C = specific_moisture_capacity(h)  # [1/m]
+    K= hydraulic_conductivity_head(h)  # [m/s]
+    
+    C_nd = C * scale.h_char  # [-]
+    K_nd = K / materialData.K_s  # [-]
+    
+    dh_dt_nd = dde.grad.jacobian(y, x, i=0, j=1)  # [-]
+    dh_dz_nd = dde.grad.jacobian(y, x, i=0, j=0)  # [-]
+    
+    # Dimensionless params
+    Da = scale.Da_hydraulic
+    Pe = scale.Pe
+    
+    # Dimensionless flux
+    flux_star = K_nd * (dh_dz_nd + Pe)  # [-]
+    
+    # Spatial term
+    spatial_term = (Da/Pe) * dde.grad.jacobian(flux_star, x, i=0, j=0)  # [-]
+    
+    # Time term
+    time_term = C_nd * dh_dt_nd  # [-]
+    
     return time_term - spatial_term
 
 def volumetric_water_content_saturation(theta):

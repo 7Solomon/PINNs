@@ -33,9 +33,8 @@ def stress(u_vec, temp, thermal_expansion_coefficient, C):
 
 
 def define_thermal_mechanical_weak_form(V, dt, uh, un, C, thermal_expansion_coefficient_const, alpha_thermal_diffusivity):
+    (u, T) = ufl.TrialFunctions(V)
     (v, q) = ufl.TestFunctions(V)
-
-    (u, T) = ufl.split(uh)
     (u_n, T_n) = ufl.split(un)
 
     # mechanic weak

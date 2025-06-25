@@ -5,7 +5,6 @@ from typing import Optional
 from pydantic import BaseModel
 from typing import Any
 from utils.metadata import BConfig
-from utils.dynamic_loss import DynamicLossWeightCallback
 import torch
 
 ###
@@ -46,7 +45,6 @@ class Richards1DConfig(BaseModel, BConfig):
     callbacks: list[str] = ['resample']
     
     #fourier_transform_features: int = 20
-    #callbacks: list[str] = ['dynamicLossWeight']
 
 class RichardsMixed1DConfig(BaseModel, BConfig):
     input_dim: int = 2
@@ -83,9 +81,24 @@ class BernoulliBalken2DConfig(BaseModel, BConfig):
 
     compile_args: dict = {'optimizer': 'adam', 'lr': 1e-4}
     #decay: list[str,int,float] = ['step', 1000, 0.9]
-    loss_weights: list[float] = [100.0, 10.0, 1.0, 10.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0]
+    loss_weights: list[float] = [100.0, 10.0, 1.0, 1.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0]
     loss_labels: list[str] = ['PDE_X', 'PDE_Y', 'Left_x', 'Left_y', 'Right_no_traction_x', 'Right_no_traction_y', 'Top_no_traction_x', 'Top_no_traction_y', 'Bottom_no_traction_x', 'Bottom_no_traction_y']
+    #callbacks: list[str] = ['slowPdeAnnealing']
 
+    #fourier_transform_features: int = 128
+
+    #pde_indices: list[int] = [0, 1] 
+    #annealing_value: float = 10.0 
+class BernoulliBalken2DEnsembleConfig(BaseModel, BConfig):
+    input_dim: int = 2
+    output_dim: int = 5
+
+    compile_args: dict = {'optimizer': 'adam', 'lr': 1e-4}
+    loss_weights: list[float] = [100.0, 100.0, 100.0, 100.0, 10.0, 10.0, 10.0, 10.0, 100.0, 100.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+    loss_labels: list[str] = ['PDE_X', 'PDE_Y', 'PDE_sigma_pred_x', 'PDE_sigma_pred_y', 'sigma_x_x_div', 'sigma_y_y_div', 'sigma_xy_y_div', 'sigma_xy_x_div', 'Left_x', 'Left_y', 'Right_traction_x', 'Right_traction_y', 'right_traction_xy', 'Top_no_traction_x', 'Top_no_traction_y', 'Bottom_no_traction_x', 'Bottom_no_traction_y']
+    decay: list[str,int,float] = ['step', 1000, 0.9]
+    callbacks: list[str] = ['resample']
+    fourier_transform_features: int = 128
 class BernoulliBalkenTconfig(BaseModel, BConfig):
     input_dim: int = 2
     output_dim: int = 1
@@ -131,6 +144,7 @@ class MechanicalMoisture2DConfig(BaseModel, BConfig):
 steadyHeatConfig = SteadyHeatConfig()
 bernoulliBalkenConfig = BernoulliBalkenConfig()
 bernoulliBalken2DConfig = BernoulliBalken2DConfig()
+bernoulliBalken2DEnsembleConfig = BernoulliBalken2DEnsembleConfig()
 bernoulliBalkenTConfig = BernoulliBalkenTconfig()
 cooksMembranConfig = CooksMembranConfig()
 transientHeatConfig = TransientHeatConfig()

@@ -1,9 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+from FEM.output import load_fem_results, save_fem_results
 from process.thermal_mechanical.scale import Scale
 from domain_vars import thermal_mechanical_2d_domain
-from process.thermal_mechanical.gnd import get_thermal_mechanical_fem # Import the FEM function
+from process.thermal_mechanical.gnd import get_thermal_mechanical_fem
 
 def vis_2d_multi(model, scale: Scale, interval=200, **kwargs):
     """
@@ -41,7 +42,10 @@ def vis_2d_multi(model, scale: Scale, interval=200, **kwargs):
         evaluation_times=t_points,
         evaluation_spatial_points_xy=XY_flat
     )
-    gt_data = gt_data_raw.reshape(nt, ny, nx, 3)
+    gt_data = gt_data_raw.reshape(nt, ny, nx, 3)   
+    save_fem_results("BASELINE/thermal_mechanical/2d/ground_truth.npy", gt_data)
+    #load_fem_results("BASELINE/thermal_mechanical/2d/ground_truth.npy")
+
     gt_u, gt_v, gt_T = gt_data[:, :, :, 0], gt_data[:, :, :, 1], gt_data[:, :, :, 2]
     gt_mag = np.sqrt(gt_u**2 + gt_v**2)
 

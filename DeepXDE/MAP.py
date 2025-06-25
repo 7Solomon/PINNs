@@ -32,6 +32,19 @@ MAP = {
             'path': 'models/mechanic/einspannung_2d',
         
         },
+        'einspannung_2d_ensemble':{
+            'domain': process.mechanic.domain.get_einspannung_domain_2d_ensamble,
+            'domain_vars': domain_vars.einspannung_2d_domain,
+            'config': config.bernoulliBalken2DEnsembleConfig,
+            'scale' : process.mechanic.scale.Scale,
+            'vis' : {
+                'loss': vis.plot_loss,
+                'field': process.mechanic.vis.vis_2d_ensemble,
+                #'div': process.mechanic.vis.visualize_divergence,
+            },
+            'path': 'models/mechanic/einspannung_2d_ensemble',
+        
+        },
         #'fest_los_2d': {
         #    'domain': process.mechanic.domain.get_fest_los_domain_2d,
         #    'config': config.BernoulliBalken2DConfig,

@@ -13,7 +13,10 @@ class Scale(BSaver):
         self.L = max(self.x_max - self.x_min, self.y_max - self.y_min)
         self.t = self.t_max - self.t_min
         self.T = 100
-        self.alpha = concreteData.alpha_thermal_diffusivity
+
+        #self.L = 1
+        #self.t = 1
+        #self.T = 1
         #print('GEHE SICER, dass materialData ist CONCRETE')
     
     #@property

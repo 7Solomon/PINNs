@@ -9,11 +9,12 @@ class Scale(BSaver):
         self.x_min, self.x_max = domain_variables.spatial['x']
         self.y_min, self.y_max = domain_variables.spatial['y']
 
-        self.L = max(self.x_max - self.x_min, self.y_max - self.y_min)
+        self.L = self.x_max - self.x_min
+        self.H = self.y_max - self.y_min
     
     @property
     def sigma(self):
         return materialData.rho* materialData.g * self.L
     @property
     def U(self):
-        return (self.sigma * self.L) / materialData.E
+        return (materialData.rho * materialData.g * self.L**4) / (materialData.E * self.H**2) # From beam theory

@@ -154,6 +154,7 @@ def get_transient_fem(domain_vars,
     fem_states, fem_constants = initialize_fem_state(
         V,
         initial_conditions=initial_conditions,
+        element_desc=element_description,
         constants_def=constants_def,
         state_vars=state_vars
     )

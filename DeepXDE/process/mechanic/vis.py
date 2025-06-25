@@ -12,7 +12,7 @@ from mpi4py import MPI
 import dolfinx as df
 
 from domain_vars import fest_lost_2d_domain
-from process.mechanic.gnd import base_mapping, get_einspannung_2d_fem
+from process.mechanic.gnd import base_mapping, get_einspannung_2d_fem, get_ensemble_einspannung_2d_fem, get_sigma_fem
 
 
 def visualize_field_1d(model, **kwargs):
@@ -51,7 +51,7 @@ def visualize_field_2d(model, scale: Scale, **kwargs):
 
     # Get predictions
     predictions = model.predict(scaled_points)
-    predictions = predictions * scale.U
+    predictions = predictions  * scale.U
 
 
     # GROUND
@@ -107,6 +107,7 @@ def visualize_field_2d(model, scale: Scale, **kwargs):
     # Predicted values
     pred_u_x = predictions[:, 0]
     pred_u_y = predictions[:, 1]
+    
     pred_mag = np.sqrt(pred_u_x**2 + pred_u_y**2)
 
     # Ground truth values
@@ -231,92 +232,214 @@ def visualize_field_2d(model, scale: Scale, **kwargs):
     return {'field': fig}
 
 
-#def visualize_comsol_comparison(comsol_data, predictions, fest_lost_2d_domain, **kwargs):
-#    """
-#    Visualizes COMSOL data and compares it with model predictions.
-#
-#    Args:
-#        comsol_data (np.ndarray): NumPy array with COMSOL data.
-#                                  Expected columns: [X, Y, U_x_comsol, U_y_comsol]
-#        predictions (np.ndarray): NumPy array with model predictions.
-#                                  Expected columns: [U_x_pred, U_y_pred]
-#                                  Should correspond to the points in comsol_data.
-#        fest_lost_2d_domain (Domain): Domain object for outline and limits.
-#    """
-#    X_comsol = comsol_data[:, 0]
-#    Y_comsol = comsol_data[:, 1]
-#    Ux_comsol = comsol_data[:, 2]
-#    Uy_comsol = comsol_data[:, 3]
-#
-#    Ux_pred = predictions[:, 0]
-#    Uy_pred = predictions[:, 1]
-#
-#    # Calculate deviations
-#    Ux_deviation = Ux_pred - Ux_comsol
-#    Uy_deviation = Uy_pred - Uy_comsol
-#
-#    # --- Extract min/max for bounds (Needed for outline/limits) ---
-#    x_min, x_max = fest_lost_2d_domain.spatial['x']
-#    y_min, y_max = fest_lost_2d_domain.spatial['y']
-#    # -------------------------------------------------------------
-#
-#    fig, axes = plt.subplots(2, 2, figsize=(17, 14)) # Increased figure size slightly
-#    fig.suptitle('COMSOL Data and Deviation from Predictions', fontsize=16)
-#
-#    # 1. COMSOL X-Displacement (Top-Left)
-#    ax = axes[0, 0]
-#    ux_comsol_max_abs = np.max(np.abs(Ux_comsol))
-#    scatter_ux_comsol = ax.scatter(X_comsol, Y_comsol, c=Ux_comsol, cmap='RdBu_r', s=1, alpha=0.7,
-#                                   vmin=-ux_comsol_max_abs, vmax=ux_comsol_max_abs)
-#    ax.set_title("COMSOL X-Displacement ($U_x^{COMSOL}$)")
-#    plt.colorbar(scatter_ux_comsol, ax=ax, shrink=0.8)
-#    ax.set_aspect('equal')
-#
-#    # 2. COMSOL Y-Displacement (Top-Right)
-#    ax = axes[0, 1]
-#    uy_comsol_max_abs = np.max(np.abs(Uy_comsol))
-#    scatter_uy_comsol = ax.scatter(X_comsol, Y_comsol, c=Uy_comsol, cmap='RdBu_r', s=1, alpha=0.7,
-#                                   vmin=-uy_comsol_max_abs, vmax=uy_comsol_max_abs)
-#    ax.set_title("COMSOL Y-Displacement ($U_y^{COMSOL}$)")
-#    plt.colorbar(scatter_uy_comsol, ax=ax, shrink=0.8)
-#    ax.set_aspect('equal')
-#
-#    # 3. X-Displacement Deviation (Bottom-Left)
-#    ax = axes[1, 0]
-#    ux_dev_max_abs = np.max(np.abs(Ux_deviation))
-#    scatter_ux_dev = ax.scatter(X_comsol, Y_comsol, c=Ux_deviation, cmap='PRGn', s=1, alpha=0.7,
-#                                vmin=-ux_dev_max_abs, vmax=ux_dev_max_abs) # Using PRGn for deviation
-#    ax.set_title("X-Displacement Deviation ($U_x^{pred} - U_x^{COMSOL}$)")
-#    plt.colorbar(scatter_ux_dev, ax=ax, shrink=0.8)
-#    ax.set_aspect('equal')
-#
-#    # 4. Y-Displacement Deviation (Bottom-Right)
-#    ax = axes[1, 1]
-#    uy_dev_max_abs = np.max(np.abs(Uy_deviation))
-#    scatter_uy_dev = ax.scatter(X_comsol, Y_comsol, c=Uy_deviation, cmap='PRGn', s=1, alpha=0.7,
-#                                vmin=-uy_dev_max_abs, vmax=uy_dev_max_abs) # Using PRGn for deviation
-#    ax.set_title("Y-Displacement Deviation ($U_y^{pred} - U_y^{COMSOL}$)")
-#    plt.colorbar(scatter_uy_dev, ax=ax, shrink=0.8)
-#    ax.set_aspect('equal')
-#
-#    # --- Add beam outline and format all plots ---
-#    beam_outline = np.array([[x_min, y_min], [x_max, y_min], [x_max, y_max], [x_min, y_max], [x_min, y_min]])
-#    
-#    for ax_idx, ax_row in enumerate(axes):
-#        for ax_idy, ax in enumerate(ax_row):
-#            ax.plot(beam_outline[:, 0], beam_outline[:, 1], 'k-', linewidth=1.5, alpha=0.9, label='Boundary')
-#            ax.grid(True, linestyle='--', alpha=0.4)
-#            ax.set_xlabel('X-coordinate')
-#            ax.set_ylabel('Y-coordinate')
-#            ax.set_xlim(x_min - 0.1 * (x_max - x_min), x_max + 0.1 * (x_max - x_min))
-#            ax.set_ylim(y_min - 0.1 * (y_max - y_min), y_max + 0.1 * (y_max - y_min))
-#            #if ax_idx == 0 and ax_idy == 0: # Add legend only once to avoid duplicates
-#            #     ax.legend(loc='upper right')
-#
-#
-#    plt.tight_layout(rect=[0, 0.03, 1, 0.95]) # Adjust layout
-#    
-#    # plt.savefig("comsol_comparison.png", dpi=300, bbox_inches='tight')
-#    # plt.show()
-#    
-#    return {'comsol_comparison_plot': fig}
+def vis_2d_ensemble(model, scale: Scale, **kwargs):
+
+    # Get domain and evaluation points
+    x_min, x_max = fest_lost_2d_domain.spatial['x']
+    y_min, y_max = fest_lost_2d_domain.spatial['y']
+    nx, ny = kwargs.get('resolution', (100, 50))
+    
+    x_points = np.linspace(x_min, x_max, nx)
+    y_points = np.linspace(y_min, y_max, ny)
+    X, Y = np.meshgrid(x_points, y_points)
+    points = np.vstack((X.flatten(), Y.flatten())).T
+    scaled_points = points / np.array([scale.L, scale.L])
+
+    # Get ensemble predictions [u_x, u_y, sigma_x, sigma_y, tau_xy]
+    predictions = model.predict(scaled_points)
+    
+    # Scale predictions back to physical units
+    pred_fields = {
+        'u_x': predictions[:, 0] * scale.U,
+        'u_y': predictions[:, 1] * scale.U,
+        'sigma_x': predictions[:, 2] * scale.sigma,
+        'sigma_y': predictions[:, 3] * scale.sigma,
+        'tau_xy': predictions[:, 4] * scale.sigma
+    }
+
+    comm = MPI.COMM_WORLD
+
+    # Get comprehensive FEM solution using enhanced helper system
+    try:
+        # Try cached ensemble results
+        cached_path = "BASELINE/mechanic/2d/ensemble_ground_truth.npy"
+        ensemble_cache = load_fem_results(cached_path)
+        
+        if ensemble_cache is None:
+            raise FileNotFoundError("Ensemble cache not found")
+            
+        print("Loaded cached ensemble FEM results")
+        gt_fields = {
+            'u_x': ensemble_cache[:, 0],
+            'u_y': ensemble_cache[:, 1],
+            'sigma_x': ensemble_cache[:, 2],
+            'sigma_y': ensemble_cache[:, 3],
+            'tau_xy': ensemble_cache[:, 4]
+        }
+        
+    except (FileNotFoundError, Exception):
+        print("Computing ensemble FEM solution using enhanced helpers...")
+        
+        # Get comprehensive ensemble solution
+        ensemble = get_ensemble_einspannung_2d_fem(fest_lost_2d_domain)
+        
+        # Initialize point evaluation
+        domain = ensemble['displacement'].function_space.mesh
+        perform_eval, eval_points_3d, bb_tree = initialize_point_evaluation(
+            domain, points, comm
+        )
+        
+        if not perform_eval:
+            print("Point evaluation setup failed")
+            return {'field': None}
+        
+        # Evaluate displacement fields
+        V = ensemble['displacement'].function_space
+        V_x, dof_map_x = V.sub(0).collapse()
+        V_y, dof_map_y = V.sub(1).collapse()
+
+        u_x_func = df.fem.Function(V_x)
+        u_y_func = df.fem.Function(V_y)
+        u_x_func.x.array[:] = ensemble['displacement'].x.array[dof_map_x]
+        u_y_func.x.array[:] = ensemble['displacement'].x.array[dof_map_y]
+
+        # Evaluate all fields using helper functions
+        field_evaluations = {}
+        
+        # Displacement components
+        field_evaluations['u_x'] = evaluate_solution_at_points_on_rank_0(
+            u_x_func, eval_points_3d, bb_tree, domain, comm
+        )
+        field_evaluations['u_y'] = evaluate_solution_at_points_on_rank_0(
+            u_y_func, eval_points_3d, bb_tree, domain, comm
+        )
+        
+        # Stress components
+        for stress_name in ['sigma_xx', 'sigma_yy', 'tau_xy']:
+            field_evaluations[stress_name] = evaluate_solution_at_points_on_rank_0(
+                ensemble[stress_name], eval_points_3d, bb_tree, domain, comm
+            )
+        
+        if comm.rank == 0:
+            # Process and flatten results
+            gt_fields = {}
+            for key, eval_result in field_evaluations.items():
+                if eval_result is not None:
+                    gt_fields[key.replace('_xx', '_x').replace('_yy', '_y')] = (
+                        eval_result.flatten() if eval_result.ndim > 1 else eval_result
+                    )
+            
+            # Rename for consistency
+            if 'sigma_x' not in gt_fields and 'sigma_xx' in gt_fields:
+                gt_fields['sigma_x'] = gt_fields.pop('sigma_xx')
+            if 'sigma_y' not in gt_fields and 'sigma_yy' in gt_fields:
+                gt_fields['sigma_y'] = gt_fields.pop('sigma_yy')
+            
+            # Cache ensemble results
+            ensemble_cache = np.column_stack([
+                gt_fields['u_x'], gt_fields['u_y'], 
+                gt_fields['sigma_x'], gt_fields['sigma_y'], gt_fields['tau_xy']
+            ])
+            save_fem_results(cached_path, ensemble_cache)
+            
+        else:
+            return {'field': None}
+
+    # Create comprehensive ensemble visualization
+    return _create_ensemble_visualization(
+        X, Y, points, pred_fields, gt_fields, 
+        x_min, x_max, y_min, y_max, nx, ny
+    )
+
+def _create_ensemble_visualization(X, Y, points, pred_fields, gt_fields, 
+                                 x_min, x_max, y_min, y_max, nx, ny):
+    """
+    Helper function to create comprehensive ensemble visualization
+    """
+    # Check array consistency
+    n_points = len(pred_fields['u_x'])
+    for key in gt_fields:
+        if len(gt_fields[key]) != n_points:
+            print(f"Warning: Size mismatch for {key}")
+            min_size = min(len(pred_fields[key]), len(gt_fields[key]))
+            pred_fields[key] = pred_fields[key][:min_size]
+            gt_fields[key] = gt_fields[key][:min_size]
+
+    # Create comprehensive visualization
+    fig, axes = plt.subplots(5, 3, figsize=(20, 32))
+    fig.suptitle('Enhanced Ensemble Field Visualization: Prediction vs. Ground Truth', fontsize=22)
+
+    # Field configuration
+    field_config = [
+        {'key': 'u_x', 'name': 'X-Displacement ($u_x$)', 'unit': '[m]', 'cmap': 'RdBu_r'},
+        {'key': 'u_y', 'name': 'Y-Displacement ($u_y$)', 'unit': '[m]', 'cmap': 'RdBu_r'},
+        {'key': 'sigma_x', 'name': 'X-Stress ($\\sigma_x$)', 'unit': '[Pa]', 'cmap': 'coolwarm'},
+        {'key': 'sigma_y', 'name': 'Y-Stress ($\\sigma_y$)', 'unit': '[Pa]', 'cmap': 'coolwarm'},
+        {'key': 'tau_xy', 'name': 'Shear Stress ($\\tau_{xy}$)', 'unit': '[Pa]', 'cmap': 'seismic'}
+    ]
+
+    for i, config in enumerate(field_config):
+        key = config['key']
+        
+        try:
+            # Reshape data for contour plots
+            pred_2d = pred_fields[key][:nx*ny].reshape(ny, nx)
+            gt_2d = gt_fields[key][:nx*ny].reshape(ny, nx)
+            error_2d = (pred_fields[key][:nx*ny] - gt_fields[key][:nx*ny]).reshape(ny, nx)
+            
+            # Plot predicted field
+            ax = axes[i, 0]
+            contour = ax.contourf(X, Y, pred_2d, levels=20, cmap=config['cmap'])
+            ax.set_title(f"Predicted {config['name']}")
+            cbar = plt.colorbar(contour, ax=ax, shrink=0.8)
+            cbar.set_label(config['unit'])
+
+            # Plot ground truth field
+            ax = axes[i, 1]
+            contour_gt = ax.contourf(X, Y, gt_2d, levels=20, cmap=config['cmap'])
+            ax.set_title(f"Ground Truth {config['name']}")
+            cbar_gt = plt.colorbar(contour_gt, ax=ax, shrink=0.8)
+            cbar_gt.set_label(config['unit'])
+
+            # Plot error field
+            ax = axes[i, 2]
+            contour_err = ax.contourf(X, Y, error_2d, levels=20, cmap='PRGn')
+            ax.set_title(f"{config['name']} Error")
+            cbar_err = plt.colorbar(contour_err, ax=ax, shrink=0.8)
+            cbar_err.set_label(f"Error {config['unit']}")
+            
+        except Exception as e:
+            print(f"Error plotting field {key}: {e}")
+            for j in range(3):
+                axes[i, j].text(0.5, 0.5, f"Error plotting {key}", 
+                              ha='center', va='center', transform=axes[i, j].transAxes)
+
+    # Format all plots
+    _format_visualization_axes(axes, x_min, x_max, y_min, y_max)
+    
+    plt.tight_layout(rect=[0, 0.03, 1, 0.97])
+    
+    return {'field': fig}
+
+def _format_visualization_axes(axes, x_min, x_max, y_min, y_max):
+    """
+    Helper function to format visualization axes consistently
+    """
+    beam_outline = np.array([
+        [x_min, y_min], [x_max, y_min], 
+        [x_max, y_max], [x_min, y_max], [x_min, y_min]
+    ])
+    
+    for ax in axes.flat:
+        if ax.get_title():  # Skip empty subplots
+            ax.plot(beam_outline[:, 0], beam_outline[:, 1], 'k-', linewidth=1.5, alpha=0.9)
+            ax.grid(True, linestyle='--', alpha=0.4)
+            ax.set_xlabel('X-coordinate [m]')
+            ax.set_ylabel('Y-coordinate [m]')
+            ax.set_aspect('equal')
+            
+            # Set limits with buffer
+            buffer_x = 0.1 * (x_max - x_min)
+            buffer_y = 0.1 * (y_max - y_min)
+            ax.set_xlim(x_min - buffer_x, x_max + buffer_x)
+            ax.set_ylim(y_min - buffer_y, y_max + buffer_y)

@@ -79,9 +79,9 @@ def get_1d_head_domain(domain_vars: Domain, scale: HeadScale):
     
     boundary_conditions = create_boundary_conditions(
         geom_time,
-        initial_val=-3.5/scale.H,        #-0.01 / scale.H,  # very high grads which leads to very high diffrence between BC, IC and the resi
-        left_val=-1.0/scale.H,        #-0.01 / scale.H,
-        right_val=-7.0/scale.H,        #    -10 / scale.H
+        initial_val=-3.5/scale.h_char,        #-0.01 / scale.H,  # very high grads which leads to very high diffrence between BC, IC and the resi
+        left_val=-1.0/scale.h_char,        #-0.01 / scale.H,
+        right_val=-7.0/scale.h_char,        #    -10 / scale.H
         scale=scale,
         component=0   
     )

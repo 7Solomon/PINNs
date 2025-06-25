@@ -6,9 +6,9 @@ def lp_residual(x,y, scale: Scale):
     T_t=dde.grad.jacobian(y, x, i=0, j=2)
     T_xx=dde.grad.hessian(y, x, i=0, j=0)
     T_yy=dde.grad.hessian(y, x, i=0, j=1)
-    alpha = concreteData.alpha_thermal_diffusivity / scale.alpha
+    alpha = concreteData.alpha_thermal_diffusivity
 
-    pi_one = (scale.alpha * scale.t ) / scale.L**2 # [-]
+    pi_one = scale.t / scale.L**2 # [-]
     #print('----')
     #print('T_t', T_t.min().item(), T_t.max().item())
     #print('T_xx', T_xx.min().item(), T_xx.max().item())

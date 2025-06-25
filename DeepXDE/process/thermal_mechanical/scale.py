@@ -1,6 +1,7 @@
 from utils.metadata import BSaver
 import torch
-
+from material import concreteData
+materialData = concreteData
 class Scale(BSaver):
     def __init__(self, domain_variables):
         self.x_min, self.x_max = domain_variables.spatial['x']
@@ -10,10 +11,10 @@ class Scale(BSaver):
         self.Temperature = 10
 
         self.t = self.t_max - self.t_min
-        #self.t = 1
         self.L = max(self.x_max - self.x_min, self.y_max - self.y_min)
-        self.U = 0.1
-
-    def sigma(self, E):
-        return (E * self.U) / self.L  # [Pa]
-#
+    @property
+    def sigma(self):
+        return materialData.E * materialData.thermal_expansion_coefficient * self.Temperature
+    @property
+    def U(self):
+        return (self.sigma * self.L) / materialData.E

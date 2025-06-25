@@ -1,6 +1,6 @@
 import argparse
 from MAP import MAP
-from utils.dynamic_loss import DynamicLossWeightCallback
+from utils.dynamic_loss import DynamicLossWeightCallback, SlowPdeLossWeightCallback
 import vis
 from utils.model_utils import load_function, save_function
 from model import create_model
@@ -84,8 +84,10 @@ def manage_args(args):
     ### Train
     if hasattr(args, 'epochs') and args.epochs > 0:
         callbacks = []
+        if hasattr(config, 'callbacks') and 'slowPdeAnnealing' in config.callbacks:
+            callbacks.append(SlowPdeLossWeightCallback(pde_indices=config.pde_indices, final_weight=config.annealing_value))
         if hasattr(config, 'callbacks') and 'dynamicLossWeight' in config.callbacks:
-            callbacks.append(DynamicLossWeightCallback(model, 0, max_epoch=args.epochs))
+            callbacks.append(DynamicLossWeightCallback())
         if hasattr(config, 'callbacks') and 'resample' in config.callbacks:
             callbacks.append(dde.callbacks.PDEPointResampler(period=1000))
         loss_history, train_state = model.train(iterations=args.epochs, callbacks=callbacks)

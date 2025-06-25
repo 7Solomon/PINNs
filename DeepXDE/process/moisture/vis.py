@@ -29,7 +29,6 @@ def vis_1d_head(model, scale: HeadScale, interval=1000, xlabel='z', ylabel='u(z,
     ZT_scaled = np.vstack((Z_scaled.ravel(), T_scaled.ravel())).T
 
 
-    #ground_eval_flat_time_spatial = load_fem_results("BASELINE/moisture/1d/ground_truth.npy")
     _, ground_eval_flat_time_spatial = get_richards_1d_head_fem(
             moisture_1d_domain,
             nz=num_z_points,
@@ -37,25 +36,15 @@ def vis_1d_head(model, scale: HeadScale, interval=1000, xlabel='z', ylabel='u(z,
             evaluation_spatial_points_z= z_points.reshape(-1, 1),
         )
     
-    save_fem_results("BASELINE/moisture/1d/ground_truth.npy", ground_eval_flat_time_spatial)
-
     ground_truth_data = np.full((num_z_points, num_t_points), np.nan) 
-    if ground_eval_flat_time_spatial is not None and ground_eval_flat_time_spatial.size > 0:
-        try:
-            # Reshape the flattened [time, space] data into [nt, nz]
-            # then transpose to get [nz, nt] for plotting consistency.
-            ground_truth_data = ground_eval_flat_time_spatial.reshape(num_t_points, num_z_points).transpose(1, 0)
-        except ValueError as e:
-            print(f"Error reshaping FEM results: {e}")
-            print(f"ground_eval_flat_time_spatial shape: {ground_eval_flat_time_spatial.shape}")
-            print(f"Target reshape dimensions: ({num_t_points}, {num_z_points})")
-    else:
-        print("Warning: FEM evaluation data is None or empty on rank 0. Plotting with NaNs.")
+    ground_truth_data = ground_eval_flat_time_spatial.reshape(num_t_points, num_z_points).transpose(1, 0)
+    save_fem_results("BASELINE/moisture/1d_head/ground_truth.npy", ground_truth_data)
+    #ground_truth_data = load_fem_results("BASELINE/moisture/1d_head/ground_truth.npy")
 
 
     # Get predictions from the model
     predictions = model.predict(ZT_scaled)
-    predictions = predictions * scale.H
+    predictions = predictions * scale.h_char
     pinn_data = predictions.reshape(num_t_points, num_z_points).T
 
     error_data = pinn_data - ground_truth_data
@@ -126,23 +115,18 @@ def vis_1d_saturation(model, scale: SaturationScale, interval=1000, xlabel='z [m
     t_points = np.linspace(t_start, t_end, num_t_points)
 
     # --- Get Ground Truth Data ---
-    _, ground_eval_flat_time_spatial = get_richards_1d_saturation_fem(
-        moisture_1d_domain,
-        nz=num_z_points,
-        evaluation_times=t_points,
-        evaluation_spatial_points_z=z_points.reshape(-1, 1),
-    )
-    save_fem_results("BASELINE/moisture/1d/saturation_ground_truth.npy", ground_eval_flat_time_spatial)
+    #_, ground_eval_flat_time_spatial = get_richards_1d_saturation_fem(
+    #    moisture_1d_domain,
+    #    nz=num_z_points,
+    #    evaluation_times=t_points,
+    #    evaluation_spatial_points_z=z_points.reshape(-1, 1),
+    #)
     #ground_eval_flat_time_spatial = load_fem_results("BASELINE/moisture/1d/saturation_ground_truth.npy")
+    #ground_truth_data = np.full((num_z_points, num_t_points), np.nan)
+    #ground_truth_data = ground_eval_flat_time_spatial.reshape(num_t_points, num_z_points).T
+    #save_fem_results("BASELINE/moisture/1d_saturation/ground_truth.npy", ground_truth_data)
+    ground_truth_data = load_fem_results("BASELINE/moisture/1d_saturation/ground_truth.npy")
 
-    ground_truth_data = np.full((num_z_points, num_t_points), np.nan)
-    if ground_eval_flat_time_spatial is not None and ground_eval_flat_time_spatial.size > 0:
-        try:
-            ground_truth_data = ground_eval_flat_time_spatial.reshape(num_t_points, num_z_points).T
-        except ValueError as e:
-            print(f"Error reshaping FEM results: {e}")
-    else:
-        print("Warning: FEM evaluation data is None or empty. Ground truth will be NaNs.")
 
     # --- Get PINN Predictions ---
     Z, T = np.meshgrid(z_points, t_points)

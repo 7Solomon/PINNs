@@ -70,31 +70,19 @@ def visualize_transient_field(model, scale: Scale, **kwargs):
     X_spatial_grid, Y_spatial_grid = np.meshgrid(x, y, indexing='xy') # ny, nx
     evaluation_spatial_points_xy = np.stack((X_spatial_grid.ravel(), Y_spatial_grid.ravel()), axis=-1)
 
-    ground_eval_flat_time_spatial = load_fem_results("BASELINE/heat/ground_truth.npy")
 
-    #_, ground_eval_flat_time_spatial = get_transient_fem(
-    #    transient_heat_2d_domain,
-    #    evaluation_times=t,
-    #    evaluation_spatial_points_xy=evaluation_spatial_points_xy
-    #)
-    #save_fem_results("BASELINE/heat/ground_truth.npy", ground_eval_flat_time_spatial)
-
-    # --- MPI Check: The rest of the function (plotting) should only run on rank 0 ---
-    if MPI.COMM_WORLD.rank != 0:
-        return {'field': None, 'fig': None}
+    _, ground_eval_flat_time_spatial = get_transient_fem(
+        transient_heat_2d_domain,
+        evaluation_times=t,
+        evaluation_spatial_points_xy=evaluation_spatial_points_xy
+    )
 
     ground_truth = np.full((ny, nx, nt), np.nan) 
-    if ground_eval_flat_time_spatial is not None and ground_eval_flat_time_spatial.size > 0:
-        try:
-            # Reshape the flattened [time, space] data into [nt, ny, nx]
-            # then transpose to get [ny, nx, nt] for plotting consistency.
-            ground_truth = ground_eval_flat_time_spatial.reshape(nt, ny, nx).transpose(1, 2, 0)
-        except ValueError as e:
-            print(f"Error reshaping FEM results: {e}")
-            print(f"ground_eval_flat_time_spatial shape: {ground_eval_flat_time_spatial.shape}")
-            print(f"Target reshape dimensions: ({nt}, {ny}, {nx})")
-    else:
-        print("Warning: FEM evaluation data is None or empty on rank 0. Plotting with NaNs.")
+    ground_truth = ground_eval_flat_time_spatial.reshape(nt, ny, nx).transpose(1, 2, 0)
+    save_fem_results("BASELINE/heat/ground_truth.npy", ground_truth)
+    #ground_truth = load_fem_results("BASELINE/heat/ground_truth.npy")
+
+
 
     difference = predictions - ground_truth
 
