@@ -2,34 +2,28 @@ from utils.metadata import BSaver
 from material import concreteData
 material_data = concreteData
 
-class HeadScale(BSaver):
-    def __init__(self, domain_variables):
+
+class RichardsScale(BSaver):
+    def __init__(self, domain_variables, **attributes):
+        super().__init__(**attributes)
         self.z_min, self.z_max = domain_variables.spatial['z']
         self.t_min, self.t_max = domain_variables.temporal['t']
-        self.T = None
-
-        self.L = (self.z_max - self.z_min)
-        #self.T = 10e5
-        #self.K = 1e-9
-        #self.H = 7
+        self.L = (self.z_max - self.z_min)  # Length scale [m]
         self.T_domain = (self.t_max - self.t_min)
         self.T_physics = min(self.T_hydraulic, self.T_diffusion, self.T_capillary)
-        
-        #
+
+        # Determine time scale regime
         if self.T_domain >= self.T_physics:
             self.T = self.T_physics
             self.regime = "quasi-steady"
-            print(f"Quasi-steady regime: using physics time scale")
         else:
             self.T = self.T_domain
             self.regime = "transient"
-            print(f"Transient regime: using domain time scale")
-
-
-        ## FOr analysis
-        self.Da_hydraulic = self.T_domain / self.T_hydraulic    # Damköhler number
+        
+        # Dimensionless numbers
+        self.Da_hydraulic = self.T_domain / self.T_hydraulic
         self.Da_diffusion = self.T_domain / self.T_diffusion
-        self.Pe = self.L * material_data.K_s / material_data.D_moisture  # Peclet number
+        self.Pe = self.L * material_data.K_s / material_data.D_moisture
 
         self.print_DEBUG()
 
@@ -47,13 +41,19 @@ class HeadScale(BSaver):
         return self.h_char / (material_data.K_s * material_data.alpha_vg)  # [s]
 
     def print_DEBUG(self):
+        scale_name = self.__class__.__name__
+        print(f"\n--- [{scale_name}] Analysis ---")
+        if self.regime == "quasi-steady":
+            print(f"Quasi-steady regime: using physics time scale")
+        else:
+            print(f"Transient regime: using domain time scale")
+
         print(f"\n=== TIME SCALE ===")
         print(f"Domain time:     {self.T_domain:.2e} s = {self.T_domain/86400:.1f} days")
         print(f"Hydraulic time:  {self.T_hydraulic:.2e} s = {self.T_hydraulic/86400:.1f} days")
         print(f"Diffusion time:  {self.T_diffusion:.2e} s = {self.T_diffusion/86400:.1f} days")
         print(f"Capillary time:  {self.T_capillary:.2e} s = {self.T_capillary/86400:.1f} days")
         print(f"Selected time:   {self.T:.2e} s = {self.T/86400:.1f} days")
-        print(f"Regime: {self.regime}")
         
         print(f"\n=== DIMENSIONLESS STUFF ===")
         print(f"Da_hydraulic = {self.Da_hydraulic:.2e} (domain_time/hydraulic_time)")
@@ -73,17 +73,19 @@ class HeadScale(BSaver):
             print("=> Diffusion-dominated flow")
         else:
             print("=> Mixed advection-diffusion")
+        print("-" * (len(scale_name) + 12))
 
-class SaturationScale(BSaver):
+
+class HeadScale(RichardsScale):
     def __init__(self, domain_variables):
-        self.z_min, self.z_max = domain_variables.spatial['z']
-        self.t_min, self.t_max = domain_variables.temporal['t']
+        super().__init__(domain_variables)
+        self.H = self.h_char
 
-        self.L = (self.z_max - self.z_min)
-        self.T = 10e5
-        self.K = 5e-6
-        self.S = 0.9
 
-        self.theta = 0.01
+class SaturationScale(RichardsScale):
+    def __init__(self, domain_variables):
+        super().__init__(domain_variables)
+        self.theta = concreteData.theta_s - concreteData.theta_r
+        self.H = self.h_char
 
-        self.H = 7.0
+

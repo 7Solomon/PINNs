@@ -188,7 +188,7 @@ def visualize_field_2d(model, scale: Scale, **kwargs):
     plt.colorbar(contour_err_uy, ax=ax, shrink=0.8)
 
     # ROW 3: Deformed Shape
-    scale_factor = 10.0
+    scale_factor = 50
     
     # Predicted Deformed Shape
     ax = axes[3, 0]
@@ -196,8 +196,8 @@ def visualize_field_2d(model, scale: Scale, **kwargs):
     deformed_Y_pred = Y + scale_factor * pred_u_y_2d
     ax.scatter(X, Y, c='blue', s=0.5, alpha=0.3, label='Original')
     ax.scatter(deformed_X_pred, deformed_Y_pred, c='red', s=0.5, alpha=0.7, label=f'Deformed (×{scale_factor})')
-    ax.set_title("Predicted Deformed Shape")
-    ax.legend()
+    ax.set_title(f"Predicted Deformed Shape, with scale: {scale_factor}")
+    
 
     # Ground Truth Deformed Shape
     ax = axes[3, 1]
@@ -205,8 +205,8 @@ def visualize_field_2d(model, scale: Scale, **kwargs):
     deformed_Y_gt = Y + scale_factor * gt_u_y_2d
     ax.scatter(X, Y, c='blue', s=0.5, alpha=0.3, label='Original')
     ax.scatter(deformed_X_gt, deformed_Y_gt, c='green', s=0.5, alpha=0.7, label=f'Deformed (×{scale_factor})')
-    ax.set_title("Ground Truth Deformed Shape")
-    ax.legend()
+    ax.set_title(f"Ground Truth Deformed Shape, with scale: {scale_factor}")
+    
 
     # Turn off the last unused plot
     axes[3, 2].axis('off')
@@ -229,7 +229,7 @@ def visualize_field_2d(model, scale: Scale, **kwargs):
 
     plt.tight_layout(rect=[0, 0.03, 1, 0.96]) # Adjust layout to make space for suptitle
     
-    return {'field': fig}
+    return {'fig': fig}
 
 
 def vis_2d_ensemble(model, scale: Scale, **kwargs):

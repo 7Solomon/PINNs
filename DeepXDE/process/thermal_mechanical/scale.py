@@ -11,7 +11,7 @@ class Scale(BSaver):
         self.Temperature = 10
 
         self.t = self.t_max - self.t_min
-        self.L = max(self.x_max - self.x_min, self.y_max - self.y_min)
+        self.L = min(self.x_max - self.x_min, self.y_max - self.y_min)
     @property
     def sigma(self):
         return materialData.E * materialData.thermal_expansion_coefficient * self.Temperature

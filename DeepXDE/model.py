@@ -12,7 +12,7 @@ def create_model(data, config: BConfig, output_transform=None):
    
     if fourier_transform_features:
         print(f'Using Fourier transform with {fourier_transform_features} features')
-        pinn = dde.maps.FNN([config.input_dim*fourier_transform_features]+[50]*4+[config.output_dim], 'tanh', 'Glorot uniform')
+        pinn = dde.maps.FNN([config.input_dim*fourier_transform_features]+[50]*4+[config.output_dim], config.activation, config.initializer)
         feature_transform = FourierFeatureTransform(
             in_dim=config.input_dim, 
             num_features=fourier_transform_features, 
@@ -20,7 +20,7 @@ def create_model(data, config: BConfig, output_transform=None):
         )
         pinn.apply_feature_transform(feature_transform)
     else:
-        pinn = dde.maps.FNN([config.input_dim]+[50]*4+[config.output_dim], 'tanh', 'Glorot uniform')
+        pinn = dde.maps.FNN([config.input_dim]+[50]*4+[config.output_dim], config.activation, config.initializer)
 
     pinn.apply_output_transform(output_transform) if output_transform else None
 

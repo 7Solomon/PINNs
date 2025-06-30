@@ -44,6 +44,17 @@ def get_transient_domain(domain_vars: Domain, scale: Scale):
         geomtime,
         lambda x: right_value, lambda x, on_boundary: on_boundary and np.isclose(x[0], x_max/scale.L))
 
+
+    # NO FLUX
+    bc_top = dde.OperatorBC(
+        geomtime, 
+        lambda x,y, _: dde.grad.jacobian(y, x, i=0, j=1), lambda x, on_boundary: on_boundary and np.isclose(x[1], y_max/scale.L))
+    bc_bottom = dde.OperatorBC(
+        geomtime, 
+        lambda x,y, _: dde.grad.jacobian(y, x, i=0, j=1), lambda x, on_boundary: on_boundary and np.isclose(x[1], y_min/scale.L))
+
+
+
     # IC
     ic = dde.IC(geomtime, 
         lambda x: initial_value, lambda _, on_initial: on_initial)
@@ -51,7 +62,7 @@ def get_transient_domain(domain_vars: Domain, scale: Scale):
     data = dde.data.TimePDE(
         geomtime,
         lambda x,y: lp_residual(x, y, scale),
-        [bc_left, bc_right, ic],
+        [ic, bc_left, bc_right, bc_top, bc_bottom],
         num_domain=1600,
         num_boundary=600,
         num_initial=400

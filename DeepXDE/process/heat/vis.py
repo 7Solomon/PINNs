@@ -71,16 +71,15 @@ def visualize_transient_field(model, scale: Scale, **kwargs):
     evaluation_spatial_points_xy = np.stack((X_spatial_grid.ravel(), Y_spatial_grid.ravel()), axis=-1)
 
 
-    _, ground_eval_flat_time_spatial = get_transient_fem(
-        transient_heat_2d_domain,
-        evaluation_times=t,
-        evaluation_spatial_points_xy=evaluation_spatial_points_xy
-    )
-
-    ground_truth = np.full((ny, nx, nt), np.nan) 
-    ground_truth = ground_eval_flat_time_spatial.reshape(nt, ny, nx).transpose(1, 2, 0)
-    save_fem_results("BASELINE/heat/ground_truth.npy", ground_truth)
-    #ground_truth = load_fem_results("BASELINE/heat/ground_truth.npy")
+    #_, ground_eval_flat_time_spatial = get_transient_fem(
+    #    transient_heat_2d_domain,
+    #    evaluation_times=t,
+    #    evaluation_spatial_points_xy=evaluation_spatial_points_xy
+    #)
+    #ground_truth = np.full((ny, nx, nt), np.nan) 
+    #ground_truth = ground_eval_flat_time_spatial.reshape(nt, ny, nx).transpose(1, 2, 0)
+    #save_fem_results("BASELINE/heat/ground_truth.npy", ground_truth)
+    ground_truth = load_fem_results("BASELINE/heat/ground_truth.npy")
 
 
 

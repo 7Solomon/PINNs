@@ -14,9 +14,10 @@ from material import concreteData
 def strain(u_vec):
     return 0.5 * (ufl.grad(u_vec) + ufl.grad(u_vec).T)
 
-def stress(u_vec, temp, thermal_expansion_coefficient, C):
+def stress(u_vec, temp, thermal_expansion_coefficient, nu, C):
     # Thermal strain
-    eps_thermal = ufl.as_vector([thermal_expansion_coefficient * temp, thermal_expansion_coefficient * temp, 0])
+    effective_thermal_strain = thermal_expansion_coefficient * temp
+    eps_thermal = ufl.as_vector([effective_thermal_strain, effective_thermal_strain, 0])
 
     # Mechanical strain
     eps_u_voigt = ufl.as_vector([strain(u_vec)[0, 0], strain(u_vec)[1, 1], 2 * strain(u_vec)[0, 1]])
@@ -32,13 +33,13 @@ def stress(u_vec, temp, thermal_expansion_coefficient, C):
 
 
 
-def define_thermal_mechanical_weak_form(V, dt, uh, un, C, thermal_expansion_coefficient_const, alpha_thermal_diffusivity):
+def define_thermal_mechanical_weak_form(V, dt, uh, un, C, thermal_expansion_coefficient_const, nu_const, alpha_thermal_diffusivity):
     (u, T) = ufl.TrialFunctions(V)
     (v, q) = ufl.TestFunctions(V)
     (u_n, T_n) = ufl.split(un)
 
     # mechanic weak
-    sigma_u = stress(u, T, thermal_expansion_coefficient_const, C)
+    sigma_u = stress(u, T, thermal_expansion_coefficient_const, nu_const, C)
     a_mech = ufl.inner(sigma_u, strain(v)) * ufl.dx
     a_thermal = (T/dt * q + alpha_thermal_diffusivity * ufl.dot(ufl.grad(T), ufl.grad(q))) * ufl.dx
     
@@ -95,6 +96,7 @@ def get_thermal_mechanical_fem(
     constants_def = {"dt": dt_fem_internal, 
                     'C': concreteData.C_stiffness_matrix().cpu().numpy(), 
                     'thermal_expansion_coefficient': concreteData.thermal_expansion_coefficient, 
+                    'nu': concreteData.nu,
                     'alpha_thermal_diffusivity': concreteData.alpha_thermal_diffusivity}
     state_vars = ["uh", "un"]
     fem_states, fem_constants = initialize_fem_state(
@@ -111,13 +113,14 @@ def get_thermal_mechanical_fem(
     dt_const = fem_constants["dt"]
     C_const = fem_constants["C"]
     thermal_expansion_coefficient_const = fem_constants["thermal_expansion_coefficient"]
+    nu_const = fem_constants["nu"]
     alpha_thermal_diffusivity_const = fem_constants["alpha_thermal_diffusivity"]
 
     # Initial and previos same in first 
     un.x.array[:] = uh.x.array
 
     # weak
-    a, L = define_thermal_mechanical_weak_form(V, dt_const, uh, un, C_const, thermal_expansion_coefficient_const, alpha_thermal_diffusivity_const)
+    a, L = define_thermal_mechanical_weak_form(V, dt_const, uh, un, C_const, thermal_expansion_coefficient_const, nu_const, alpha_thermal_diffusivity_const)
 
     solver_function = create_solver(mesh, a, L, bcs, 'linear', uh=uh)
 

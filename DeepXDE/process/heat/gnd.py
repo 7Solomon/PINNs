@@ -165,7 +165,7 @@ def get_transient_fem(domain_vars,
     alpha_const = fem_constants["alpha"]
     
     # Set the initial condition for the previous step as well
-    un.x.array[:] = uh.x.array
+    #un.x.array[:] = uh.x.array
 
     a_form, l_form = define_heat_equation_forms(V, dt_const, alpha_const, un)
 
@@ -193,15 +193,5 @@ def get_transient_fem(domain_vars,
         evaluation_times=evaluation_times,
         evaluation_spatial_points_xy=evaluation_spatial_points_xy
     )
-
-    #output_file_path = 'BASELINE/heat/transient_fem_dolfinx/solution.pvd'
-    #prepare_output_directory(output_file_path, comm)
-    # vtkfile = df.io.VTKFile(comm, output_file_path, "w")
-    # vtkfile.write_function(uh, t_min)
-
-    #perform_point_evaluation, eval_points_3d, bb_tree = _initialize_point_evaluation(
-    #    domain, evaluation_spatial_points_xy, comm
-    #)
-    
     return uh, final_evaluated_data
 

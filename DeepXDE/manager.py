@@ -1,4 +1,5 @@
 import argparse
+from utils.variable_lr import VariableLearningRateCallback
 from MAP import MAP
 from utils.dynamic_loss import DynamicLossWeightCallback, SlowPdeLossWeightCallback
 import vis
@@ -90,6 +91,8 @@ def manage_args(args):
             callbacks.append(DynamicLossWeightCallback())
         if hasattr(config, 'callbacks') and 'resample' in config.callbacks:
             callbacks.append(dde.callbacks.PDEPointResampler(period=1000))
+        if hasattr(config, 'callbacks') and 'variable_lr_config' in config.callbacks:
+            callbacks.append(VariableLearningRateCallback(**config.variable_lr_config))
         loss_history, train_state = model.train(iterations=args.epochs, callbacks=callbacks)
         #np.save('train_state.npy', train_state)
     else:

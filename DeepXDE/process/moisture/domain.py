@@ -102,9 +102,9 @@ def get_1d_saturation_domain(domain_vars: Domain, scale: SaturationScale):
     
     boundary_conditions = create_boundary_conditions(
         geom_time,
-        initial_val= 0.5/scale.S,       #0.3,    # Makers very steep gradient with also way to large time scale
-        left_val= 0.9/scale.S,          #0.3,
-        right_val=0.2/scale.S,          #0.01
+        initial_val= 0.5,       #0.3,    # Makers very steep gradient with also way to large time scale
+        left_val= 0.9,          #0.3,
+        right_val=0.2,          #0.01
         scale=scale,
         component=0  # Saturation
     )

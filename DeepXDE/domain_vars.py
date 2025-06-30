@@ -20,7 +20,7 @@ fest_lost_2d_domain = Domain(
     )
 einspannung_2d_domain = Domain(
         spatial={
-            'x':(0,10),
+            'x':(0,25),
             'y':(0,1)
         }
     )

@@ -31,14 +31,17 @@ def pde_2d_residual(x, y, scale: Scale):
   b_force = (scale.L / scale.sigma) * (-concreteData.rho * concreteData.g)
 
   #print('-----')
-  #print('sigmax_x:', sigmax_x.min().item(), sigmax_x.max().item())
-  #print('sigmay_y:', sigmay_y.min().item(), sigmay_y.max().item())
-  #print('tauxy_y:', tauxy_y.min().item(), tauxy_y.max().item())
-  #print('tauxy_x:', tauxy_x.min().item(), tauxy_x.max().item())
+  #print('u', y[:,0].min().item(), y[:,0].max().item())
+  #print('v', y[:,1].min().item(), y[:,1].max().item())
+  #print('sigmax_x:', sigmax_x_nd.min().item(), sigmax_x_nd.max().item())
+  #print('sigmay_y:', sigmay_y_nd.min().item(), sigmay_y_nd.max().item())
+  #print('tauxy_y:', tauxy_y_nd.min().item(), tauxy_y_nd.max().item())
+  #print('tauxy_x:', tauxy_x_nd.min().item(), tauxy_x_nd.max().item())
   #print('b_force:', b_force)
   #print('scale.sigma:', scale.sigma)
   #print('scale.L:', scale.L)
   #print('scale.U:', scale.U)
+  #print()
 
   return [sigmax_x_nd + tauxy_y_nd, sigmay_y_nd + tauxy_x_nd + b_force] #- 1.0/scale.f]
 

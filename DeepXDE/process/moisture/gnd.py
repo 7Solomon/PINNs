@@ -141,14 +141,14 @@ def get_richards_1d_head_fem(domain_vars,
     )
     return uh, final_evaluated_data
 
-def ufl_get_volumetric_water_content(S_total, material):
-    """Calculates volumetric water content (theta) from total saturation (S)."""
-    return S_total * (material.theta_s - material.theta_r) + material.theta_r
+def ufl_get_volumetric_water_content_from_Se(Se, material):
+    """Calculates volumetric water content (theta) from effective saturation (Se)."""
+    return Se * (material.theta_s - material.theta_r) + material.theta_r
 
-def ufl_get_effective_saturation(S_total, material):
-    """Calculates effective saturation (Se) from total saturation (S)."""
-    theta = ufl_get_volumetric_water_content(S_total, material)
-    return ufl.max_value(0.0, (theta - material.theta_r) / (material.theta_s - material.theta_r))
+#def ufl_get_effective_saturation(S_total, material):
+#    """Calculates effective saturation (Se) from total saturation (S)."""
+#    theta = ufl_get_volumetric_water_content(S_total, material)
+#    return ufl.max_value(0.0, (theta - material.theta_r) / (material.theta_s - material.theta_r))
 
 def ufl_get_pressure_head(Se, material):
     """Calculates pressure head (h) from effective saturation (Se)."""
@@ -172,12 +172,13 @@ def define_moisture_1d_saturation_weak_form(V, dt, uh, un, material):
 
     v = ufl.TestFunction(V)
 
-    theta_h = ufl_get_volumetric_water_content(uh, material)
-    Se_h = ufl_get_effective_saturation(uh, material)
-    h_h = ufl_get_pressure_head(Se_h, material)
-    K_h = ufl_get_hydraulic_conductivity_from_Se(Se_h, material)
 
-    theta_n = ufl_get_volumetric_water_content(un, material)
+    ### uh = Se
+    theta_h = ufl_get_volumetric_water_content_from_Se(uh, material)
+    h_h = ufl_get_pressure_head(uh, material)
+    K_h = ufl_get_hydraulic_conductivity_from_Se(uh, material)
+
+    theta_n = ufl_get_volumetric_water_content_from_Se(un, material)
 
     # (theta_h - theta_n)/dt * v + K(h) * grad(h) * grad(v) = 0
     F = (theta_h - theta_n) * v * ufl.dx + dt * ufl.dot(K_h * ufl.grad(h_h), ufl.grad(v)) * ufl.dx
@@ -205,7 +206,7 @@ def get_richards_1d_saturation_fem(domain_vars,
     # Dt
     dt_fem_internal = get_dt(comm, evaluation_times)
 
-    # BC and IC (values for total saturation S)
+    # BC and IC (Se)
     bc_left_value = 0.9
     bc_right_value = 0.2
     initial_condition_value = 0.5
@@ -239,7 +240,8 @@ def get_richards_1d_saturation_fem(domain_vars,
     bcs = create_dirichlet_bcs(V, bcs_defs)
 
     # SOL
-    solver_function = create_solver(mesh, F, None, bcs, 'nonlinear', uh=uh)
+    #solver_function = create_solver(mesh, F, None, bcs, 'nonlinear', uh=uh)
+    solver_function = create_solver(mesh, F, None, bcs, 'high_nonlinear', uh=uh)
 
     # LOOP to get f
     uh, final_evaluated_data = execute_transient_simulation(

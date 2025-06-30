@@ -251,6 +251,28 @@ def create_solver(domain, a_form, L_form, bcs, problem_type="linear", uh=None, J
         #solver.ksp_type = "preonly"
         #solver.pc_type = "lu"
         return solver.solve
+    elif 'high_nonlinear':
+        if uh is None:
+            raise ValueError("For nonlinear problems, you must provide the solution function 'uh'.")
+        F = a_form
+        J = J_form
+        problem = petsc.NonlinearProblem(F, uh, bcs=bcs, J=J)
+        
+        solver = nls.petsc.NewtonSolver(domain.comm, problem)
+        
+        solver.linesearch = "bt"
+        
+        # With a line search, the relaxation parameter is less critical. Start with 1.0.
+        solver.relaxation_parameter = 1.0
+        
+        solver.convergence_criterion = "incremental"
+        solver.max_it = 50
+        
+        solver.ksp_type = "preonly"
+        solver.pc_type = "lu"
+        
+        return solver.solve
+
     
 def get_dt(comm, evaluation_times):
     if evaluation_times is not None and len(evaluation_times) > 1:

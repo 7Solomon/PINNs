@@ -7,16 +7,7 @@ from domain_vars import thermal_mechanical_2d_domain
 from process.thermal_mechanical.gnd import get_thermal_mechanical_fem
 
 def vis_2d_multi(model, scale: Scale, interval=200, **kwargs):
-    """
-    Creates two animations: 
-    1. A 4x1 plot of just the PINN predictions.
-    2. A 4x3 comparison plot: PINN vs. Ground Truth vs. Error.
-    
-    Args:
-        model: Trained model with predict() method
-        scale: The scale object for unit conversion
-        interval: Animation delay in ms (default: 200)
-    """
+
     # --- Configuration ---
     var_names = ['U (X-Disp)', 'V (Y-Disp)', 'Temperature', 'Disp. Magnitude']
     plot_titles_comp = ['PINN Prediction', 'Ground Truth (FEM)', 'Absolute Error']
@@ -35,16 +26,16 @@ def vis_2d_multi(model, scale: Scale, interval=200, **kwargs):
     XY_flat = np.vstack((X.ravel(), Y.ravel())).T
 
     # --- 1. Get Ground Truth (FEM) Data ---
-    print("Generating FEM ground truth data...")
-    _, gt_data_raw = get_thermal_mechanical_fem(
-        domain_vars=thermal_mechanical_2d_domain,
-        grid_resolution=(nx, ny),
-        evaluation_times=t_points,
-        evaluation_spatial_points_xy=XY_flat
-    )
-    gt_data = gt_data_raw.reshape(nt, ny, nx, 3)   
-    save_fem_results("BASELINE/thermal_mechanical/2d/ground_truth.npy", gt_data)
-    #load_fem_results("BASELINE/thermal_mechanical/2d/ground_truth.npy")
+    #print("Generating FEM ground truth data...")
+    #_, gt_data_raw = get_thermal_mechanical_fem(
+    #    domain_vars=thermal_mechanical_2d_domain,
+    #    grid_resolution=(nx, ny),
+    #    evaluation_times=t_points,
+    #    evaluation_spatial_points_xy=XY_flat
+    #)
+    #gt_data = gt_data_raw.reshape(nt, ny, nx, 3)   
+    #save_fem_results("BASELINE/thermal_mechanical/2d/ground_truth.npy", gt_data)
+    gt_data = load_fem_results("BASELINE/thermal_mechanical/2d/ground_truth.npy")
 
     gt_u, gt_v, gt_T = gt_data[:, :, :, 0], gt_data[:, :, :, 1], gt_data[:, :, :, 2]
     gt_mag = np.sqrt(gt_u**2 + gt_v**2)
@@ -132,4 +123,4 @@ def vis_2d_multi(model, scale: Scale, interval=200, **kwargs):
     ani2 = animation.FuncAnimation(fig2, update2, frames=nt, interval=interval, blit=False, repeat=True)
     fig2.tight_layout(rect=[0, 0, 1, 0.96])
 
-    return {'pinn_only': ani1, 'comparison': ani2}
+    return {'field': ani2, 'fig': fig2}

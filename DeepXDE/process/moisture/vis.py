@@ -29,17 +29,17 @@ def vis_1d_head(model, scale: HeadScale, interval=1000, xlabel='z', ylabel='u(z,
     ZT_scaled = np.vstack((Z_scaled.ravel(), T_scaled.ravel())).T
 
 
-    _, ground_eval_flat_time_spatial = get_richards_1d_head_fem(
-            moisture_1d_domain,
-            nz=num_z_points,
-            evaluation_times=t_points,
-            evaluation_spatial_points_z= z_points.reshape(-1, 1),
-        )
-    
-    ground_truth_data = np.full((num_z_points, num_t_points), np.nan) 
-    ground_truth_data = ground_eval_flat_time_spatial.reshape(num_t_points, num_z_points).transpose(1, 0)
-    save_fem_results("BASELINE/moisture/1d_head/ground_truth.npy", ground_truth_data)
-    #ground_truth_data = load_fem_results("BASELINE/moisture/1d_head/ground_truth.npy")
+    #_, ground_eval_flat_time_spatial = get_richards_1d_head_fem(
+    #        moisture_1d_domain,
+    #        nz=num_z_points,
+    #        evaluation_times=t_points,
+    #        evaluation_spatial_points_z= z_points.reshape(-1, 1),
+    #    )
+    #
+    #ground_truth_data = np.full((num_z_points, num_t_points), np.nan) 
+    #ground_truth_data = ground_eval_flat_time_spatial.reshape(num_t_points, num_z_points).transpose(1, 0)
+    #save_fem_results("BASELINE/moisture/1d_head/ground_truth.npy", ground_truth_data)
+    ground_truth_data = load_fem_results("BASELINE/moisture/1d_head/ground_truth.npy")
 
 
     # Get predictions from the model
@@ -101,7 +101,7 @@ def vis_1d_head(model, scale: HeadScale, interval=1000, xlabel='z', ylabel='u(z,
     
     #ani.save('animation.mp4', writer='ffmpeg', fps=1000/interval)
     #plt.show() # geht glaube nocht auf ssh
-    return {'field': ani}
+    return {'field': ani, 'fig': fig}
 
 
 def vis_1d_saturation(model, scale: SaturationScale, interval=1000, xlabel='z [m]', ylabel='Saturation [-]', **kwargs):
@@ -115,17 +115,16 @@ def vis_1d_saturation(model, scale: SaturationScale, interval=1000, xlabel='z [m
     t_points = np.linspace(t_start, t_end, num_t_points)
 
     # --- Get Ground Truth Data ---
-    #_, ground_eval_flat_time_spatial = get_richards_1d_saturation_fem(
-    #    moisture_1d_domain,
-    #    nz=num_z_points,
-    #    evaluation_times=t_points,
-    #    evaluation_spatial_points_z=z_points.reshape(-1, 1),
-    #)
-    #ground_eval_flat_time_spatial = load_fem_results("BASELINE/moisture/1d/saturation_ground_truth.npy")
-    #ground_truth_data = np.full((num_z_points, num_t_points), np.nan)
-    #ground_truth_data = ground_eval_flat_time_spatial.reshape(num_t_points, num_z_points).T
-    #save_fem_results("BASELINE/moisture/1d_saturation/ground_truth.npy", ground_truth_data)
-    ground_truth_data = load_fem_results("BASELINE/moisture/1d_saturation/ground_truth.npy")
+    _, ground_eval_flat_time_spatial = get_richards_1d_saturation_fem(
+        moisture_1d_domain,
+        nz=num_z_points,
+        evaluation_times=t_points,
+        evaluation_spatial_points_z=z_points.reshape(-1, 1),
+    )
+    ground_truth_data = np.full((num_z_points, num_t_points), np.nan)
+    ground_truth_data = ground_eval_flat_time_spatial.reshape(num_t_points, num_z_points).T
+    save_fem_results("BASELINE/moisture/1d_saturation/ground_truth.npy", ground_truth_data)
+    #ground_truth_data = load_fem_results("BASELINE/moisture/1d_saturation/ground_truth.npy")
 
 
     # --- Get PINN Predictions ---
@@ -171,7 +170,7 @@ def vis_1d_saturation(model, scale: SaturationScale, interval=1000, xlabel='z [m
     ani = animation.FuncAnimation(fig, update, frames=num_t_points,
                                   interval=interval, repeat=False)
 
-    return {'field': ani}
+    return {'field': ani, 'fig': fig}
 
 def visualize_2d_mixed(model, scale, **kwargs):
 

@@ -16,11 +16,11 @@ def residual_thermal_2d(x, y, scale: Scale):
     dv_dx_nd = dde.grad.jacobian(y, x, i=1, j=0)  # [-]
 
     temp = scale.Temperature * y[:, 2:3]
-    epsilon_th_nd = (materialData.thermal_expansion_coefficient * temp) / (scale.U/( scale.L))
+    epsilon_th_nd = materialData.thermal_expansion_coefficient * temp / (scale.U/( scale.L))
 
     ex_mech_nd = du_dx_nd - epsilon_th_nd
     ey_mech_nd = dv_dy_nd - epsilon_th_nd
-    exy_mech_nd = du_dy_nd + dv_dx_nd # Thermal expansion does not cause shear strain
+    exy_mech_nd = du_dy_nd + dv_dx_nd  # no shear in therm
 
     strain_voigt_nd = torch.cat([ex_mech_nd, ey_mech_nd, exy_mech_nd], dim=1)
     strain_voigt = strain_voigt_nd * (scale.U / scale.L)  # [-]

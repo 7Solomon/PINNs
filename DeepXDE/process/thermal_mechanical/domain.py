@@ -50,17 +50,31 @@ def get_thermal_2d_domain(domain_vars: Domain, scale: Scale):
         component=1
     )
 
-    initial_condition = dde.IC(
+    initial_temp = dde.IC(
         geomTime, 
         lambda x: initial_value, 
         lambda _, on_initial: on_initial,
         component=2
     )
 
+    initial_u = dde.IC(
+        geomTime,
+        lambda x: 0.0,
+        lambda _, on_initial: on_initial,
+        component=0
+    )
+
+    initial_v = dde.IC(
+        geomTime,
+        lambda x: 0.0,
+        lambda _, on_initial: on_initial,
+        component=1
+    )
+
     data = dde.data.TimePDE(
         geomTime,
         lambda x,y : residual_thermal_2d(x,y, scale),
-        [left_temp_boundary, right_temp_boundary, bottom_u_fixed, bottom_v_fixed, initial_condition],
+        [left_temp_boundary, right_temp_boundary, bottom_u_fixed, bottom_v_fixed, initial_temp, initial_u, initial_v],
         num_initial=1000,
         num_domain=2000,
         num_boundary=300
