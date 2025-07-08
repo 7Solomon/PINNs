@@ -1,13 +1,10 @@
 import argparse
-from utils.variable_lr import VariableLearningRateCallback
+from vis import plot_mse
+from points import get_evaluation_points
 from MAP import MAP
-from utils.dynamic_loss import DynamicLossWeightCallback, SlowPdeLossWeightCallback
-import vis
 from utils.model_utils import load_function, save_function
-from model import create_model
-from utils.test import create_dde_data, heat_problem
+from model import create_flexible_model, get_callbacks
 import deepxde as dde
-import matplotlib.pyplot as plt
 from mpi4py import MPI
 
 def parse_args():
@@ -41,65 +38,46 @@ def parse_args():
 
 def manage_args(args):
     comm = MPI.COMM_WORLD
-    rank = comm.rank
-
+    process_type = args.type[0]
+    subtype = args.type[1] if len(args.type) > 1 else 'default'
     model, domain_vars, config, scale, loss_history = None, None, None, None, None
 
-    process_type = args.type[0]
-    subtype = args.type[1] if len(args.type) > 1 else None
+
+    domain_func = MAP[process_type][subtype]['domain']
+    domain_vars = MAP[process_type][subtype]['domain_vars']
+    gnd_func = MAP[process_type][subtype]['gnd_function']
+
+    point_data = get_evaluation_points(domain_vars)
+    fem_value_points = gnd_func(domain_vars, point_data, comm)
+
     #if rank == 0:
     output_transform = MAP[process_type][subtype].get('output_transform', None)
 
     if args.command == 'add':
-        domain_func = MAP[process_type][subtype]['domain']
-        domain_vars = MAP[process_type][subtype]['domain_vars']
         config = MAP[process_type][subtype]['config']
         scale = MAP[process_type][subtype]['scale'](domain_vars)
     
         data = domain_func(domain_vars, scale)
-        model = create_model(data, config, output_transform=None if not output_transform else lambda x,y: output_transform(x,y, scale))
+        model = create_flexible_model(data, config, output_transform=None if not output_transform else lambda x,y: output_transform(x,y, scale))
     elif args.command == 'load':
         model, domain_vars, config, scale = load_function(process_type, subtype, output_transform=None if not output_transform else lambda x,y: output_transform(x,y, scale))
     elif args.command == 'list':
-        raise NotImplementedError('List not implemented')
-    elif args.command == 'test':
-        #raise NotImplementedError('Test not implemented')
-        #config = MAP['heat']['transient']['config']
-        #domain_vars = MAP['heat']['transient']['domain_vars']
-        #scale = MAP['heat']['transient']['scale'](domain_vars)
-        #data = create_dde_data(heat_problem, {
-        #    'num_domain': 1000,
-        #    'num_boundary': 500,
-        #    'num_initial': 200,
-        #})
-        #model = create_model(data, config, output_transform=None if not output_transform else lambda x,y: output_transform(x,y, scale))
-        from process.heat.gnd import get_transient_fem
-        from domain_vars import steady_heat_2d_domain, transient_heat_2d_domain
-        #get_steady_fem(steady_heat_2d_domain)
-        get_transient_fem(transient_heat_2d_domain)
         return
     else:
         raise ValueError('UNVALIDEr cOMmAND DU KEK')
         
 
     ### Train
+    callbacks = get_callbacks(config, scale, points_data=point_data, gnd_truth=fem_value_points)
+
     if hasattr(args, 'epochs') and args.epochs > 0:
-        callbacks = []
-        if hasattr(config, 'callbacks') and 'slowPdeAnnealing' in config.callbacks:
-            callbacks.append(SlowPdeLossWeightCallback(pde_indices=config.pde_indices, final_weight=config.annealing_value))
-        if hasattr(config, 'callbacks') and 'dynamicLossWeight' in config.callbacks:
-            callbacks.append(DynamicLossWeightCallback())
-        if hasattr(config, 'callbacks') and 'resample' in config.callbacks:
-            callbacks.append(dde.callbacks.PDEPointResampler(period=1000))
-        if hasattr(config, 'callbacks') and 'variable_lr_config' in config.callbacks:
-            callbacks.append(VariableLearningRateCallback(**config.variable_lr_config))
-        loss_history, train_state = model.train(iterations=args.epochs, callbacks=callbacks)
+        loss_history, train_state = model.train(iterations=args.epochs, callbacks=callbacks.values())
         #np.save('train_state.npy', train_state)
     else:
         loss_history = dde.model.LossHistory()
 
     ### VIS
-    Vis = visualize(args.vis, process_type, subtype, model, loss_history, args, domain_vars, config, scale)
+    Vis = visualize(args.vis, process_type, subtype, model, loss_history, config, scale, point_data, fem_value_points, callbacks)
 
     ### SAVE
 
@@ -108,7 +86,7 @@ def manage_args(args):
 
 
 
-def visualize(vis_type, process_type, subtype, model, loss_history, args, domain_vars, config, scale):
+def visualize(vis_type, process_type, subtype, model, loss_history, config, scale, point_data, fem_value_points, callbacks):
     vis = {}
     if vis_type in ['loss', 'all']:
         try:
@@ -118,11 +96,16 @@ def visualize(vis_type, process_type, subtype, model, loss_history, args, domain
             print(f"Warning: Loss visualization not available for {process_type}/{subtype}: {e}")
         except Exception as e:
             print(f"Error generating loss visualization: {e}")
+
+    if vis_type in ['mse', 'all'] and 'dataCollectorCallback' in callbacks:
+        mse = callbacks['dataCollectorCallback'].collected_data['mse_history']
+        mse_plot = plot_mse(mse)
+        vis.update(mse_plot)
     
     if vis_type in ['field', 'all']:
         #try:
             kwargs = MAP[process_type][subtype]['vis'].get('kwargs', {})
-            field_figures = MAP[process_type][subtype]['vis']['field'](model, scale, **kwargs)
+            field_figures = MAP[process_type][subtype]['vis']['field'](model, scale, point_data, fem_value_points, **kwargs)
             vis.update(field_figures)
         #except KeyError as e:
         #    print(f"Warning: Field visualization not available for {process_type}/{subtype}: {e}")

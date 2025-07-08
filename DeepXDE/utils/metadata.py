@@ -56,9 +56,10 @@ class BConfig(BSaver):
 
         
 class Domain:
-    def __init__(self, spatial, temporal = None):
+    def __init__(self, spatial, temporal = None, resolution=None):
         self.spatial = spatial
         self.temporal = temporal
+        self.resolution = resolution
         #self.scale = BScale(self)
 
     def set_scale(self, scale):

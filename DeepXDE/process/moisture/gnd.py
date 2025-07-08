@@ -9,7 +9,7 @@ from dolfinx.fem.petsc import NonlinearProblem
 from dolfinx.nls.petsc import NewtonSolver
 from dolfinx.io import XDMFFile
 
-from FEM.output import evaluate_solution_at_points_on_rank_0, initialize_point_evaluation
+from FEM.output import evaluate_solution_at_points_on_rank_0, initialize_point_evaluation, load_fem_results, save_fem_results
 from FEM.init_helper import create_dirichlet_bcs, create_mesh_and_function_space, create_solver, get_dt, initialize_fem_state
 from FEM.run_helper import execute_transient_simulation
 from material import concreteData
@@ -47,8 +47,11 @@ def define_moisture_1d_head_weak_form(V,dt, uh, un, material):
     C = ufl_specific_moisture_capacity(uh, material)
     K = ufl_hydraulic_conductivity(uh, material)
 
-    F = C * (uh - un) * v * ufl.dx + dt * ufl.dot(K * ufl.grad(uh), ufl.grad(v)) * ufl.dx
-    return F 
+    e_z = ufl.as_vector([1.0]) # Unit vector in the direction of gravity (z-axis)
+    total_grad_h = ufl.grad(uh) + e_z
+
+    F = C * (uh - un) * v * ufl.dx + dt * ufl.dot(K * total_grad_h, ufl.grad(v)) * ufl.dx
+    return F
 
     ## With grav
     #e_z = ufl.as_vector([1.0])
@@ -56,18 +59,19 @@ def define_moisture_1d_head_weak_form(V,dt, uh, un, material):
     #F = C * (uh - un) * v * ufl.dx + dt * ufl.dot(K * total_grad_h, ufl.grad(v)) * ufl.dx
     #return F
 
-def define_heat_equation_forms(V, dt, alpha, un):
-    u = ufl.TrialFunction(V)
-    v = ufl.TestFunction(V)
-    a = u * v * ufl.dx + dt * alpha * ufl.dot(ufl.grad(u), ufl.grad(v)) * ufl.dx
-    L = un * v * ufl.dx
-    return df.fem.form(a), df.fem.form(L)
+def define_moisture_1d_saturation_jacobian(V, dt, uh, un, material):
+    """
+    Defines the analytical Jacobian for the saturation-based weak form.
+    """
+    du = ufl.TrialFunction(V)  # Define the trial function
+    F = define_moisture_1d_saturation_weak_form(V, dt, uh, un, material)
+    J = ufl.derivative(F, uh, du)
+    return J
 
 
 def get_richards_1d_head_fem(domain_vars,
-                            nz=25,
-                            evaluation_times: np.ndarray = None, 
-                            evaluation_spatial_points_z: np.ndarray = None
+                            points_data,
+                            comm
                             ):
     """
     Runs a 1D transient FEM simulation for the Richards equation.
@@ -79,6 +83,10 @@ def get_richards_1d_head_fem(domain_vars,
     comm = MPI.COMM_WORLD
     z_min, z_max = domain_vars.spatial['z']
     t_min, t_max = domain_vars.temporal['t']
+    nz = points_data['resolution']['z']
+    evaluation_times = points_data['temporal_coords']['t']
+    evaluation_spatial_points_z = points_data['spatial_points_flat']
+
     
     element_desc = {"type": "scalar", "family": "Lagrange", "degree": 1}
     mesh, V = create_mesh_and_function_space(comm=comm, 
@@ -116,7 +124,7 @@ def get_richards_1d_head_fem(domain_vars,
     un.x.array[:] = uh.x.array
 
     F = define_moisture_1d_head_weak_form(V, dt_const, uh, un, material)
-
+    
     bcs = [
             {"where": lambda x: np.isclose(x[0], z_min), "value": bc_left_value, "component": None},
             {"where": lambda x: np.isclose(x[0], z_max), "value": bc_right_value, "component": None}
@@ -125,7 +133,7 @@ def get_richards_1d_head_fem(domain_vars,
 
     #A, b_vec, compiled_a, compiled_L = _compile_forms_and_assemble_matrix(domain, a_form, L_form_template, un, bcs)
     #solver = _create_ksp_solver(domain, A)
-    solver_function = create_solver(mesh, F, None, bcs, 'nonlinear', uh=uh)
+    solver_function = create_solver(mesh, F, None, bcs, 'high_nonlinear', uh=uh)
 
     uh, final_evaluated_data = execute_transient_simulation(
         domain=mesh,
@@ -180,15 +188,17 @@ def define_moisture_1d_saturation_weak_form(V, dt, uh, un, material):
 
     theta_n = ufl_get_volumetric_water_content_from_Se(un, material)
 
+    e_z = ufl.as_vector([1.0]) # Unit vector in the direction of gravity (z-axis)
+    total_grad_h = ufl.grad(h_h) + e_z
+
     # (theta_h - theta_n)/dt * v + K(h) * grad(h) * grad(v) = 0
-    F = (theta_h - theta_n) * v * ufl.dx + dt * ufl.dot(K_h * ufl.grad(h_h), ufl.grad(v)) * ufl.dx
+    F = (theta_h - theta_n)/dt * v * ufl.dx + ufl.dot(K_h * total_grad_h, ufl.grad(v)) * ufl.dx
     return F
 
 
 def get_richards_1d_saturation_fem(domain_vars,
-                                   nz=25,
-                                   evaluation_times: np.ndarray = None,
-                                   evaluation_spatial_points_z: np.ndarray = None
+                                   points_data,
+                                    comm
                                    ):
     """
     Runs a 1D transient FEM simulation for the Richards equation in saturation form.
@@ -196,9 +206,13 @@ def get_richards_1d_saturation_fem(domain_vars,
     material = concreteData
 
     # 1. MESH
-    comm = MPI.COMM_WORLD
     z_min, z_max = domain_vars.spatial['z']
     t_min, t_max = domain_vars.temporal['t']
+    nz = points_data['resolution']['z']
+    evaluation_times = points_data['temporal_coords']['t']
+    evaluation_spatial_points_z = points_data['spatial_points_flat']
+
+
 
     element_desc = {"type": "scalar", "family": "Lagrange", "degree": 1, "name": "saturation"}
     mesh, V = create_mesh_and_function_space(comm, [z_min, z_max], nz, element_desc=element_desc)
@@ -231,7 +245,8 @@ def get_richards_1d_saturation_fem(domain_vars,
 
     # weak Form
     F = define_moisture_1d_saturation_weak_form(V, dt_const, uh, un, material)
-
+    #J = define_moisture_1d_saturation_jacobian(V, dt_const, uh, un, material)
+    
     # BCs
     bcs_defs = [
         {"where": lambda x: np.isclose(x[0], z_min), "value": bc_left_value, "component": None},
@@ -250,10 +265,41 @@ def get_richards_1d_saturation_fem(domain_vars,
         t_end=t_max,
         dt_initial=dt_fem_internal,
         solver_function=solver_function,
-        problem_type="nonlinear",
+        problem_type="high_nonlinear",
         fem_states=fem_states,
         fem_constants=fem_constants,
         evaluation_times=evaluation_times,
         evaluation_spatial_points_xy=evaluation_spatial_points_z
     )
     return uh, final_evaluated_data
+
+def get_richards_1d_saturation_fem_points(domain_vars, points_data, comm):
+    """
+    Get Richards equation saturation solution at specific points, with caching.
+    """
+    fem_points = load_fem_results("BASELINE/moisture/1d_saturation_flat.npy")
+    if fem_points is not None:
+        fem_points = points_data['reshape_utils']['fem_to_ij'](fem_points)
+        return fem_points
+
+    _, ground_eval_flat_time_spatial = get_richards_1d_saturation_fem(domain_vars, points_data, comm)
+    save_fem_results("BASELINE/moisture/1d_saturation_flat.npy", ground_eval_flat_time_spatial)
+    
+    ground_eval = points_data['reshape_utils']['fem_to_ij'](ground_eval_flat_time_spatial)
+    return ground_eval
+    
+
+def get_richards_1d_head_fem_points(domain_vars, points_data, comm):
+    """
+    Get Richards equation head solution at specific points, with caching.
+    """
+    fem_points = load_fem_results("BASELINE/moisture/1d_head_flat.npy")
+    if fem_points is not None:
+        fem_points = points_data['reshape_utils']['fem_to_ij'](fem_points)
+        return fem_points
+
+    _, ground_eval_flat_time_spatial = get_richards_1d_head_fem(domain_vars, points_data, comm)
+    save_fem_results("BASELINE/moisture/1d_head_flat.npy", ground_eval_flat_time_spatial)
+    
+    ground_eval = points_data['reshape_utils']['fem_to_ij'](ground_eval_flat_time_spatial)
+    return ground_eval

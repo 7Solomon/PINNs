@@ -18,3 +18,7 @@ class Scale(BSaver):
     @property
     def U(self):
         return (self.sigma * self.L) / materialData.E
+
+    @property
+    def value_scale_list(self):
+        return [self.U, self.U, self.Temperature]

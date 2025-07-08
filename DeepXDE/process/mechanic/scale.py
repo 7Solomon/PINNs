@@ -21,4 +21,7 @@ class Scale(BSaver):
         return (materialData.rho * materialData.g * self.L**2) / materialData.E   # sigma*L/E
         #return (materialData.rho * materialData.g * self.L**4) / (materialData.E * self.H**2) # From beam theory
 
+    @property
+    def  value_scale_list(self):
+        return [self.U, self.U]
     ## CONStrainst

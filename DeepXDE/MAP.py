@@ -24,6 +24,7 @@ MAP = {
             'domain_vars': domain_vars.einspannung_2d_domain,
             'config': config.bernoulliBalken2DConfig,
             'scale' : process.mechanic.scale.Scale,
+            'gnd_function':  process.mechanic.gnd.get_einspannung_2d_fem_points,
             'vis' : {
                 'loss': vis.plot_loss,
                 'field': process.mechanic.vis.visualize_field_2d,
@@ -111,6 +112,7 @@ MAP = {
             'domain_vars': domain_vars.transient_heat_2d_domain,
             'config': config.transientHeatConfig,
             'scale' : process.heat.scale.Scale,
+            'gnd_function': process.heat.gnd.get_transient_fem_points,
             'vis' : {
                 'loss': vis.plot_loss,
                 'field': process.heat.vis.visualize_transient_field,
@@ -141,6 +143,7 @@ MAP = {
             'config': config.richards1DConfig,
             'scale' : process.moisture.scale.HeadScale,
             'output_transform': process.moisture.output_transform.output_transform_1d_head,
+            'gnd_function': process.moisture.gnd.get_richards_1d_head_fem_points,
             'vis' : {
                 'loss': vis.plot_loss,
                 'field': process.moisture.vis.vis_1d_head,
@@ -157,6 +160,7 @@ MAP = {
             'config': config.richards1DConfig,
             'output_transform': process.moisture.output_transform.output_transform_1d_saturation,
             'scale' : process.moisture.scale.SaturationScale,
+            'gnd_function': process.moisture.gnd.get_richards_1d_saturation_fem_points,
             'vis' : {
                 'loss': vis.plot_loss,
                 'field': process.moisture.vis.vis_1d_saturation,
@@ -186,6 +190,7 @@ MAP = {
             'domain_vars': domain_vars.thermal_mechanical_2d_domain,
             'config': config.thermalMechanical2DConfig,
             'scale' : process.thermal_mechanical.scale.Scale,
+            'gnd_function': process.thermal_mechanical.gnd.get_thermal_mechanical_fem_points,
             'vis' : {
                 'loss': vis.plot_loss,
                 'field': process.thermal_mechanical.vis.vis_2d_multi,

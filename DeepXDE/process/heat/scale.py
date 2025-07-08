@@ -13,12 +13,18 @@ class Scale(BSaver):
         self.L = max(self.x_max - self.x_min, self.y_max - self.y_min)
         self.t = self.t_max - self.t_min
         self.T = 100
-
+        #self.L = 1
+        #self.t = 1
+        #self.T = 1
+ 
+    @property
+    def value_scale_list(self):
+        return [self.T]
         #self.L = 1
         #self.t = 1
         #self.T = 1
         #print('GEHE SICER, dass materialData ist CONCRETE')
-    
+     
     #@property
     #def alpha(self):
     #    return (self.t / (self.L)**2)  # s_t/s_x²
@@ -30,3 +36,4 @@ class Scale(BSaver):
         #self.T = 1
         #self.alpha_x = 1
         #self.alpha_y = 1
+

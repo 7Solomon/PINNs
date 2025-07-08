@@ -6,7 +6,7 @@ from process.thermal_mechanical.scale import Scale
 from domain_vars import thermal_mechanical_2d_domain
 from process.thermal_mechanical.gnd import get_thermal_mechanical_fem
 
-def vis_2d_multi(model, scale: Scale, interval=200, **kwargs):
+def vis_2d_multi(model, scale: Scale, points_data:dict, fem_value_points, interval=200, **kwargs):
 
     # --- Configuration ---
     var_names = ['U (X-Disp)', 'V (Y-Disp)', 'Temperature', 'Disp. Magnitude']
@@ -16,43 +16,26 @@ def vis_2d_multi(model, scale: Scale, interval=200, **kwargs):
     # --- Domain and Grid Setup ---
     x_start, x_end = thermal_mechanical_2d_domain.spatial['x']
     y_start, y_end = thermal_mechanical_2d_domain.spatial['y']
-    t_start, t_end = thermal_mechanical_2d_domain.temporal['t']
+    t_points = points_data['temporal_coords']['t']  # Extract time points
     
-    nx, ny, nt = 40, 40, 40  # Grid resolution
-    x_points = np.linspace(x_start, x_end, nx)
-    y_points = np.linspace(y_start, y_end, ny)
-    t_points = np.linspace(t_start, t_end, nt)
-    X, Y = np.meshgrid(x_points, y_points)
-    XY_flat = np.vstack((X.ravel(), Y.ravel())).T
+    nx, ny, nt = points_data['resolution']['x'], points_data['resolution']['y'], points_data['resolution']['t']
 
-    # --- 1. Get Ground Truth (FEM) Data ---
-    #print("Generating FEM ground truth data...")
-    #_, gt_data_raw = get_thermal_mechanical_fem(
-    #    domain_vars=thermal_mechanical_2d_domain,
-    #    grid_resolution=(nx, ny),
-    #    evaluation_times=t_points,
-    #    evaluation_spatial_points_xy=XY_flat
-    #)
-    #gt_data = gt_data_raw.reshape(nt, ny, nx, 3)   
-    #save_fem_results("BASELINE/thermal_mechanical/2d/ground_truth.npy", gt_data)
-    gt_data = load_fem_results("BASELINE/thermal_mechanical/2d/ground_truth.npy")
-
-    gt_u, gt_v, gt_T = gt_data[:, :, :, 0], gt_data[:, :, :, 1], gt_data[:, :, :, 2]
+    gt_u, gt_v, gt_T = fem_value_points[:, :, :, 0], fem_value_points[:, :, :, 1], fem_value_points[:, :, :, 2]
     gt_mag = np.sqrt(gt_u**2 + gt_v**2)
 
     # --- 2. Get PINN Predictions ---
     print("Generating PINN predictions for all time steps...")
     pinn_data = np.zeros((nt, ny, nx, 3))
-    for i, t in enumerate(t_points):
-        T_grid = np.full_like(X, t)
-        XYT = np.vstack((X.ravel(), Y.ravel(), T_grid.ravel())).T
-        XYT_scaled = XYT / np.array([scale.L, scale.L, scale.t])
-        
-        preds_scaled = model.predict(XYT_scaled)
-        pinn_data[i, :, :, 0] = (preds_scaled[:, 0] * scale.U).reshape(ny, nx)
-        pinn_data[i, :, :, 1] = (preds_scaled[:, 1] * scale.U).reshape(ny, nx)
-        pinn_data[i, :, :, 2] = (preds_scaled[:, 2] * scale.Temperature).reshape(ny, nx)
+    spacetime_points = points_data['spacetime_points_flat']
+    XYT_scaled = spacetime_points / np.array([scale.L, scale.L, scale.t])    
+    preds_scaled = model.predict(XYT_scaled)
     
+    preds_scaled[:, 0] *= scale.U  # Scale u
+    preds_scaled[:, 1] *= scale.U  # Scale v  
+    preds_scaled[:, 2] *= scale.Temperature  # Scale T
+    
+    # Reshape to (nt, ny, nx, 3)
+    pinn_data = points_data['reshape_utils']['pred_to_ij'](preds_scaled)
     pinn_u, pinn_v, pinn_T = pinn_data[:, :, :, 0], pinn_data[:, :, :, 1], pinn_data[:, :, :, 2]
     pinn_mag = np.sqrt(pinn_u**2 + pinn_v**2)
 

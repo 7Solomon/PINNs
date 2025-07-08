@@ -251,7 +251,7 @@ def create_solver(domain, a_form, L_form, bcs, problem_type="linear", uh=None, J
         #solver.ksp_type = "preonly"
         #solver.pc_type = "lu"
         return solver.solve
-    elif 'high_nonlinear':
+    elif problem_type == 'high_nonlinear': 
         if uh is None:
             raise ValueError("For nonlinear problems, you must provide the solution function 'uh'.")
         F = a_form
@@ -260,16 +260,16 @@ def create_solver(domain, a_form, L_form, bcs, problem_type="linear", uh=None, J
         
         solver = nls.petsc.NewtonSolver(domain.comm, problem)
         
-        solver.linesearch = "bt"
-        
-        # With a line search, the relaxation parameter is less critical. Start with 1.0.
-        solver.relaxation_parameter = 1.0
-        
         solver.convergence_criterion = "incremental"
         solver.max_it = 50
+        solver.relaxation_parameter = 0.9
         
-        solver.ksp_type = "preonly"
-        solver.pc_type = "lu"
+        #  iterative solver (GMRES) with a strong preconditioner (AMG)
+        ksp = solver.krylov_solver
+        ksp.setType(PETSc.KSP.Type.GMRES)
+        pc = ksp.getPC()
+        pc.setType(PETSc.PC.Type.HYPRE)
+        pc.setHYPREType("boomeramg")
         
         return solver.solve
 

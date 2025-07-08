@@ -7,6 +7,7 @@ from petsc4py import PETSc
 
 from dolfinx.fem.petsc import LinearProblem
 
+from FEM.output import load_fem_results, save_fem_results
 from FEM.init_helper import create_dirichlet_bcs, create_mesh_and_function_space, create_solver, get_dt, initialize_fem_state
 from FEM.run_helper import execute_transient_simulation
 from material import concreteData
@@ -127,19 +128,19 @@ def define_heat_equation_forms(V, dt, alpha, un):
 #    return solver
 
 
-def get_transient_fem(domain_vars, 
-                        grid_resolution: tuple = (80, 60),
-                        evaluation_times: np.ndarray = None, 
-                        evaluation_spatial_points_xy: np.ndarray = None):
+def get_transient_fem(domain_vars,
+                      points_data: dict,
+                      comm: MPI.Comm
+):
 
-
-    # DEF VARS
-    comm = MPI.COMM_WORLD
-    rank = comm.rank
     x_min, x_max = domain_vars.spatial['x']
     y_min, y_max = domain_vars.spatial['y']
     t_min, t_max = domain_vars.temporal['t']
-    Nx, Ny = grid_resolution
+    Nx = points_data['resolution']['x']
+    Ny = points_data['resolution']['y']
+    evaluation_times = points_data['temporal_coords']['t']
+
+    evaluation_spatial_points_xy = points_data['spatial_points_flat']
 
     # GET dt
     dt_fem_internal = get_dt(comm, evaluation_times)
@@ -164,8 +165,15 @@ def get_transient_fem(domain_vars,
     dt_const = fem_constants["dt"]
     alpha_const = fem_constants["alpha"]
     
+    # add INital stuff to stop small error at t 0 that propegates 
+    #def initial_T(x):
+    #    val = 100.0 * (1 - x[0] / x_max)
+    #    return np.clip(val, 0, 100)
+    #un.interpolate(initial_T)
+    #uh.interpolate(initial_T)
+    
     # Set the initial condition for the previous step as well
-    #un.x.array[:] = uh.x.array
+    un.x.array[:] = uh.x.array
 
     a_form, l_form = define_heat_equation_forms(V, dt_const, alpha_const, un)
 
@@ -195,3 +203,20 @@ def get_transient_fem(domain_vars,
     )
     return uh, final_evaluated_data
 
+
+def get_transient_fem_points(domain_vars, points_data, comm):
+    fem_points = load_fem_results("BASELINE/heat/transient_2d_flat.npy")
+    if fem_points is not None:
+        from process.heat.vis import test_vis_ground_fixed
+        #print(fem_points.shape)
+        fem_points = points_data['reshape_utils']['fem_to_ij'](fem_points)
+        #print(fem_points.shape)
+        #g = test_vis_ground_fixed(points_data, fem_points)
+        #g['field'].save(f'test/test_clean.gif', writer='ffmpeg', fps=30)
+        #g['fig'].savefig('test/test_clean.png', dpi=300)
+        
+
+        return fem_points
+    #_, ground_eval_flat_time_spatial = get_transient_fem(domain_vars, points_data, comm)
+    #save_fem_results("BASELINE/heat/transient_2d_flat.npy", ground_eval_flat_time_spatial)
+    #return ground_eval_flat_time_spatial

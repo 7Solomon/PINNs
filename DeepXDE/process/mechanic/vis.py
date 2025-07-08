@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from mpi4py import MPI
 import dolfinx as df
 
-from domain_vars import fest_lost_2d_domain
+from domain_vars import  einspannung_2d_domain
 from process.mechanic.gnd import base_mapping, get_einspannung_2d_fem, get_ensemble_einspannung_2d_fem, get_sigma_fem
 
 
@@ -37,103 +37,58 @@ def visualize_field_1d(model, **kwargs):
     #plt.show()
 
 
-def visualize_field_2d(model, scale: Scale, **kwargs):
-    # Get domain and points
-    x_min, x_max = fest_lost_2d_domain.spatial['x']
-    y_min, y_max = fest_lost_2d_domain.spatial['y']
-    nx, ny = 100, 50  # Number of points in x and y directions
-    x_points = np.linspace(x_min, x_max, nx)
-    y_points = np.linspace(y_min, y_max, ny)
+def visualize_field_2d(model, scale: Scale, points_data: dict, fem_value_points: np.ndarray, **kwargs):
+    # Get domain and points using the new, structured points_data
+    x_min, x_max = einspannung_2d_domain.spatial['x']
+    y_min, y_max = einspannung_2d_domain.spatial['y']
+    
+    nx, ny = points_data['resolution']['x'], points_data['resolution']['y']
+    
+    # Use the 'xy' meshgrid for matplotlib compatibility (shape ny, nx)
+    X = points_data['spatial_meshgrid']['xy']['x']
+    Y = points_data['spatial_meshgrid']['xy']['y']
+    
+    # Use the flat points for model prediction
+    points = points_data['spatial_points_flat']
 
-    X, Y = np.meshgrid(x_points, y_points)
-    points = np.vstack((X.flatten(), Y.flatten())).T
-    scaled_points = points / np.array([scale.L, scale.L])  # Assuming scale has L attribute for length
-
-    # Get predictions
+    # The rest of your scaling and prediction logic is fine
+    scaled_points = points / np.array([scale.L, scale.L])
     predictions = model.predict(scaled_points)
-    predictions = predictions  * scale.U
+    predictions = predictions * scale.U
 
-
-    # GROUND
-    
     comm = MPI.COMM_WORLD
-    GROUND = get_einspannung_2d_fem(fest_lost_2d_domain)
-    #GROUND = load_fem_results("BASELINE/mechanic/2d/ground_truth.npy")
-    
-    domain = GROUND.function_space.mesh
-    _perform_eval, eval_points_3d, bb_tree = initialize_point_evaluation(
-        domain, points, comm
-    )
-
-    ### FIXED EVAL
-    V = GROUND.function_space
-    V_x, dof_map_x = V.sub(0).collapse()
-    V_y, dof_map_y = V.sub(1).collapse()
-
-    u_x_func = df.fem.Function(V_x)
-    u_y_func = df.fem.Function(V_y)
-
-    u_x_func.x.array[:] = GROUND.x.array[dof_map_x]
-    u_y_func.x.array[:] = GROUND.x.array[dof_map_y]
-
-    gt_u_x_flat = evaluate_solution_at_points_on_rank_0(u_x_func, eval_points_3d, bb_tree, domain, comm)
-    gt_u_y_flat = evaluate_solution_at_points_on_rank_0(u_y_func, eval_points_3d, bb_tree, domain, comm)
-
-    if comm.rank == 0:
-        ground_values_at_points = np.hstack((gt_u_x_flat[:, np.newaxis], gt_u_y_flat[:, np.newaxis]))
-    else:
-        ground_values_at_points = None
-    save_fem_results("BASELINE/mechanic/2d/ground_truth.npy", ground_values_at_points)
-
-
     if comm.rank != 0:
         return {'field': None}
 
-    if ground_values_at_points is None:
-        print("Warning: FEM ground truth evaluation failed. Plotting with zeros.")
-        ground_values_at_points = np.zeros((points.shape[0], domain.geometry.dim))
-
-
-    # --- Extract min/max for bounds ---
-    x_min, x_max = fest_lost_2d_domain.spatial['x']
-    y_min, y_max = fest_lost_2d_domain.spatial['y']
-    # -------------------------------------------------------------
-
-    # Create visualization (4x3 grid for detailed comparison)
-    fig, axes = plt.subplots(4, 3, figsize=(18, 22)) # Increased size for clarity
-    fig.suptitle('2D Field Visualization: Prediction vs. Ground Truth', fontsize=20)
+    if fem_value_points is None:
+        print("Warning: FEM ground truth (fem_value_points) is None. Cannot plot ground truth.")
+        return {'field': None}
 
     # --- Data Preparation ---
-    # Predicted values
+    # Predicted values (flat, shape: (nx*ny, 2))
     pred_u_x = predictions[:, 0]
     pred_u_y = predictions[:, 1]
-    
     pred_mag = np.sqrt(pred_u_x**2 + pred_u_y**2)
 
-    # Ground truth values
-    gt_u_x = ground_values_at_points[:, 0]
-    gt_u_y = ground_values_at_points[:, 1]
-    gt_mag = np.sqrt(gt_u_x**2 + gt_u_y**2)
+    # Ground truth values (already a grid, shape: (nx, ny, 2))
+    # Note: We need to transpose from (nx, ny, 2) to (ny, nx, 2) for 'xy' indexing
+    gt_u_x_2d = np.transpose(fem_value_points[:, :, 0], (1, 0))
+    gt_u_y_2d = np.transpose(fem_value_points[:, :, 1], (1, 0))
+    gt_mag_2d = np.sqrt(gt_u_x_2d**2 + gt_u_y_2d**2)
 
-    # Error values
-    error_mag = np.abs(pred_mag - gt_mag)
-    error_u_x = pred_u_x - gt_u_x
-    error_u_y = pred_u_y - gt_u_y
-
-    # Reshape for contour plots
-    pred_mag_2d = pred_mag.reshape(ny, nx)
-    gt_mag_2d = gt_mag.reshape(ny, nx)
-    error_mag_2d = error_mag.reshape(ny, nx)
-    
+    # Reshape predicted values for contour plots (from flat to ny, nx)
     pred_u_x_2d = pred_u_x.reshape(ny, nx)
-    gt_u_x_2d = gt_u_x.reshape(ny, nx)
-    error_u_x_2d = error_u_x.reshape(ny, nx)
-
     pred_u_y_2d = pred_u_y.reshape(ny, nx)
-    gt_u_y_2d = gt_u_y.reshape(ny, nx)
-    error_u_y_2d = error_u_y.reshape(ny, nx)
+    pred_mag_2d = pred_mag.reshape(ny, nx)
+
+    # Error values (calculated from the 2D grid arrays)
+    error_mag_2d = np.abs(pred_mag_2d - gt_mag_2d)
+    error_u_x_2d = pred_u_x_2d - gt_u_x_2d
+    error_u_y_2d = pred_u_y_2d - gt_u_y_2d
 
     # --- Plotting ---
+    fig, axes = plt.subplots(4, 3, figsize=(18, 22))
+    fig.suptitle('2D Field Visualization: Prediction vs. Ground Truth', fontsize=20)
 
     # ROW 0: Displacement Magnitude
     ax = axes[0, 0]
@@ -153,7 +108,6 @@ def visualize_field_2d(model, scale: Scale, **kwargs):
 
     # ROW 1: X-Displacement
     ax = axes[1, 0]
-    vmax_ux = max(np.abs(pred_u_x).max(), np.abs(gt_u_x).max())
     contour_ux = ax.contourf(X, Y, pred_u_x_2d, levels=20, cmap='RdBu_r')
     ax.set_title("Predicted X-Displacement ($u_x$)")
     plt.colorbar(contour_ux, ax=ax, shrink=0.8)
@@ -164,14 +118,12 @@ def visualize_field_2d(model, scale: Scale, **kwargs):
     plt.colorbar(contour_gt_ux, ax=ax, shrink=0.8)
 
     ax = axes[1, 2]
-    vmax_err_ux = np.abs(error_u_x).max()
     contour_err_ux = ax.contourf(X, Y, error_u_x_2d, levels=20, cmap='PRGn')
     ax.set_title("X-Displacement Error")
     plt.colorbar(contour_err_ux, ax=ax, shrink=0.8)
 
     # ROW 2: Y-Displacement
     ax = axes[2, 0]
-    vmax_uy = max(np.abs(pred_u_y).max(), np.abs(gt_u_y).max())
     contour_uy = ax.contourf(X, Y, pred_u_y_2d, levels=20, cmap='RdBu_r')
     ax.set_title("Predicted Y-Displacement ($u_y$)")
     plt.colorbar(contour_uy, ax=ax, shrink=0.8)
@@ -182,13 +134,12 @@ def visualize_field_2d(model, scale: Scale, **kwargs):
     plt.colorbar(contour_gt_uy, ax=ax, shrink=0.8)
 
     ax = axes[2, 2]
-    vmax_err_uy = np.abs(error_u_y).max()
     contour_err_uy = ax.contourf(X, Y, error_u_y_2d, levels=20, cmap='PRGn')
     ax.set_title("Y-Displacement Error")
     plt.colorbar(contour_err_uy, ax=ax, shrink=0.8)
 
     # ROW 3: Deformed Shape
-    scale_factor = 50
+    scale_factor = 10
     
     # Predicted Deformed Shape
     ax = axes[3, 0]
@@ -235,8 +186,8 @@ def visualize_field_2d(model, scale: Scale, **kwargs):
 def vis_2d_ensemble(model, scale: Scale, **kwargs):
 
     # Get domain and evaluation points
-    x_min, x_max = fest_lost_2d_domain.spatial['x']
-    y_min, y_max = fest_lost_2d_domain.spatial['y']
+    x_min, x_max = einspannung_2d_domain.spatial['x']
+    y_min, y_max = einspannung_2d_domain.spatial['y']
     nx, ny = kwargs.get('resolution', (100, 50))
     
     x_points = np.linspace(x_min, x_max, nx)

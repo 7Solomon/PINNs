@@ -2,7 +2,7 @@ import datetime
 import os
 
 from matplotlib import animation
-from model import create_model
+from model import create_flexible_model
 from utils.metadata import BSaver, Domain, BConfig
 from utils.directory import *
 from utils.load_loss_history import load_loss_history_object
@@ -43,7 +43,7 @@ def save_function(model, domain: Domain, Loss, config: BConfig, scale: BSaver, g
     for key, graphic in graphics.items():
         graphic_path_base = os.path.join(folder_name, key)
         if isinstance(graphic, animation.Animation):
-            graphic.save(f'{graphic_path_base}.gif', writer='ffmpeg', fps=30)
+            graphic.save(f'{graphic_path_base}.gif', writer='ffmpeg', fps=10)
         else:
             graphic.savefig(f'{graphic_path_base}.png', dpi=300)
 
@@ -65,7 +65,7 @@ def load_function(type:str, subtype:str, output_transform=None):
 
     # MODEL
     model_path = filter_for_model_path(core_folder)
-    model = create_model(domain, config, output_transform=output_transform)
+    model = create_flexible_model(domain, config, output_transform=output_transform)
     model.restore(model_path)
 
     # SCALE

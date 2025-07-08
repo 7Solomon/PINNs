@@ -34,6 +34,9 @@ class TransientHeatConfig(BaseModel, BConfig):
 
     decay: list[str,int,float] = ['step', 1000, 0.9]
 
+    callbacks: list[str] = ['dataCollector']
+
+
 
 
 ####
@@ -49,7 +52,7 @@ class Richards1DConfig(BaseModel, BConfig):
     decay: list[str,int,float] = ['step', 1000, 0.9]
     loss_weights: list[float] = [1.0, 1.0, 1.0, 1.0]
     loss_labels: list[str] = ['PDE', 'Initial', 'Left', 'Right']
-    callbacks: list[str] = ['resample']
+    callbacks: list[str] = ['resample', 'dataCollector']
     
     fourier_transform_features: int = 32
 
@@ -69,7 +72,6 @@ class Darcy2DConfig(BaseModel, BConfig):
     output_dim: int = 1
     activation: str = 'tanh'
     initializer: str = 'Glorot uniform'
-
 
     compile_args: dict = {'optimizer': 'adam', 'lr': 1e-3}
     loss_weights: list[float] = [1.0, 1.0, 1.0]
@@ -96,16 +98,17 @@ class BernoulliBalken2DConfig(BaseModel, BConfig):
     activation: str = 'tanh'
     initializer: str = 'Glorot uniform'
 
-    compile_args: dict = {'optimizer': 'adam', 'lr': 1e-4}
-    #decay: list[str,int,float] = ['step', 1000, 0.9]
-    loss_weights: list[float] = [100.0, 10.0, 1.0, 1.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0]
+    #compile_args: dict = {'optimizer': 'adam', 'lr': 1e-3}
+    compile_args: dict = {'optimizer': 'L-BFGS', 'lr': 1e-3}
+    decay: list[str,int,float] = ['step', 20000, 0.5]
+    loss_weights: list[float] = [1.0, 1.0, 100.0, 100.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
     loss_labels: list[str] = ['PDE_X', 'PDE_Y', 'Left_x', 'Left_y', 'Right_no_traction_x', 'Right_no_traction_y', 'Top_no_traction_x', 'Top_no_traction_y', 'Bottom_no_traction_x', 'Bottom_no_traction_y']
-    #callbacks: list[str] = ['slowPdeAnnealing']
+    callbacks: list[str] = ['slowPdeAnnealing', 'dataCollector', 'resample']
 
-    #fourier_transform_features: int = 64
+    fourier_transform_features: int = 64
 
-    #pde_indices: list[int] = [0, 1] 
-    #annealing_value: float = 10.0 
+    pde_indices: list[int] = [0, 1] 
+    annealing_value: float = 10.0 
 class BernoulliBalken2DEnsembleConfig(BaseModel, BConfig):
     input_dim: int = 2
     output_dim: int = 5
@@ -152,6 +155,19 @@ class ThermalMechanical2DConfig(BaseModel, BConfig):
     output_dim: int = 3
     activation: str = 'tanh'
     initializer: str = 'Glorot uniform'
+    callbacks: list[str] = ['dataCollector']
+
+    model_type: str = 'MultiBranch'
+    branches: dict = {
+        'uv_branch': {
+            'input_indices': [0, 1],
+            'layer_dims': [2, 20, 20, 2]
+        },
+        't_branch': {
+            'input_indices': [2],
+            'layer_dims': [1, 20, 20, 1]
+        }
+    }
 
     compile_args: dict = {'optimizer': 'adam', 'lr': 1e-4}
     #decay: list[str,int,float] = ['exponential', 5000, 0.7]

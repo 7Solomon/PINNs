@@ -45,6 +45,23 @@ def plot_loss(Loss, labels=None):
     
     return {'loss': plt.gcf()}
 
+def plot_mse(mse_values):
+    """
+    Plot MSE values.
+    Args:
+        mse_values: List or array of MSE values
+    """
+
+    plt.figure(figsize=(10, 5))
+    plt.bar(range(len(mse_values)), mse_values)
+    plt.xlabel('Epochs [1000]')
+    plt.ylabel('MSE')
+    plt.title('Mean Squared Error (MSE)')
+    plt.grid(axis='y', linestyle='--')
+    
+    return {'mse': plt.gcf()}
+
+
 
 def get_deformation_amplifier(u,v):
     all_displacement_magnitudes = np.sqrt(u**2 + v**2)

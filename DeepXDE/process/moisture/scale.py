@@ -10,7 +10,7 @@ class RichardsScale(BSaver):
         self.t_min, self.t_max = domain_variables.temporal['t']
         self.L = (self.z_max - self.z_min)  # Length scale [m]
         self.T_domain = (self.t_max - self.t_min)
-        self.T_physics = min(self.T_hydraulic, self.T_diffusion, self.T_capillary)
+        self.T_physics = min(self.T_hydraulic, self.T_diffusion)
 
         # Determine time scale regime
         if self.T_domain >= self.T_physics:
@@ -36,9 +36,6 @@ class RichardsScale(BSaver):
     @property
     def h_char(self):
         return 1.0 / material_data.alpha_vg  # [m]
-    @property
-    def T_capillary(self):
-        return self.h_char / (material_data.K_s * material_data.alpha_vg)  # [s]
 
     def print_DEBUG(self):
         scale_name = self.__class__.__name__
@@ -52,7 +49,6 @@ class RichardsScale(BSaver):
         print(f"Domain time:     {self.T_domain:.2e} s = {self.T_domain/86400:.1f} days")
         print(f"Hydraulic time:  {self.T_hydraulic:.2e} s = {self.T_hydraulic/86400:.1f} days")
         print(f"Diffusion time:  {self.T_diffusion:.2e} s = {self.T_diffusion/86400:.1f} days")
-        print(f"Capillary time:  {self.T_capillary:.2e} s = {self.T_capillary/86400:.1f} days")
         print(f"Selected time:   {self.T:.2e} s = {self.T/86400:.1f} days")
         
         print(f"\n=== DIMENSIONLESS STUFF ===")
@@ -75,11 +71,16 @@ class RichardsScale(BSaver):
             print("=> Mixed advection-diffusion")
         print("-" * (len(scale_name) + 12))
 
+    
+
 
 class HeadScale(RichardsScale):
     def __init__(self, domain_variables):
         super().__init__(domain_variables)
         self.H = self.h_char
+    @property
+    def value_scale_list(self):
+        return [self.h_char]
 
 
 class SaturationScale(RichardsScale):
@@ -87,5 +88,8 @@ class SaturationScale(RichardsScale):
         super().__init__(domain_variables)
         self.theta = concreteData.theta_s - concreteData.theta_r
         self.H = self.h_char
+    @property
+    def value_scale_list(self):
+        return [self.theta]
 
 

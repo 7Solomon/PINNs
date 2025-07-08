@@ -95,7 +95,8 @@ def execute_transient_simulation(
         
         t_fem_current += dt_const.value
 
-        if problem_type == "nonlinear":
+        # Check if the problem type contains "nonlinear" to handle both cases
+        if "nonlinear" in problem_type:
             retries = 0
             converged = False
             while retries < max_retries and not converged:
@@ -103,8 +104,8 @@ def execute_transient_simulation(
                     # Attempt to solve with the current dt
                     num_its = solver_function(uh)
                     converged = True
-                    if rank == 0 and num_its[0] > 10: # Optional: print if many iterations were needed
-                        print(f"Newton solver took {num_its[0]} iterations.")
+                    #if rank == 0 and num_its[0] > 10: # Optional: print if many iterations were needed
+                        #print(f"Newton solver took {num_its[0]} iterations.")
                 except RuntimeError as e:
                     if "Newton solver did not converge" in str(e):
                         # Backtrack time and solution
@@ -134,7 +135,7 @@ def execute_transient_simulation(
             eval_idx += 1
 
         # Increase dt again if convergence was easy
-        if problem_type == "nonlinear":
+        if "nonlinear" in problem_type:
             dt_const.value = min(dt_const.value * 1.1, dt_initial)
 
     if rank == 0:

@@ -1,6 +1,6 @@
 from FEM.output import load_fem_results, save_fem_results
 
-from process.moisture.gnd import get_richards_1d_head_fem, get_richards_1d_saturation_fem
+from process.moisture.gnd import get_richards_1d_head_fem, get_richards_1d_head_fem_points, get_richards_1d_saturation_fem
 from utils.metadata import Domain
 from domain_vars import moisture_1d_domain, moisture_2d_domain
 import numpy as np
@@ -12,34 +12,21 @@ from mpi4py import MPI
 
 
 
-def vis_1d_head(model, scale: HeadScale, interval=1000, xlabel='z', ylabel='u(z,t)', **kwargs):
+def vis_1d_head(model, scale: HeadScale, points_data:dict, ground_truth_data:np.ndarray, interval=1000, xlabel='z', ylabel='u(z,t)', **kwargs):
     title= f'Richards 1d' if 'title' not in kwargs else kwargs['title']
     z_start, z_end = moisture_1d_domain.spatial['z']
     t_start, t_end = moisture_1d_domain.temporal['t']
-    num_z_points = 25
-    num_t_points = 20
-
-    z_points = np.linspace(z_start, z_end, num_z_points)
-    t_points = np.linspace(t_start, t_end, num_t_points)
+    
+    z_points = points_data['spatial_coords']['z']
+    t_points = points_data['temporal_coords']['t']
+    num_z_points = points_data['resolution']['z']
+    num_t_points = points_data['resolution']['t']
 
     Z, T = np.meshgrid(z_points, t_points)
 
     Z_scaled = Z.copy() / scale.L   # Scale z
     T_scaled = T.copy() / scale.T   # Scale t
     ZT_scaled = np.vstack((Z_scaled.ravel(), T_scaled.ravel())).T
-
-
-    #_, ground_eval_flat_time_spatial = get_richards_1d_head_fem(
-    #        moisture_1d_domain,
-    #        nz=num_z_points,
-    #        evaluation_times=t_points,
-    #        evaluation_spatial_points_z= z_points.reshape(-1, 1),
-    #    )
-    #
-    #ground_truth_data = np.full((num_z_points, num_t_points), np.nan) 
-    #ground_truth_data = ground_eval_flat_time_spatial.reshape(num_t_points, num_z_points).transpose(1, 0)
-    #save_fem_results("BASELINE/moisture/1d_head/ground_truth.npy", ground_truth_data)
-    ground_truth_data = load_fem_results("BASELINE/moisture/1d_head/ground_truth.npy")
 
 
     # Get predictions from the model
@@ -104,27 +91,15 @@ def vis_1d_head(model, scale: HeadScale, interval=1000, xlabel='z', ylabel='u(z,
     return {'field': ani, 'fig': fig}
 
 
-def vis_1d_saturation(model, scale: SaturationScale, interval=1000, xlabel='z [m]', ylabel='Saturation [-]', **kwargs):
+def vis_1d_saturation(model, scale: SaturationScale, points_data:dict, ground_truth_data:np.ndarray, interval=1000, xlabel='z [m]', ylabel='Saturation [-]', **kwargs):
     title = 'Richards 1D (Saturation)' if 'title' not in kwargs else kwargs['title']
     z_start, z_end = moisture_1d_domain.spatial['z']
     t_start, t_end = moisture_1d_domain.temporal['t']
-    num_z_points = 50
-    num_t_points = 50
-
-    z_points = np.linspace(z_start, z_end, num_z_points)
-    t_points = np.linspace(t_start, t_end, num_t_points)
-
-    # --- Get Ground Truth Data ---
-    _, ground_eval_flat_time_spatial = get_richards_1d_saturation_fem(
-        moisture_1d_domain,
-        nz=num_z_points,
-        evaluation_times=t_points,
-        evaluation_spatial_points_z=z_points.reshape(-1, 1),
-    )
-    ground_truth_data = np.full((num_z_points, num_t_points), np.nan)
-    ground_truth_data = ground_eval_flat_time_spatial.reshape(num_t_points, num_z_points).T
-    save_fem_results("BASELINE/moisture/1d_saturation/ground_truth.npy", ground_truth_data)
-    #ground_truth_data = load_fem_results("BASELINE/moisture/1d_saturation/ground_truth.npy")
+    
+    z_points = points_data['spatial_coords']['z']
+    t_points = points_data['temporal_coords']['t']
+    num_z_points = points_data['resolution']['z']
+    num_t_points = points_data['resolution']['t']
 
 
     # --- Get PINN Predictions ---
@@ -170,7 +145,81 @@ def vis_1d_saturation(model, scale: SaturationScale, interval=1000, xlabel='z [m
     ani = animation.FuncAnimation(fig, update, frames=num_t_points,
                                   interval=interval, repeat=False)
 
-    return {'field': ani, 'fig': fig}
+    return {'field': ani, 'fig': fig, **vis_1d_time_plot(model, scale, points_data, ground_truth_data, **kwargs)}
+
+def vis_1d_time_plot(model, scale: RichardsScale, points_data: dict, ground_truth_data: np.ndarray, **kwargs):
+    """
+    Visualizes the 1D transient result as a 2D heatmap (space vs. time).
+    """
+    # --- 1. Extract Data and Parameters ---
+    title = kwargs.get('title', 'Richards 1D (Time-Space Plot)')
+    ylabel = kwargs.get('ylabel', 'z [m]')
+    
+    z_points = points_data['spatial_coords']['z']
+    t_points = points_data['temporal_coords']['t']
+    num_t_points = points_data['resolution']['t']
+    num_z_points = points_data['resolution']['z']
+
+    # --- 2. Get PINN Predictions ---
+    #Z, T = np.meshgrid(z_points, t_points)
+    Z, T = points_data['spacetime_meshgrid']['z'], points_data['spacetime_meshgrid']['t']
+    
+    Z_scaled = Z / scale.L
+    T_scaled = T / scale.T
+    ZT_scaled = np.vstack((Z_scaled.ravel(), T_scaled.ravel())).T
+
+    predictions = model.predict(ZT_scaled)
+    
+    output_scale = scale.value_scale_list[0]
+
+    pinn_data = (predictions * output_scale).reshape(num_t_points, num_z_points).T
+
+    # --- 3. Calculate Error ---
+    error_data = pinn_data - ground_truth_data
+
+    # --- 4. Setup Plot ---
+    fig, axes = plt.subplots(1, 3, figsize=(20, 6), sharey=True)
+    fig.suptitle(title)
+
+    # Determine shared color limits for prediction and ground truth
+    vmin = min(np.min(pinn_data), np.min(ground_truth_data))
+    vmax = max(np.max(pinn_data), np.max(ground_truth_data))
+
+    # Determine time unit for plotting
+    time_scale_val, time_scale_unit = (86400, 'Days') if scale.T_domain > 86400 else (3600, 'Hours')
+    t_points_scaled = t_points / time_scale_val
+    
+    # --- 5. Create Plots ---
+    # PINN Prediction
+    im1 = axes[0].pcolormesh(t_points_scaled, z_points, pinn_data, cmap='viridis', vmin=vmin, vmax=vmax, shading='gouraud')
+    axes[0].set_title('PINN Prediction')
+    axes[0].set_ylabel(ylabel)
+    axes[0].set_xlabel(f'Time [{time_scale_unit}]')
+    fig.colorbar(im1, ax=axes[0])
+
+    # Ground Truth
+    im2 = axes[1].pcolormesh(t_points_scaled, z_points, ground_truth_data, cmap='viridis', vmin=vmin, vmax=vmax, shading='gouraud')
+    axes[1].set_title('Ground Truth (FEM)')
+    axes[1].set_xlabel(f'Time [{time_scale_unit}]')
+    fig.colorbar(im2, ax=axes[1])
+
+    # Absolute Error
+    max_err = np.max(np.abs(error_data))
+    im3 = axes[2].pcolormesh(t_points_scaled, z_points, error_data, cmap='coolwarm', vmin=-max_err, vmax=max_err, shading='gouraud')
+    axes[2].set_title('Absolute Error')
+    axes[2].set_xlabel(f'Time [{time_scale_unit}]')
+    fig.colorbar(im3, ax=axes[2])
+
+    # Invert z-axis to show gravity effect from top to bottom
+    for ax in axes:
+        ax.invert_yaxis()
+
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    
+    return {'field_plot': fig}
+
+
+
 
 def visualize_2d_mixed(model, scale, **kwargs):
 

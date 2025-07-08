@@ -63,17 +63,25 @@ def residual_1d_head(x, y, scale: HeadScale):
     dh_dz_nd = dde.grad.jacobian(y, x, i=0, j=0)  # [-]
     
     # Dimensionless params
-    Da = scale.Da_hydraulic
-    Pe = scale.Pe
-    
+    pi_one = (materialData.K_s * scale.T * scale.H) / (scale.L**2)
+    gravity_term = scale.L / scale.H  # [-]
+
     # Dimensionless flux
-    flux_star = K_nd * (dh_dz_nd + Pe)  # [-]
-    
-    # Spatial term
-    spatial_term = (Da/Pe) * dde.grad.jacobian(flux_star, x, i=0, j=0)  # [-]
-    
-    # Time term
+    flux_nd = K_nd * (dh_dz_nd + gravity_term)  # [-]
+
+    spatial_term = pi_one * dde.grad.jacobian(flux_nd, x, i=0, j=0)  # [-]
     time_term = C_nd * dh_dt_nd  # [-]
+
+    #print('--------')
+    #print('h_nd', h_nd.min().item(), h_nd.max().item())
+    #print('h', h.min().item(), h.max().item())
+    #print('C_nd', C_nd.min().item(), C_nd.max().item())
+    #print('K_nd', K_nd.min().item(), K_nd.max().item())
+    #print('dh_dt_nd', dh_dt_nd.min().item(), dh_dt_nd.max().item())
+    #print('dh_dz_nd', dh_dz_nd.min().item(), dh_dz_nd.max().item())
+    #print('flux_nd', flux_nd.min().item(), flux_nd.max().item())
+    #print('spatial_term', spatial_term.min().item(), spatial_term.max().item())
+    #print('time_term', time_term.min().item(), time_term.max().item())
     
     return time_term - spatial_term
 
@@ -127,19 +135,29 @@ def residual_1d_saturation(x, y, scale: SaturationScale):
     h_nd = h_phys / scale.H
     K_nd = K_phys / materialData.K_s
 
-
-    time_term = dde.grad.jacobian(Se_nd, x, i=0, j=1)
-
+    gravity_term = scale.L / scale.H
     dh_dz_nd = dde.grad.jacobian(h_nd, x, i=0, j=0)
+    flux_nd = K_nd * (dh_dz_nd + gravity_term)  # [-]
 
-    flux_nd = K_nd * dh_dz_nd 
     spatial_term = dde.grad.jacobian(flux_nd, x, i=0, j=0)
 
     pi_group = (materialData.K_s * scale.T * scale.H) / (scale.L**2 * scale.theta)
+    time_term = dde.grad.jacobian(Se_nd, x, i=0, j=1)
+
+    #print('--------')
+    #print('Se_nd', Se_nd.min().item(), Se_nd.max().item())
+    #print('h_phys', h_phys.min().item(), h_phys.max().item())
+    #print('K_phys', K_phys.min().item(), K_phys.max().item())
+    #print('h_nd', h_nd.min().item(), h_nd.max().item())
+    #print('K_nd', K_nd.min().item(), K_nd.max().item())
+    #print('gravity_term', gravity_term)
+    #print('dh_dz_nd', dh_dz_nd.min().item(), dh_dz_nd.max().item())
+    #print('flux_nd', flux_nd.min().item(), flux_nd.max().item())
+    #print('spatial_term', spatial_term.min().item(), spatial_term.max().item())
+    #print('pi_group', pi_group)
+    #print('time_term', time_term.min().item(), time_term.max().item())
 
     return time_term - pi_group * spatial_term
-
-
 
 
 

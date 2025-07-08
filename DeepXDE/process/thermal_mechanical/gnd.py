@@ -2,6 +2,8 @@
 import numpy as np
 from mpi4py import MPI
 
+from FEM.output import load_fem_results, save_fem_results
+from utils.metadata import Domain
 from FEM.init_helper import create_dirichlet_bcs, create_mesh_and_function_space, create_solver, get_dt, initialize_fem_state
 
 import ufl
@@ -16,7 +18,7 @@ def strain(u_vec):
 
 def stress(u_vec, temp, thermal_expansion_coefficient, nu, C):
     # Thermal strain
-    effective_thermal_strain = thermal_expansion_coefficient * temp
+    effective_thermal_strain = (1 + nu) * thermal_expansion_coefficient * temp
     eps_thermal = ufl.as_vector([effective_thermal_strain, effective_thermal_strain, 0])
 
     # Mechanical strain
@@ -51,17 +53,19 @@ def define_thermal_mechanical_weak_form(V, dt, uh, un, C, thermal_expansion_coef
 
 
 def get_thermal_mechanical_fem(
-        domain_vars,
-        grid_resolution=(25,25),
-        evaluation_times: np.ndarray = None, 
-        evaluation_spatial_points_xy: np.ndarray = None
+        domain_vars: Domain,
+        points_data:dict,
+        comm: MPI.Comm,
     ):
     
     comm = MPI.COMM_WORLD
     x_min, x_max = domain_vars.spatial['x']
     y_min, y_max = domain_vars.spatial['y']
     t_min, t_max = domain_vars.temporal['t']
-
+    grid_resolution = points_data['resolution']['x'], points_data['resolution']['y']
+    evaluation_times = points_data['temporal_coords']['t']
+    evaluation_spatial_points_xy = points_data['spatial_points_flat']
+    
     element_desc = {
         "type": "mixed",
         "elements": [
@@ -138,7 +142,28 @@ def get_thermal_mechanical_fem(
     )
     return uh, final_evaluated_data
 
+def get_thermal_mechanical_fem_points(domain_vars, points_data, comm):
+    """
+    Get the FEM points for the thermal mechanical process.
+    """
+    fem_points = load_fem_results("BASELINE/thermal_mechanical/2d_flat.npy")
+    if fem_points is not None:
+        print('fem_points_shape', fem_points.shape)
+        fem_points = points_data['reshape_utils']['fem_to_ij'](fem_points)
+        print('reshaped_fem_points_shape', fem_points.shape)
+        return fem_points
     
+    #_, ground_eval_flat_time_spatial = get_thermal_mechanical_fem(domain_vars, points_data, comm)
+    #save_fem_results("BASELINE/thermal_mechanical/2d_flat.npy", ground_eval_flat_time_spatial)
 
+    #nx, ny, nt = points_data['resolution']['x'], points_data['resolution']['y'], points_data['resolution']['t']
+    #n_fields = 3  # u, v, T
+#
+    #final_shape = (nx, ny, nt, n_fields)
+#
+    #ground_eval_reshaped = ground_eval_flat_time_spatial.reshape(final_shape)
+    
+    #save_fem_results("BASELINE/thermal_mechanical/2d.npy", ground_eval_reshaped)
+    #return ground_eval_reshaped
 
 

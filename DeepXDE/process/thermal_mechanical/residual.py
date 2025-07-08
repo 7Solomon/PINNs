@@ -16,7 +16,7 @@ def residual_thermal_2d(x, y, scale: Scale):
     dv_dx_nd = dde.grad.jacobian(y, x, i=1, j=0)  # [-]
 
     temp = scale.Temperature * y[:, 2:3]
-    epsilon_th_nd = materialData.thermal_expansion_coefficient * temp / (scale.U/( scale.L))
+    epsilon_th_nd = (1 + materialData.nu) * materialData.thermal_expansion_coefficient * temp / (scale.U/( scale.L))
 
     ex_mech_nd = du_dx_nd - epsilon_th_nd
     ey_mech_nd = dv_dy_nd - epsilon_th_nd
