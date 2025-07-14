@@ -4,7 +4,7 @@ from material import concreteData
 materialData = concreteData
 
 
-class Scale(BSaver):
+class MechanicScale(BSaver):
     def __init__(self, domain_variables):
         self.x_min, self.x_max = domain_variables.spatial['x']
         self.y_min, self.y_max = domain_variables.spatial['y']
@@ -24,4 +24,20 @@ class Scale(BSaver):
     @property
     def  value_scale_list(self):
         return [self.U, self.U]
+    @property
+    def input_scale_list(self):
+        return [self.L, self.L]
     ## CONStrainst
+
+
+class EnsemnbleMechanicScale(MechanicScale):
+    def __init__(self, domain_variables):
+        super().__init__(domain_variables)
+
+    @property
+    def value_scale_list(self):
+        return [self.U, self.U, self.sigma, self.sigma, self.sigma]
+    
+    @property
+    def input_scale_list(self):
+        return [self.L, self.L]

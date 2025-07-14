@@ -161,33 +161,56 @@ def get_sigma_fem(u_sol, domain_vars, grid_resolution=(10, 10)):
     
     return stress_functions[0], stress_functions[1], stress_functions[2]
 
-def get_ensemble_einspannung_2d_fem(domain_vars, grid_resolution=(10, 10)):
+def get_ensemble_einspannung_2d_fem_points(domain_vars, points_data, comm):
     """
-    Enhanced ensemble solution using helper functions
+    Enhanced ensemble solution using helper functions, evaluated at specific points.
+    Returns an array of shape (n_points, 5) with [u, v, sigma_xx, sigma_yy, tau_xy].
     """
     comm = MPI.COMM_WORLD
     
-    # Get displacement solution first
-    u_sol = get_einspannung_2d_fem(domain_vars, grid_resolution)
+    # 1. Get displacement and stress solutions
+    u_sol = get_einspannung_2d_fem(domain_vars)
+    sigma_xx, sigma_yy, tau_xy = get_sigma_fem(u_sol, domain_vars)
     
-    # Compute stress fields using the helper-based approach
-    sigma_xx, sigma_yy, tau_xy = get_sigma_fem(u_sol, domain_vars, grid_resolution)
+    # 2. Prepare for point evaluation
+    mesh = u_sol.function_space.mesh
+    _perform_eval, eval_points_3d, bb_tree = initialize_point_evaluation(
+        mesh, points_data['spatial_points_flat'], comm
+    )
+
+    # 3. Evaluate displacement components (u, v)
+    V = u_sol.function_space
+    V_x, dof_map_x = V.sub(0).collapse()
+    V_y, dof_map_y = V.sub(1).collapse()
+    u_x_func = df.fem.Function(V_x)
+    u_y_func = df.fem.Function(V_y)
+    u_x_func.x.array[:] = u_sol.x.array[dof_map_x]
+    u_y_func.x.array[:] = u_sol.x.array[dof_map_y]
     
-    # Create comprehensive ensemble dictionary
-    ensemble_solution = {
-        'displacement': u_sol,
-        'sigma_xx': sigma_xx,
-        'sigma_yy': sigma_yy,     
-        'tau_xy': tau_xy,
-        # Additional metadata
-        'mesh': u_sol.function_space.mesh,
-        'function_spaces': {
-            'displacement': u_sol.function_space,
-            'stress': sigma_xx.function_space
-        },
-    }
+    u_x_flat = evaluate_solution_at_points_on_rank_0(u_x_func, eval_points_3d, bb_tree, mesh, comm)
+    u_y_flat = evaluate_solution_at_points_on_rank_0(u_y_func, eval_points_3d, bb_tree, mesh, comm)
+
+    # 4. Evaluate stress components
+    sigma_xx_flat = evaluate_solution_at_points_on_rank_0(sigma_xx, eval_points_3d, bb_tree, mesh, comm)
+    sigma_yy_flat = evaluate_solution_at_points_on_rank_0(sigma_yy, eval_points_3d, bb_tree, mesh, comm)
+    tau_xy_flat = evaluate_solution_at_points_on_rank_0(tau_xy, eval_points_3d, bb_tree, mesh, comm)
+
+    # 5. Combine results on rank 0
+    if comm.rank == 0:
+        # Stack all flat arrays horizontally
+        ensemble_values_flat = np.hstack([
+            u_x_flat[:, np.newaxis],
+            u_y_flat[:, np.newaxis],
+            sigma_xx_flat[:, np.newaxis],
+            sigma_yy_flat[:, np.newaxis],
+            tau_xy_flat[:, np.newaxis]
+        ])
+        # Reshape to grid if a reshape function is provided
+        ensemble_values_at_points = points_data['reshape_static_to_grid'](ensemble_values_flat)
+    else:
+        ensemble_values_at_points = None
     
-    return ensemble_solution
+    return ensemble_values_at_points
 
 
 def get_einspannung_2d_fem_points(domain_vars, points_data, comm):

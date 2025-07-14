@@ -15,6 +15,46 @@ from material import concreteData
 materialData = concreteData
 
 
+def get_transient_analytical_solution(domain_vars, points_data, comm, n_terms=100):
+    """
+    Calculates the analytical solution for the 2D transient heat problem.
+
+    Args:
+        points (np.ndarray): A (N, 3) array of points (x, y, t) to evaluate.
+        domain_vars (dict): Dictionary with domain boundaries, e.g., domain_vars.spatial['x'].
+        n_terms (int): Number of terms to use in the series expansion.
+
+    Returns:
+        np.ndarray: A (N, 1) array of temperature values at the given points.
+    """
+    points = points_data['spacetime_points_flat']
+    x_coords = points[:, 0]
+    t_coords = points[:, 2]
+
+    x_min, x_max = domain_vars.spatial['x']
+    L = x_max - x_min
+    alpha = materialData.alpha_thermal_diffusivity
+    
+    # Steady-state solution
+    T_ss = 100.0 * (x_max - x_coords) / L
+
+    # Transient solution (series)
+    T_tr = np.zeros_like(x_coords)
+    for n in range(1, n_terms + 1):
+        lambda_n = n * np.pi / L
+        # Fourier coefficient for the initial condition T_tr(x,0) = -T_ss(x)
+        Bn = (200.0 / (n * np.pi)) * ((-1)**n - 1) # This is -200/(n*pi) for n odd, 0 for n even
+        
+        term = Bn * np.sin(lambda_n * (x_coords - x_min)) * np.exp(-alpha * (lambda_n**2) * t_coords)
+        T_tr += term
+        
+    solution = T_ss + T_tr
+    #print('solution', solution.shape)
+    solution = points_data['reshape_utils']['pred_to_ij'](solution)    
+    #print('solution reshaped', solution.shape)
+    return solution
+
+
 def get_steady_fem(domain_vars):
         
     x_min, x_max = domain_vars.spatial['x']
@@ -159,6 +199,7 @@ def get_transient_fem(domain_vars,
         constants_def=constants_def,
         state_vars=state_vars
     )
+    
     # Extract
     uh = fem_states["uh_temperature"]
     un = fem_states["un_temperature"]
@@ -207,16 +248,9 @@ def get_transient_fem(domain_vars,
 def get_transient_fem_points(domain_vars, points_data, comm):
     fem_points = load_fem_results("BASELINE/heat/transient_2d_flat.npy")
     if fem_points is not None:
-        from process.heat.vis import test_vis_ground_fixed
-        #print(fem_points.shape)
-        fem_points = points_data['reshape_utils']['fem_to_ij'](fem_points)
-        #print(fem_points.shape)
-        #g = test_vis_ground_fixed(points_data, fem_points)
-        #g['field'].save(f'test/test_clean.gif', writer='ffmpeg', fps=30)
-        #g['fig'].savefig('test/test_clean.png', dpi=300)
-        
-
+        fem_points = points_data['reshape_utils']['fem_to_ij'](fem_points)     
         return fem_points
+    raise ValueError("No FEM results found. Please run the FEM simulation first.")
     #_, ground_eval_flat_time_spatial = get_transient_fem(domain_vars, points_data, comm)
     #save_fem_results("BASELINE/heat/transient_2d_flat.npy", ground_eval_flat_time_spatial)
     #return ground_eval_flat_time_spatial

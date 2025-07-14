@@ -41,44 +41,46 @@ def visualize_steady_field(model, scale: Scale, points_data: dict, **kwargs):
     return {'field': plt.gcf()}
 
 def visualize_transient_field(model, scale: Scale, points_data: dict, fem_value_points: np.ndarray, **kwargs):
-    t = points_data['temporal_coords']['t']
-    
+    # --- Points ---
     scaled_points = points_data['spacetime_points_flat'] / np.array([scale.L, scale.L, scale.t])
-    # Use the 'ij' meshgrid for matplotlib plotting
-    X_plot, Y_plot = points_data['spacetime_meshgrid']['xy']['x'], points_data['spacetime_meshgrid']['xy']['y']
+    X_plot, Y_plot = points_data['spacetime_meshgrid']['ij']['x'], points_data['spacetime_meshgrid']['ij']['y']
+    t = points_data['temporal_coords']['t']
 
-    # --- 2. Get Predictions ---
+    # --- Get Predictions ---
     predictions = model.predict(scaled_points)
-    print(f"Predictions shape: {predictions.shape}")  # Debugging line
-
-    # Reshape predictions back to an 'ij' grid (nx, ny, nt)
     predictions = points_data['reshape_utils']['pred_to_ij'](predictions)
-    print(f"Reshaped predictions shape: {predictions.shape}")  # Debugging line
     predictions = predictions * scale.T
 
+    fields = vis_transient_field_test(predictions, fem_value_points, X_plot, Y_plot, t, **kwargs)
+    test_slice = visualize_transient_spacetime_slice(predictions, fem_value_points, X_plot, Y_plot, t, **kwargs)
+    return {**fields, **test_slice}
+
+
+
+def vis_transient_field_test(predictions, fem_value_points, X, Y, t, **kwargs):
     difference = predictions - fem_value_points
 
     fig, axes = plt.subplots(1, 3, figsize=(18, 5))
     
-    # Determine consistent color bar limits
-    pred_vmin, pred_vmax = np.nanmin(predictions), np.nanmax(predictions)
-    ground_vmin, ground_vmax = np.nanmin(fem_value_points), np.nanmax(fem_value_points)
-    diff_vmin, diff_vmax = np.nanmin(difference), np.nanmax(difference)
-
-    # Handle cases where data might be all NaN
-    ground_vmin = 0 if np.isnan(ground_vmin) else ground_vmin
-    ground_vmax = 1 if np.isnan(ground_vmax) else ground_vmax
-    diff_vmin = -1 if np.isnan(diff_vmin) else diff_vmin
-    diff_vmax = 1 if np.isnan(diff_vmax) else diff_vmax
-
-    # --- 4. Initial Plot Frame ---
-    pred_plot = predictions[:,:,0].T
-    fem_plot = fem_value_points[:,:,0].T
-    diff_plot = difference[:,:,0].T
+    combined_min = min(np.nanmin(predictions), np.nanmin(fem_value_points))
+    combined_max = max(np.nanmax(predictions), np.nanmax(fem_value_points))
     
-    cont1 = axes[0].contourf(X_plot[:,:,0], Y_plot[:,:,0], pred_plot, 50, cmap=cm.jet, vmin=pred_vmin, vmax=pred_vmax)
-    cont2 = axes[1].contourf(X_plot[:,:,0], Y_plot[:,:,0], fem_plot, 50, cmap=cm.jet, vmin=ground_vmin, vmax=ground_vmax)
-    cont3 = axes[2].contourf(X_plot[:,:,0], Y_plot[:,:,0], diff_plot, 50, cmap=cm.RdBu_r, vmin=diff_vmin, vmax=diff_vmax)
+    # For difference: use symmetric scale around zero
+    diff_abs_max = np.nanmax(np.abs(difference))
+    diff_vmin, diff_vmax = -diff_abs_max, diff_abs_max
+    
+    # Handle NaN cases
+    #if np.isnan(pred_vmin): pred_vmin, pred_vmax = 0, 1
+    #if np.isnan(ground_vmin): ground_vmin, ground_vmax = 0, 1
+    #if np.isnan(diff_vmin): diff_vmin, diff_vmax = -1, 1
+    # --- 4. Initial Plot Frame ---
+    pred_plot = predictions[:,:,0]
+    fem_plot = fem_value_points[:,:,0]
+    diff_plot = difference[:,:,0]
+    
+    cont1 = axes[0].contourf(X[:,:,0], Y[:,:,0], pred_plot, 50, cmap=cm.jet, vmin=0, vmax=100)
+    cont2 = axes[1].contourf(X[:,:,0], Y[:,:,0], fem_plot, 50, cmap=cm.jet, vmin=0, vmax=100)
+    cont3 = axes[2].contourf(X[:,:,0], Y[:,:,0], diff_plot, 50, cmap=cm.RdBu_r, vmin=diff_vmin, vmax=diff_vmax)
     
     cbar1 = fig.colorbar(cont1, ax=axes[0])
     cbar2 = fig.colorbar(cont2, ax=axes[1])
@@ -98,16 +100,22 @@ def visualize_transient_field(model, scale: Scale, points_data: dict, fem_value_
     # --- 5. Animation Update Function ---
     def update(frame):
         for ax in axes:
-            ax.clear()
+            for c in ax.collections:
+                c.remove()
 
-        pred_plot = predictions[:,:,frame].T
-        fem_plot = fem_value_points[:,:,frame].T
-        diff_plot = difference[:,:,frame].T
+        pred_plot = predictions[:,:,frame]
+        fem_plot = fem_value_points[:,:,frame]
+        diff_plot = difference[:,:,frame]
         
-        cont1 = axes[0].contourf(X_plot[:,:,frame], Y_plot[:,:,frame], pred_plot, 50, cmap=cm.jet, vmin=pred_vmin, vmax=pred_vmax)
-        cont2 = axes[1].contourf(X_plot[:,:,frame], Y_plot[:,:,frame], fem_plot, 50, cmap=cm.jet, vmin=ground_vmin, vmax=ground_vmax)
-        cont3 = axes[2].contourf(X_plot[:,:,frame], Y_plot[:,:,frame], diff_plot, 50, cmap=cm.RdBu_r, vmin=diff_vmin, vmax=diff_vmax)
+        cont1 = axes[0].contourf(X[:,:,frame], Y[:,:,frame], pred_plot, 50, cmap=cm.jet, vmin=0, vmax=100)
+        cont2 = axes[1].contourf(X[:,:,frame], Y[:,:,frame], fem_plot, 50, cmap=cm.jet, vmin=0, vmax=100)
+        cont3 = axes[2].contourf(X[:,:,frame], Y[:,:,frame], diff_plot, 50, cmap=cm.RdBu_r, vmin=diff_vmin, vmax=diff_vmax)
         
+        # Redraw colorbars in each frame
+        cbar1.mappable.set_clim(0, 100)
+        cbar2.mappable.set_clim(0, 100)
+        cbar3.mappable.set_clim(diff_vmin, diff_vmax)
+
         axes[0].set_title(f'Prediction at t={(t[frame]/(60*60*24)):.3f} days')
         axes[1].set_title(f'Ground Truth at t={(t[frame]/(60*60*24)):.3f} days')
         axes[2].set_title(f'Difference at t={(t[frame]/(60*60*24)):.3f} days')
@@ -125,45 +133,55 @@ def visualize_transient_field(model, scale: Scale, points_data: dict, fem_value_
     plt.tight_layout()
     
     return {'field': ani, 'fig': fig}#, 'difference': difference}
-def test_vis_ground_fixed(points_data, fem_value_points):
-    # Create grid
-    meshgrid = get_meshgrid_for_visualization(points_data, indexing='xy')
-    X, Y = meshgrid['x'], meshgrid['y']
-    t = points_data['temporal_coords']['t']
+
+def visualize_transient_spacetime_slice(predictions, fem_value_points, X, Y, t, slice_type='middle', **kwargs):
+    """
+    Create space-time heatmaps by taking 1D slices through the domain
+    """
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
     
-    # VAl
-    pred_plot = fem_value_points[:,:,0] 
+    if slice_type == 'middle':
+        print("Using middle slice for visualization")
+        mid_y = predictions.shape[1] // 2
+        print(f"Middle y index: {mid_y}")
+        pred_slice = predictions[:, mid_y, :]  # (x, t)
+        fem_slice = fem_value_points[:, mid_y, :]
+        x_coords = X[:, mid_y, 0]
+        slice_label = f'y = {Y[mid_y, 0, 0]:.2f}m'
+    elif slice_type == 'diagonal':
+        print("Using diagonal slice for visualization")
+        min_dim = min(predictions.shape[0], predictions.shape[1])
+        pred_slice = predictions[range(min_dim), range(min_dim), :]
+        fem_slice = fem_value_points[range(min_dim), range(min_dim), :]
+        x_coords = np.sqrt(X[range(min_dim), range(min_dim), 0]**2 + Y[range(min_dim), range(min_dim), 0]**2)
+        slice_label = 'Diagonal'
     
-    fig, axes = plt.subplots(1, 1, figsize=(5, 5))
-    pred_vmin, pred_vmax = np.nanmin(fem_value_points), np.nanmax(fem_value_points)
-
-    # First frame
-    cont1 = axes.contourf(X[:,:,0], Y[:,:,0], pred_plot.T, 50, cmap=cm.jet, vmin=pred_vmin, vmax=pred_vmax)
+    difference_slice = pred_slice - fem_slice
     
-    # Colorbars
-    cbar1 = fig.colorbar(cont1, ax=axes)
-
-    # Labels
-    axes.set_title(f'Ground Truth at t={(t[0]/(60*60*24)):.3f} days')
-    axes.set_xlabel('x')
-    axes.set_ylabel('y')
-
-    def update(frame):
-        axes.clear()
-        
-        # Transpose for plotting
-        pred_plot = fem_value_points[:,:,frame]
-        
-        cont1 = axes.contourf(X[:,:,frame], Y[:,:,frame], pred_plot.T, 50, cmap=cm.jet, vmin=pred_vmin, vmax=pred_vmax)
-        
-        axes.set_title(f'Ground Truth at t={(t[frame]/(60*60*24)):.3f} days')
-        axes.set_xlabel('x')
-        axes.set_ylabel('y')
-        cbar1.update_normal(cont1)
-        
-        return [cont1]
-
-    ani = animation.FuncAnimation(fig, update, frames=len(t), interval=100)
+    # Convert time to days
+    t_days = t / (60*60*24)
+    
+    # Create meshgrids for plotting
+    T_mesh, X_mesh = np.meshgrid(t_days, x_coords)
+    
+    # Plot heatmaps
+    im1 = axes[0].contourf(T_mesh, X_mesh, pred_slice, 50, cmap=cm.jet)
+    im2 = axes[1].contourf(T_mesh, X_mesh, fem_slice, 50, cmap=cm.jet)
+    im3 = axes[2].contourf(T_mesh, X_mesh, difference_slice, 50, cmap=cm.RdBu_r)
+    
+    # Add colorbars
+    fig.colorbar(im1, ax=axes[0], label='Temperature [°C]')
+    fig.colorbar(im2, ax=axes[1], label='Temperature [°C]')
+    fig.colorbar(im3, ax=axes[2], label='Difference [°C]')
+    
+    # Labels and titles
+    for ax in axes:
+        ax.set_xlabel('Time [days]')
+        ax.set_ylabel('Position [m]')
+    
+    axes[0].set_title(f'Prediction - {slice_label}')
+    axes[1].set_title(f'Ground Truth - {slice_label}')
+    axes[2].set_title(f'Difference - {slice_label}')
+    
     plt.tight_layout()
-    
-    return {'field': ani, 'fig': fig}
+    return {'slice': fig}

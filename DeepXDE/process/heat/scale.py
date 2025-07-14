@@ -24,6 +24,9 @@ class Scale(BSaver):
         #self.t = 1
         #self.T = 1
         #print('GEHE SICER, dass materialData ist CONCRETE')
+    @property
+    def input_scale_list(self):
+        return [self.L, self.L, self.t]
      
     #@property
     #def alpha(self):

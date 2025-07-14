@@ -22,3 +22,6 @@ class Scale(BSaver):
     @property
     def value_scale_list(self):
         return [self.U, self.U, self.Temperature]
+    @property
+    def input_scale_list(self):
+        return [self.L, self.L, self.t]

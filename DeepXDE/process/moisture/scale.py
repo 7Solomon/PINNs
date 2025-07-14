@@ -80,7 +80,10 @@ class HeadScale(RichardsScale):
         self.H = self.h_char
     @property
     def value_scale_list(self):
-        return [self.h_char]
+        return [self.H]
+    @property
+    def input_scale_list(self):
+        return [self.L, self.T]
 
 
 class SaturationScale(RichardsScale):
@@ -90,6 +93,10 @@ class SaturationScale(RichardsScale):
         self.H = self.h_char
     @property
     def value_scale_list(self):
-        return [self.theta]
+        return [1]
+        #return [self.theta]
+    @property
+    def input_scale_list(self):
+        return [self.L, self.T]
 
 

@@ -14,6 +14,7 @@ def plot_loss(Loss, labels=None):
     
     if isinstance(Loss, dde.model.LossHistory):
         epochs = Loss.steps
+        plt.figure(figsize=(10, 6))
         
         if Loss.loss_train and len(Loss.loss_train[0]) > 0:
             loss_train_np = np.array(Loss.loss_train)
@@ -51,12 +52,20 @@ def plot_mse(mse_values):
     Args:
         mse_values: List or array of MSE values
     """
+    mse_array = np.array(mse_values)
+    min_mse = np.min(mse_array)
+    max_mse = np.max(mse_array)
+    mean_mse = np.mean(mse_array)
 
     plt.figure(figsize=(10, 5))
     plt.bar(range(len(mse_values)), mse_values)
-    plt.xlabel('Epochs [1000]')
+    plt.xlabel('Epochs [50]')
     plt.ylabel('MSE')
-    plt.title('Mean Squared Error (MSE)')
+    
+    # Two-line title instead of suptitle
+    plt.title(f'Mean Squared Error (MSE)\nMin: {min_mse:.2e} | Max: {max_mse:.2e}', 
+              fontsize=11)
+    
     plt.grid(axis='y', linestyle='--')
     
     return {'mse': plt.gcf()}

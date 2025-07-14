@@ -1,3 +1,4 @@
+from points import get_meshgrid_for_visualization
 from FEM.output import load_fem_results, save_fem_results
 
 from process.moisture.gnd import get_richards_1d_head_fem, get_richards_1d_head_fem_points, get_richards_1d_saturation_fem
@@ -12,29 +13,26 @@ from mpi4py import MPI
 
 
 
-def vis_1d_head(model, scale: HeadScale, points_data:dict, ground_truth_data:np.ndarray, interval=1000, xlabel='z', ylabel='u(z,t)', **kwargs):
-    title= f'Richards 1d' if 'title' not in kwargs else kwargs['title']
-    z_start, z_end = moisture_1d_domain.spatial['z']
-    t_start, t_end = moisture_1d_domain.temporal['t']
+def vis_1d_head(model, scale: HeadScale, points_data:dict, ground_truth_data:np.ndarray):
+
+    Z = points_data['spacetime_meshgrid']['ij']['z']
+    t = points_data['temporal_coords']['t']
+    scaled_points = points_data['spacetime_points_flat'] / scale.input_scale_list
     
-    z_points = points_data['spatial_coords']['z']
-    t_points = points_data['temporal_coords']['t']
-    num_z_points = points_data['resolution']['z']
-    num_t_points = points_data['resolution']['t']
-
-    Z, T = np.meshgrid(z_points, t_points)
-
-    Z_scaled = Z.copy() / scale.L   # Scale z
-    T_scaled = T.copy() / scale.T   # Scale t
-    ZT_scaled = np.vstack((Z_scaled.ravel(), T_scaled.ravel())).T
-
-
     # Get predictions from the model
-    predictions = model.predict(ZT_scaled)
-    predictions = predictions * scale.h_char
-    pinn_data = predictions.reshape(num_t_points, num_z_points).T
+    predictions = model.predict(scaled_points)
+    predictions = points_data['reshape_utils']['pred_to_ij'](predictions)
+    predictions = predictions * scale.value_scale_list
+    plots_1d = vis_1d_head_test(predictions, ground_truth_data, Z, t)
+    plot_mean_error_2d = vis_1d_time_plot(predictions, ground_truth_data, t, Z)
 
-    error_data = pinn_data - ground_truth_data
+    return {**plots_1d, **plot_mean_error_2d}
+
+
+def vis_1d_head_test(predictions, ground_truth_data, Z, t):
+
+
+    error_data = predictions - ground_truth_data
     #mse = np.mean(np.square(error_data), axis=0)
 
     # --- Setup Plot ---
@@ -42,21 +40,16 @@ def vis_1d_head(model, scale: HeadScale, points_data:dict, ground_truth_data:np.
     
 
     # --- Create Lines ---
-    line_pinn, = axes[0].plot(z_points, pinn_data[:, 0], 'b-')
-    line_gt, = axes[1].plot(z_points, ground_truth_data[:, 0], 'r-')
-    line_err, = axes[2].plot(z_points, error_data[:, 0], 'g-')
-
-    #abs_error_T = np.abs(error_data).T # Transpose for plotting
-    #contour = axes[3].contourf(z_points, t_points, abs_error_T, cmap='Reds', levels=20)
-    #fig.colorbar(contour, ax=axes[3], label='Absolute Error Magnitude')
-    #time_indicator = axes[3].axhline(y=t_points[0], color='black', linestyle='--')
+    line_pinn, = axes[0].plot(Z[:,0], predictions[:, 0], 'b-')
+    line_gt, = axes[1].plot(Z[:,0], ground_truth_data[:, 0], 'r-')
+    line_err, = axes[2].plot(Z[:,0], error_data[:, 0], 'g-')
 
 
     # --- Formatting ---
-    axes[0].set(title='PINN Prediction', xlabel=xlabel, ylabel=ylabel, xlim=(z_start, z_end), ylim=(0,-10))
-    axes[1].set(title='Ground Truth', xlabel=xlabel, ylabel=ylabel, xlim=(z_start, z_end), ylim=(0,-10))
-    axes[2].set(title='Absolute Error', xlabel=xlabel, ylabel='Error', xlim=(z_start, z_end))
-    
+    axes[0].set(title='PINN Prediction', xlabel='z [m]', ylabel='Head [m]', xlim=(0, 1), ylim=(0,-10))
+    axes[1].set(title='Ground Truth', xlabel='z [m]', ylabel='Head [m]', xlim=(0, 1), ylim=(0,-10))
+    axes[2].set(title='Absolute Error', xlabel='z [m]', ylabel='Error', xlim=(0, 1))
+
     # For error
     error_min, error_max = np.nanmin(error_data), np.nanmax(error_data)
     margin = (error_max - error_min) * 0.1  # 10% margin
@@ -67,145 +60,115 @@ def vis_1d_head(model, scale: HeadScale, points_data:dict, ground_truth_data:np.
     axes[2].text(0.02, 0.98, error_range_text, transform=axes[2].transAxes,
                  fontsize=9, verticalalignment='top', bbox=dict(boxstyle='round,pad=0.3', fc='wheat', alpha=0.5))
 
-    time_scale_val, time_scale_unit = ((60*60), 'Hours') if t_end / (60*60*24) < 2 else ((60*60*24), 'Days')
-    fig.suptitle(f'{title} (t=0.00 {time_scale_unit})')# | Overall MSE: {mse:.2e}')    
+    time_scale_val, time_scale_unit = ((60*60), 'Hours') if t[-1] / (60*60*24) < 2 else ((60*60*24), 'Days')
+    fig.suptitle(f'Richards 1d (t=0.00 {time_scale_unit})')# | Overall MSE: {mse:.2e}')    
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    
+    
+    
     def update(frame):
-        line_pinn.set_ydata(pinn_data[:, frame])
+        line_pinn.set_ydata(predictions[:, frame])
         line_gt.set_ydata(ground_truth_data[:, frame])
         line_err.set_ydata(error_data[:, frame])
 
-        #time_indicator.set_ydata(t_points[frame])
-
-        current_time = t_points[frame] / time_scale_val
-        fig.suptitle(f'{title} (t={current_time:.2f} {time_scale_unit})')# | Overall MSE: {mse:.2e}')
+        current_time = t[frame] / time_scale_val
+        fig.suptitle(f'Richards 1d (t={current_time:.2f} {time_scale_unit})')# | Overall MSE: {mse:.2e}')
         return line_pinn, line_gt, line_err#, time_indicator
 
 
 
-    ani = animation.FuncAnimation(fig, update, frames=num_t_points,
-                                  interval=interval, repeat=False)
+    ani = animation.FuncAnimation(fig, update, frames=len(t),
+                                  interval=1000, repeat=False)
     
     #ani.save('animation.mp4', writer='ffmpeg', fps=1000/interval)
     #plt.show() # geht glaube nocht auf ssh
     return {'field': ani, 'fig': fig}
 
 
-def vis_1d_saturation(model, scale: SaturationScale, points_data:dict, ground_truth_data:np.ndarray, interval=1000, xlabel='z [m]', ylabel='Saturation [-]', **kwargs):
-    title = 'Richards 1D (Saturation)' if 'title' not in kwargs else kwargs['title']
-    z_start, z_end = moisture_1d_domain.spatial['z']
-    t_start, t_end = moisture_1d_domain.temporal['t']
-    
-    z_points = points_data['spatial_coords']['z']
-    t_points = points_data['temporal_coords']['t']
-    num_z_points = points_data['resolution']['z']
-    num_t_points = points_data['resolution']['t']
+def vis_1d_saturation(model, scale: SaturationScale, points_data:dict, ground_truth_data:np.ndarray):
+    Z = points_data['spacetime_meshgrid']['ij']['z']
+    t = points_data['temporal_coords']['t']
+    scaled_points = points_data['spacetime_points_flat'] / scale.input_scale_list
 
+    predictions = model.predict(scaled_points)
+    predictions = points_data['reshape_utils']['pred_to_ij'](predictions)
+    predictions = predictions * scale.value_scale_list
+    plots_1d = vis_1d_saturation_test(predictions, ground_truth_data, Z, t)
+    plot_mean_error_2d = vis_1d_time_plot(predictions, ground_truth_data, t, Z)
+    return {**plots_1d, **plot_mean_error_2d}
 
-    # --- Get PINN Predictions ---
-    Z, T = np.meshgrid(z_points, t_points)
-    Z_scaled = Z.copy() / scale.L
-    T_scaled = T.copy() / scale.T
-    ZT_scaled = np.vstack((Z_scaled.ravel(), T_scaled.ravel())).T
-
-    predictions = model.predict(ZT_scaled)
-    # Saturation is dimensionless, so no scaling is applied to the output
-    pinn_data = predictions.reshape(num_t_points, num_z_points).T
-
+def vis_1d_saturation_test(predictions, ground_truth_data, Z, t):
     # --- Calculate Error ---
-    error_data = pinn_data - ground_truth_data
+    error_data = predictions - ground_truth_data
 
     # --- Setup Plot ---
     fig, axes = plt.subplots(1, 3, figsize=(18, 6))
 
     # --- Create Lines ---
-    line_pinn, = axes[0].plot(z_points, pinn_data[:, 0], 'b-')
-    line_gt, = axes[1].plot(z_points, ground_truth_data[:, 0], 'r-')
-    line_err, = axes[2].plot(z_points, error_data[:, 0], 'g-')
+    line_pinn, = axes[0].plot(Z[:,0], predictions[:, 0], 'b-')
+    line_gt, = axes[1].plot(Z[:,0], ground_truth_data[:, 0], 'r-')
+    line_err, = axes[2].plot(Z[:,0], error_data[:, 0], 'g-')
 
     # --- Formatting ---
-    axes[0].set(title='PINN Prediction', xlabel=xlabel, ylabel=ylabel, xlim=(z_start, z_end), ylim=(0, 1))
-    axes[1].set(title='Ground Truth', xlabel=xlabel, ylabel=ylabel, xlim=(z_start, z_end), ylim=(0, 1))
-    axes[2].set(title='Absolute Error', xlabel=xlabel, ylabel='Error', xlim=(z_start, z_end))
+    axes[0].set(title='PINN Prediction', xlabel='z [m]', ylabel='Saturation [-]', xlim=(0, 1), ylim=(0, 1))
+    axes[1].set(title='Ground Truth', xlabel='z [m]', ylabel='Saturation [-]', xlim=(0, 1), ylim=(0, 1))
+    axes[2].set(title='Absolute Error', xlabel='z [m]', ylabel='Error', xlim=(0, 1))
 
 
-    time_scale_val, time_scale_unit = ((60*60), 'Hours') if t_end / (60*60*24) < 2 else ((60*60*24), 'Days')
-    fig.suptitle(f'{title} (t=0.00 {time_scale_unit})')
+    time_scale_val, time_scale_unit = ((60*60), 'Hours') if t[-1] / (60*60*24) < 2 else ((60*60*24), 'Days')
+    fig.suptitle(f'1d Saturation (t=0.00 {time_scale_unit})')
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
 
     def update(frame):
-        line_pinn.set_ydata(pinn_data[:, frame])
+        line_pinn.set_ydata(predictions[:, frame])
         line_gt.set_ydata(ground_truth_data[:, frame])
         line_err.set_ydata(error_data[:, frame])
 
-        current_time = t_points[frame] / time_scale_val
-        fig.suptitle(f'{title} (t={current_time:.2f} {time_scale_unit})')
+        current_time = t[frame] / time_scale_val
+        fig.suptitle(f'1d Saturation (t={current_time:.2f} {time_scale_unit})')
         return line_pinn, line_gt, line_err
 
-    ani = animation.FuncAnimation(fig, update, frames=num_t_points,
-                                  interval=interval, repeat=False)
+    ani = animation.FuncAnimation(fig, update, frames=len(t),
+                                  interval=1000, repeat=False)
 
-    return {'field': ani, 'fig': fig, **vis_1d_time_plot(model, scale, points_data, ground_truth_data, **kwargs)}
+    return {'field': ani, 'fig': fig, **vis_1d_time_plot(predictions, ground_truth_data, t, Z)}
 
-def vis_1d_time_plot(model, scale: RichardsScale, points_data: dict, ground_truth_data: np.ndarray, **kwargs):
+def vis_1d_time_plot(predictions, ground_truth_data, t, Z):
     """
     Visualizes the 1D transient result as a 2D heatmap (space vs. time).
     """
-    # --- 1. Extract Data and Parameters ---
-    title = kwargs.get('title', 'Richards 1D (Time-Space Plot)')
-    ylabel = kwargs.get('ylabel', 'z [m]')
-    
-    z_points = points_data['spatial_coords']['z']
-    t_points = points_data['temporal_coords']['t']
-    num_t_points = points_data['resolution']['t']
-    num_z_points = points_data['resolution']['z']
-
-    # --- 2. Get PINN Predictions ---
-    #Z, T = np.meshgrid(z_points, t_points)
-    Z, T = points_data['spacetime_meshgrid']['z'], points_data['spacetime_meshgrid']['t']
-    
-    Z_scaled = Z / scale.L
-    T_scaled = T / scale.T
-    ZT_scaled = np.vstack((Z_scaled.ravel(), T_scaled.ravel())).T
-
-    predictions = model.predict(ZT_scaled)
-    
-    output_scale = scale.value_scale_list[0]
-
-    pinn_data = (predictions * output_scale).reshape(num_t_points, num_z_points).T
-
     # --- 3. Calculate Error ---
-    error_data = pinn_data - ground_truth_data
+    error_data = predictions - ground_truth_data
 
     # --- 4. Setup Plot ---
     fig, axes = plt.subplots(1, 3, figsize=(20, 6), sharey=True)
-    fig.suptitle(title)
+    fig.suptitle('1D Transient Visualization', fontsize=16)
 
     # Determine shared color limits for prediction and ground truth
-    vmin = min(np.min(pinn_data), np.min(ground_truth_data))
-    vmax = max(np.max(pinn_data), np.max(ground_truth_data))
+    vmin = min(np.min(predictions), np.min(ground_truth_data))
+    vmax = max(np.max(predictions), np.max(ground_truth_data))
 
     # Determine time unit for plotting
-    time_scale_val, time_scale_unit = (86400, 'Days') if scale.T_domain > 86400 else (3600, 'Hours')
-    t_points_scaled = t_points / time_scale_val
+    time_scale_val, time_scale_unit = ((60*60), 'Hours') if t[-1] / (60*60*24) < 2 else ((60*60*24), 'Days')
+    t_scaled = t / time_scale_val  # Scale time for display
     
     # --- 5. Create Plots ---
     # PINN Prediction
-    im1 = axes[0].pcolormesh(t_points_scaled, z_points, pinn_data, cmap='viridis', vmin=vmin, vmax=vmax, shading='gouraud')
+    im1 = axes[0].pcolormesh(t_scaled, Z[:,0], predictions, cmap='viridis', vmin=vmin, vmax=vmax, shading='gouraud')
     axes[0].set_title('PINN Prediction')
-    axes[0].set_ylabel(ylabel)
     axes[0].set_xlabel(f'Time [{time_scale_unit}]')
+    axes[0].set_ylabel('z [m]')
     fig.colorbar(im1, ax=axes[0])
 
     # Ground Truth
-    im2 = axes[1].pcolormesh(t_points_scaled, z_points, ground_truth_data, cmap='viridis', vmin=vmin, vmax=vmax, shading='gouraud')
+    im2 = axes[1].pcolormesh(t_scaled, Z[:,0], ground_truth_data, cmap='viridis', vmin=vmin, vmax=vmax, shading='gouraud')
     axes[1].set_title('Ground Truth (FEM)')
     axes[1].set_xlabel(f'Time [{time_scale_unit}]')
     fig.colorbar(im2, ax=axes[1])
 
     # Absolute Error
     max_err = np.max(np.abs(error_data))
-    im3 = axes[2].pcolormesh(t_points_scaled, z_points, error_data, cmap='coolwarm', vmin=-max_err, vmax=max_err, shading='gouraud')
+    im3 = axes[2].pcolormesh(t_scaled, Z[:,0], error_data, cmap='coolwarm', vmin=-max_err, vmax=max_err, shading='gouraud')
     axes[2].set_title('Absolute Error')
     axes[2].set_xlabel(f'Time [{time_scale_unit}]')
     fig.colorbar(im3, ax=axes[2])
@@ -223,7 +186,7 @@ def vis_1d_time_plot(model, scale: RichardsScale, points_data: dict, ground_trut
 
 def visualize_2d_mixed(model, scale, **kwargs):
 
-    raise NotImplementedError("Hier scale stuff noch nicht implementiert und mage nicht domain defininition")
+    raise NotImplementedError("Hier scale stuff noch nicht implementiert und mage nicht domain definition")
 
     # Get domain and points
     x_min, x_max = moisture_2d_domain.spatial['x']

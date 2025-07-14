@@ -18,6 +18,7 @@ def parse_args():
     add_parser.add_argument('--save', action='store_true', help='Save?')
     add_parser.add_argument('--vis', choices=['loss', 'field', 'div', 'all'], default='all', 
                             help='Display options')
+    add_parser.add_argument('--comment', type=str, default='', help='Comment that gets saved with the model')
     
     # Load command parser
     load_parser = subparsers.add_parser('load', help='Load an existing model')
@@ -104,8 +105,7 @@ def visualize(vis_type, process_type, subtype, model, loss_history, config, scal
     
     if vis_type in ['field', 'all']:
         #try:
-            kwargs = MAP[process_type][subtype]['vis'].get('kwargs', {})
-            field_figures = MAP[process_type][subtype]['vis']['field'](model, scale, point_data, fem_value_points, **kwargs)
+            field_figures = MAP[process_type][subtype]['vis']['field'](model, scale, point_data, fem_value_points)
             vis.update(field_figures)
         #except KeyError as e:
         #    print(f"Warning: Field visualization not available for {process_type}/{subtype}: {e}")

@@ -13,7 +13,7 @@ def du_dxx_zero(x, y, _):
 def du_dxx_one(x, y, _):
     return dde.grad.hessian(y, x)[:,0] - 1.0
 
-def get_sigma_voigt_nd(x, y, scale: Scale):
+def get_sigma_voigt_nd(x, y, scale: MechanicScale):
     e_voigt_nd = torch.cat([dde.grad.jacobian(y,x, i=0, j=0), 
                             dde.grad.jacobian(y,x, i=1, j=1), 
                             dde.grad.jacobian(y,x, i=0, j=1) + dde.grad.jacobian(y,x, i=1, j=0)
@@ -23,7 +23,7 @@ def get_sigma_voigt_nd(x, y, scale: Scale):
     sigma_voigt_nd = torch.matmul(e_voigt, C) / scale.sigma 
     return sigma_voigt_nd
 
-def get_fest_los_domain(domain_vars: Domain, scale: Scale):
+def get_fest_los_domain(domain_vars: Domain, scale: MechanicScale):
     x_min, x_max = domain_vars.spatial['x']
     geom = dde.geometry.Interval(x_min, x_max)
     bc_left_w = dde.DirichletBC(geom, lambda x: 0, lambda x, _ :_ and np.isclose(x[0], x_min))
@@ -39,15 +39,15 @@ def get_fest_los_domain(domain_vars: Domain, scale: Scale):
     #data.set_weights([1, 1, 1, 1])
     return data
 
-def get_einspannung_domain_2d(domain_vars: Domain, scale: Scale):
+def get_einspannung_domain_2d(domain_vars: Domain, scale: MechanicScale):
     x_min, x_max = domain_vars.spatial['x']
     y_min, y_max = domain_vars.spatial['y']
     geom = dde.geometry.Rectangle(xmin=[x_min/scale.L, y_min/scale.L], xmax=[x_max/scale.L, y_max/scale.L])
 
     bc_left_u_x = dde.DirichletBC(geom, lambda x: 0.0, 
-                                       lambda x, _ :_ and np.isclose(x[0], x_min/scale.L), component=0)
+                                       lambda x, on_boundary : on_boundary and np.isclose(x[0], x_min/scale.L), component=0)
     bc_left_u_y = dde.DirichletBC(geom, lambda x: 0.0, 
-                                       lambda x, _ :_ and np.isclose(x[0], x_min/scale.L), component=1)
+                                       lambda x, on_boundary :on_boundary and np.isclose(x[0], x_min/scale.L), component=1)
 
     # traction-free boundary at right (sigma_xx=0, sigma_xy=0)
     bc_right_u_xx = dde.OperatorBC(geom,
@@ -82,7 +82,7 @@ def get_einspannung_domain_2d(domain_vars: Domain, scale: Scale):
     return data
 
 
-def get_einspannung_domain(domain_vars: Domain, scale: Scale):
+def get_einspannung_domain(domain_vars: Domain, scale: MechanicScale):
     x_min, x_max = domain_vars.spatial['x']
     geom = dde.geometry.Interval(x_min, x_max)
 
@@ -175,7 +175,7 @@ def get_cooks_domain():
 
 
 
-def get_einspannung_domain_2d_ensamble(domain_vars: Domain, scale: Scale):
+def get_einspannung_domain_2d_ensamble(domain_vars: Domain, scale: EnsemnbleMechanicScale):
     x_min, x_max = domain_vars.spatial['x']
     y_min, y_max = domain_vars.spatial['y']
     geom = dde.geometry.Rectangle(xmin=[x_min/scale.L, y_min/scale.L], xmax=[x_max/scale.L, y_max/scale.L])

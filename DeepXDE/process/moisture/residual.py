@@ -51,12 +51,12 @@ def hydraulic_conductivity_head(h):
 
 def residual_1d_head(x, y, scale: HeadScale):
     h_nd = y[:, 0]  # [-]
-    h = h_nd * scale.h_char
+    h = h_nd * scale.H
     
     C = specific_moisture_capacity(h)  # [1/m]
     K= hydraulic_conductivity_head(h)  # [m/s]
     
-    C_nd = C * scale.h_char  # [-]
+    C_nd = C * scale.H  # [-]
     K_nd = K / materialData.K_s  # [-]
     
     dh_dt_nd = dde.grad.jacobian(y, x, i=0, j=1)  # [-]

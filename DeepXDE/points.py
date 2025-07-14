@@ -47,6 +47,9 @@ def get_evaluation_points(domain: Domain,
         # Flattened points for FEM evaluation - always use 'ij' for consistency
         result['spatial_points_flat'] = np.stack([X_ij.ravel(), Y_ij.ravel()], axis=-1)
         result['reshape_static_to_grid'] = lambda data: _reshape_static_to_grid(data, nx, ny)
+        result['reshape_utils'] = {
+            'pred_to_ij' : lambda data: data.reshape(nx, ny) if data.ndim == 1 else data.reshape(nx, ny, -1),
+        }
 
     elif len(spatial_dims) == 1:
         x_key = spatial_dims[0]
@@ -96,7 +99,11 @@ def get_evaluation_points(domain: Domain,
             x_key = spatial_dims[0]
             nt = len(t_coords)
             X, T = np.meshgrid(spatial_coords[x_key], t_coords, indexing='ij')
-            result['spacetime_meshgrid'] = {x_key: X, t_key: T}
+            result['spacetime_meshgrid'] ={
+                                            'ij': {x_key: X, t_key: T},
+                                            'xy': {x_key: X, t_key: T},
+                                        }  # (nx, nt) for 1D case
+                                   
             result['spacetime_points_flat'] = np.vstack([X.ravel(), T.ravel()]).T
 
             result['reshape_utils'] = {
@@ -110,39 +117,47 @@ def get_evaluation_points(domain: Domain,
 
 def _pred_to_ij(predictions, nx, ny, nt):
     """
-    Reshape predictions from (nt, nx*ny) to (nx, ny, nt) for 'ij' indexing.
+    Reshape predictions from flat array to (nx, ny, nt) for 'ij' indexing.
     
     Args:
-        predictions: Array of shape (nt, nx*ny) or (nt, nx*ny, n_components)
+        predictions: Array of shape (nx*ny*nt,) or (nx*ny*nt, 1)
         nx, ny, nt: Grid dimensions
     
     Returns:
         Reshaped array in (nx, ny, nt) format
     """
     if ny is None:
-        # 1D case, reshape to (nx, nt)
+        # 1D case
         if predictions.ndim == 1:
-            return predictions.reshape(nx, nt).transpose(1, 0)
+            return predictions.reshape(nx, nt)
         elif predictions.ndim == 2:
-            reshaped = predictions.reshape(nt, nx, -1).transpose(1, 0, 2)
-            if reshaped.shape[-1] == 1:
-                return reshaped.squeeze(-1)
-        else:
-            raise ValueError(f"Unexpected predictions shape: {predictions.shape}")
+            if predictions.shape[1] == 1:
+                return predictions.squeeze().reshape(nx, nt)
+            else:
+                n_components = predictions.shape[1]
+                return predictions.reshape(nx, nt, n_components)
     else:
-        if predictions.ndim == 2:
-            n_components = predictions.shape[1]
-            reshaped = predictions.reshape(nt, nx, ny, n_components).transpose(1, 2, 0, 3)
-            if n_components == 1:
-                return reshaped.squeeze(-1)
-            return reshaped
-        #elif predictions.ndim == 3:
-        #    reshaped = predictions.reshape(nt, nx, ny, -1).transpose(1, 2, 0, 3)
-        #    if reshaped.shape[-1] == 1:
-        #        return reshaped.squeeze(-1)
-        #    return reshaped
+        # 2D case - predictions should be (nx*ny*nt,) or (nx*ny*nt, 1)
+        total_points = nx * ny * nt
+        
+        if predictions.ndim == 1:
+            if len(predictions) != total_points:
+                raise ValueError(f"Prediction length {len(predictions)} doesn't match grid size {total_points}")
+            return predictions.reshape(nx, ny, nt)
+        elif predictions.ndim == 2:
+            if predictions.shape[0] != total_points:
+                raise ValueError(f"Prediction length {predictions.shape[0]} doesn't match grid size {total_points}")
+            
+            if predictions.shape[1] == 1:
+                # Single component: (nx*ny*nt, 1) -> (nx, ny, nt)
+                return predictions.squeeze().reshape(nx, ny, nt)
+            else:
+                # Multiple components: (nx*ny*nt, n_components) -> (nx, ny, nt, n_components)
+                n_components = predictions.shape[1]
+                return predictions.reshape(nx, ny, nt, n_components)
         else:
             raise ValueError(f"Unexpected predictions shape: {predictions.shape}")
+        
 def _reshape_static_to_grid(static_data, nx, ny):
     """
     Reshapes flat static data (e.g., from FEM evaluation) into a grid.

@@ -1,6 +1,6 @@
 import math
+from process.mechanic.scale import MechanicScale
 from utils.functions import voigt_to_tensor
-from process.mechanic.scale import Scale
 import deepxde as dde
 import torch
 from config import bernoulliBalkenTConfig, cooksMembranConfig, bernoulliBalken2DConfig
@@ -12,8 +12,9 @@ def pde_1d_residual(x, y):
   w_xxx = dde.grad.jacobian(w_xx, x, i=0)
   w_xxxx = dde.grad.jacobian(w_xxx, x, i=0)
   return w_xxxx - 1.0
+
   #return bernoulliBalkenConfig.EI*w_xxxx - bernoulliBalkenConfig.f(x[:,0], x[:,1])
-def pde_2d_residual(x, y, scale: Scale):
+def pde_2d_residual(x, y, scale: MechanicScale):
   e_x_nd = dde.grad.jacobian(y,x, i=0, j=0)
   e_y_nd = dde.grad.jacobian(y,x, i=1, j=1)
   g_xy_nd = dde.grad.jacobian(y,x, i=0, j=1) + dde.grad.jacobian(y,x, i=1, j=0)
@@ -75,7 +76,7 @@ def calc_sigma(x,y):
 #
 #  return dsigma_dx + dsigma_dy # + cooksMembranConfig.f(x)
 
-def pde_2d_ensemble_residual(x, y, scale: Scale):
+def pde_2d_ensemble_residual(x, y, scale: MechanicScale):
     e_x_nd = dde.grad.jacobian(y, x, i=0, j=0)
     e_y_nd = dde.grad.jacobian(y, x, i=1, j=1)
     g_xy_nd = dde.grad.jacobian(y, x, i=0, j=1) + dde.grad.jacobian(y, x, i=1, j=0)
@@ -99,7 +100,7 @@ def pde_2d_ensemble_residual(x, y, scale: Scale):
 
     # Equilibrium equations 
     equilibrium_x_constitutive = sigmax_x_nd + tauxy_y_nd
-    equilibrium_y_constitutive = sigmay_y_nd + tauxy_x_nd  # No body
+    equilibrium_y_constitutive = sigmay_y_nd + tauxy_x_nd  # No body  # - matherialData.rho * materialData.g
     
     equilibrium_x_predicted = sigmax_x_nd_pred + tauxy_y_nd_pred
     equilibrium_y_predicted = sigmay_y_nd_pred + tauxy_x_nd_pred

@@ -39,11 +39,17 @@ def create_flexible_model(data, config: BConfig, output_transform=None):
 def create_fnn_model(config):
     """Create standard Feed-Forward Neural Network"""
     hidden = config.get('layers', [50]*4)
-    fourier = config.get('fourier_transform_features', 1)
-    layers = [config.input_dim*fourier] + hidden + [config.output_dim]
+    
+    if config.get('fourier_transform_features'):
+        input_size = 2 * config.fourier_transform_features
+    else:
+        input_size = config.input_dim
+    
+    layers = [input_size] + hidden + [config.output_dim]
     activation = config.get('activation', 'tanh')
     initializer = config.get('initializer', 'Glorot uniform')
     
+    print(f"Network architecture: {layers}")
     return dde.maps.FNN(layers, activation, initializer)
 
 def create_deeponet_model(config):
@@ -89,14 +95,6 @@ def create_custom_model(config):
 
 def compile_model(model, config):
     """Enhanced model compilation with multiple optimization strategies"""
-    optimizer = config.compile_args.get("optimizer")
-
-    #compile_strategy = config.get('compile_strategy', 'standard')
-    #if compile_strategy == 'lbfgs':
-    #    return compile_with_lbfgs(model, config)
-    #elif compile_strategy == 'adaptive':
-    #    return compile_with_adaptive_training(model, config)
-    #else:
     model.compile(**config.compile_args, loss_weights=config.loss_weights, 
                 decay=config.get('decay'))
     return model
