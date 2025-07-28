@@ -16,19 +16,13 @@ steady_heat_2d_domain = Domain(spatial={
     resolution={'x': 100, 'y': 50}
     )
 
-fest_lost_2d_domain = Domain(
-        spatial={
-            'x':(0,10),
-            'y':(0,1)
-        }, temporal=None,
-        resolution={'x': 100, 'y': 50, 't': 20}
-    )
 einspannung_2d_domain = Domain(
         spatial={
-            'x':(0,25),
+            #'x':(0,25),
+            'x':(0,10),
             'y':(0,1)
         },
-        resolution={'x': 100, 'y': 50}
+       resolution={'x': 250, 'y': 25}
     )
 fest_lost_domain = Domain(
         spatial={
@@ -61,20 +55,20 @@ moisture_2d_domain = Domain(
 
 thermal_mechanical_2d_domain = Domain(
         spatial={
-            'x': (0, 0.25),
+            'x': (0, 0.1),
             'y': (0, 1)
         }, temporal={
-           #'t': (0,6.04e5)  # ca 1 week
-            't': (0, 3.6e3)  # ca 1 hour
-        }, 
-        resolution={'x': 50, 'y': 50, 't': 20}
+           't': (0,1250) 
+           # 't': (0, 3.6e3)
+        },
+        resolution={'x': 10, 'y': 100, 't': 50}
     )
 thermal_moisture_2d_domain = Domain(
         spatial={
             'x': (0, 0.25),
             'y': (0, 1)
         }, temporal={
-            't': (0, 4e6)  # ca 1 week
+            't': (0, 2e6)  # ca 3 days i think
             #'t': (0, 3.6e3)  # ca 1 hour
         },
         resolution={'x': 100, 'y': 100, 't': 20}

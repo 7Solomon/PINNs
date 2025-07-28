@@ -1,15 +1,12 @@
 import os
-from points import get_meshgrid_for_visualization
-from FEM.output import load_fem_results, save_fem_results
-from process.heat.gnd import get_transient_fem, get_transient_fem_points
 from utils.metadata import Domain
 from process.moisture.scale import *
-from domain_vars import transient_heat_2d_domain, steady_heat_2d_domain
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import animation, cm
 
-
+from matplotlib.colors import TwoSlopeNorm
+import matplotlib.colors as mcolors
 from mpi4py import MPI
 
 from process.heat.scale import *
@@ -138,8 +135,6 @@ def visualize_transient_spacetime_slice(predictions, fem_value_points, X, Y, t, 
     """
     Create space-time heatmaps by taking 1D slices through the domain
     """
-    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
-    
     if slice_type == 'middle':
         print("Using middle slice for visualization")
         mid_y = predictions.shape[1] // 2
@@ -147,7 +142,7 @@ def visualize_transient_spacetime_slice(predictions, fem_value_points, X, Y, t, 
         pred_slice = predictions[:, mid_y, :]  # (x, t)
         fem_slice = fem_value_points[:, mid_y, :]
         x_coords = X[:, mid_y, 0]
-        slice_label = f'y = {Y[mid_y, 0, 0]:.2f}m'
+        slice_label = f'y = {Y[0, mid_y, 0]:.2f}m'
     elif slice_type == 'diagonal':
         print("Using diagonal slice for visualization")
         min_dim = min(predictions.shape[0], predictions.shape[1])
@@ -164,24 +159,66 @@ def visualize_transient_spacetime_slice(predictions, fem_value_points, X, Y, t, 
     # Create meshgrids for plotting
     T_mesh, X_mesh = np.meshgrid(t_days, x_coords)
     
+
+    # Get symmetric range for difference
+    diff_max = np.nanmax(np.abs(difference_slice))
+    diff_norm = TwoSlopeNorm(vmin=-diff_max, vcenter=0, vmax=diff_max)
+    
+    # === COMBINED PLOT ===
+    fig_combined, axes = plt.subplots(1, 3, figsize=(18, 6))
+    
     # Plot heatmaps
     im1 = axes[0].contourf(T_mesh, X_mesh, pred_slice, 50, cmap=cm.jet)
     im2 = axes[1].contourf(T_mesh, X_mesh, fem_slice, 50, cmap=cm.jet)
-    im3 = axes[2].contourf(T_mesh, X_mesh, difference_slice, 50, cmap=cm.RdBu_r)
+    im3 = axes[2].contourf(T_mesh, X_mesh, difference_slice, 50, cmap=cm.RdBu_r, norm=diff_norm)
     
     # Add colorbars
-    fig.colorbar(im1, ax=axes[0], label='Temperature [°C]')
-    fig.colorbar(im2, ax=axes[1], label='Temperature [°C]')
-    fig.colorbar(im3, ax=axes[2], label='Difference [°C]')
+    fig_combined.colorbar(im1, ax=axes[0], label='Temperature [°C]')
+    fig_combined.colorbar(im2, ax=axes[1], label='Temperature [°C]')
+    fig_combined.colorbar(im3, ax=axes[2], label='Difference [°C]')
     
     # Labels and titles
     for ax in axes:
         ax.set_xlabel('Time [days]')
         ax.set_ylabel('Position [m]')
     
-    axes[0].set_title(f'Prediction - {slice_label}')
-    axes[1].set_title(f'Ground Truth - {slice_label}')
-    axes[2].set_title(f'Difference - {slice_label}')
+    #axes[0].set_title(f'Prediction - {slice_label}')
+    #axes[1].set_title(f'Ground Truth - {slice_label}')
+    #axes[2].set_title(f'Difference - {slice_label}')
     
     plt.tight_layout()
-    return {'slice': fig}
+    
+    # === INDIVIDUAL PLOTS ===
+    # Prediction plot
+    fig_pred, ax_pred = plt.subplots(figsize=(8, 6))
+    im_pred = ax_pred.contourf(T_mesh, X_mesh, pred_slice, 50, cmap=cm.jet)
+    fig_pred.colorbar(im_pred, ax=ax_pred, label='Temperature [°C]')
+    ax_pred.set_xlabel('Time [days]')
+    ax_pred.set_ylabel('Position [m]')
+    ax_pred.set_title(f'Prediction - {slice_label}')
+    plt.tight_layout()
+    
+    # Ground truth plot
+    fig_ground, ax_ground = plt.subplots(figsize=(8, 6))
+    im_ground = ax_ground.contourf(T_mesh, X_mesh, fem_slice, 50, cmap=cm.jet)
+    fig_ground.colorbar(im_ground, ax=ax_ground, label='Temperature [°C]')
+    ax_ground.set_xlabel('Time [days]')
+    ax_ground.set_ylabel('Position [m]')
+    ax_ground.set_title(f'Ground Truth - {slice_label}')
+    plt.tight_layout()
+    
+    # Difference plot
+    fig_diff, ax_diff = plt.subplots(figsize=(8, 6))
+    im_diff = ax_diff.contourf(T_mesh, X_mesh, difference_slice, 50, cmap=cm.RdBu_r, norm=diff_norm)
+    fig_diff.colorbar(im_diff, ax=ax_diff, label='Difference [°C]')
+    ax_diff.set_xlabel('Time [days]')
+    ax_diff.set_ylabel('Position [m]')
+    ax_diff.set_title(f'Difference - {slice_label}')
+    plt.tight_layout()
+    
+    return {
+        'slice': fig_combined,
+        'slice_field_pred': fig_pred,
+        'slice_field_ground': fig_ground,
+        'slice_div': fig_diff
+    }

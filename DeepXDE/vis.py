@@ -53,6 +53,9 @@ def plot_mse(mse_values):
         mse_values: List or array of MSE values
     """
     mse_array = np.array(mse_values)
+    if mse_array.size == 0:
+        print("Warning: MSE array is empty, nothing to plot.")
+        return {'mse': None}
     min_mse = np.min(mse_array)
     max_mse = np.max(mse_array)
     mean_mse = np.mean(mse_array)

@@ -2,6 +2,7 @@
 import numpy as np
 from mpi4py import MPI
 
+from utils.COMSOL import extract_time_series_data_thermo_mechanical, interpolate_ground_truth
 from FEM.output import load_fem_results, save_fem_results
 from utils.metadata import Domain
 from FEM.init_helper import create_dirichlet_bcs, create_mesh_and_function_space, create_solver, get_dt, initialize_fem_state
@@ -17,14 +18,13 @@ def strain(u_vec):
     return 0.5 * (ufl.grad(u_vec) + ufl.grad(u_vec).T)
 
 def stress(u_vec, temp, thermal_expansion_coefficient, nu, C):
-    # Thermal strain
-    effective_thermal_strain = (1 + nu) * thermal_expansion_coefficient * temp
-    eps_thermal = ufl.as_vector([effective_thermal_strain, effective_thermal_strain, 0])
-
+    thermal_strain_value = thermal_expansion_coefficient * temp
+    eps_thermal = ufl.as_vector([thermal_strain_value, thermal_strain_value, 0])  # No shear thermal strain
+    
     # Mechanical strain
     eps_u_voigt = ufl.as_vector([strain(u_vec)[0, 0], strain(u_vec)[1, 1], 2 * strain(u_vec)[0, 1]])
     
-    # Elastic strain
+    # Elastic strain (total - thermal)
     eps_elastic = eps_u_voigt - eps_thermal
     
     # Stress in Voigt notation
@@ -81,9 +81,9 @@ def get_thermal_mechanical_fem(
     dt_fem_internal = get_dt(comm, evaluation_times)
 
     # BCs
-    temprature_left_value = 10.0
+    temprature_left_value = 50.0
     temprature_right_value = 0.0
-    initial_temperature_value = 0.5
+    initial_temperature_value = 10
 
     bcs = [
         {"where": lambda x: np.isclose(x[0], x_min), "value": temprature_left_value, "subspace_idx": 1},
@@ -118,7 +118,7 @@ def get_thermal_mechanical_fem(
     C_const = fem_constants["C"]
     thermal_expansion_coefficient_const = fem_constants["thermal_expansion_coefficient"]
     nu_const = fem_constants["nu"]
-    alpha_thermal_diffusivity_const = fem_constants["alpha_thermal_diffusivity"]
+    alpha_thermal_diffusivity_const = fem_constants[f"alpha_thermal_diffusivity"]
 
     # Initial and previos same in first 
     un.x.array[:] = uh.x.array
@@ -146,24 +146,21 @@ def get_thermal_mechanical_fem_points(domain_vars, points_data, comm):
     """
     Get the FEM points for the thermal mechanical process.
     """
-    fem_points = load_fem_results("BASELINE/thermal_mechanical/2d_flat.npy")
+    fem_points = load_fem_results("BASELINE/thermal_mechanical/2d_flat_v2.npy")
     if fem_points is not None:
         print('fem_points_shape', fem_points.shape)
         fem_points = points_data['reshape_utils']['fem_to_ij'](fem_points)
         print('reshaped_fem_points_shape', fem_points.shape)
         return fem_points
     
-    #_, ground_eval_flat_time_spatial = get_thermal_mechanical_fem(domain_vars, points_data, comm)
-    #save_fem_results("BASELINE/thermal_mechanical/2d_flat.npy", ground_eval_flat_time_spatial)
-
-    #nx, ny, nt = points_data['resolution']['x'], points_data['resolution']['y'], points_data['resolution']['t']
-    #n_fields = 3  # u, v, T
-#
-    #final_shape = (nx, ny, nt, n_fields)
-#
-    #ground_eval_reshaped = ground_eval_flat_time_spatial.reshape(final_shape)
-    
-    #save_fem_results("BASELINE/thermal_mechanical/2d.npy", ground_eval_reshaped)
-    #return ground_eval_reshaped
+    _, ground_eval_flat_time_spatial = get_thermal_mechanical_fem(domain_vars, points_data, comm)
+    save_fem_results("BASELINE/thermal_mechanical/2d_flat_v2.npy", ground_eval_flat_time_spatial)
 
 
+def get_thermal_COMSOL_points(domain_vars, points_data, comm):
+    data_array, coords, time_steps, x_coords, y_coords = extract_time_series_data_thermo_mechanical(
+        "BASELINE/thermal_mechanical/2d/test.vtu"
+    )
+    array = interpolate_ground_truth(data_array, domain_vars)
+    print('interpolated_array_shape', array.shape)
+    return array

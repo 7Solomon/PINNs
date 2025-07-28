@@ -1,7 +1,7 @@
 import datetime
 import os
 
-from matplotlib import animation
+from matplotlib import animation, pyplot as plt
 from model import create_flexible_model
 from utils.metadata import BSaver, Domain, BConfig
 from utils.directory import *
@@ -44,8 +44,25 @@ def save_function(model, domain: Domain, Loss, config: BConfig, scale: BSaver, g
         graphic_path_base = os.path.join(folder_name, key)
         if isinstance(graphic, animation.Animation):
             graphic.save(f'{graphic_path_base}.gif', writer='ffmpeg', fps=10)
-        else:
+        elif isinstance(graphic, plt.Figure):
             graphic.savefig(f'{graphic_path_base}.png', dpi=300)
+        else:
+            print(f"Warning: Unsupported graphic type for key '{key}'")
+    #grouped_graphics = defaultdict(list)
+    #for key, graphic in graphics.items():
+    #    prefix = key.split('_')[0]
+    #    grouped_graphics[prefix].append((key, graphic))
+#
+    #for prefix, items in grouped_graphics.items():
+    #    subfolder = os.path.join(folder_name, prefix)
+    #    os.makedirs(subfolder, exist_ok=True)
+    #    for key, graphic in items:
+    #        graphic_path_base = os.path.join(subfolder, key)
+    #        if isinstance(graphic, animation.Animation):
+    #            graphic.save(f'{graphic_path_base}.gif', writer='ffmpeg', fps=10)
+    #        else:
+    #            graphic.savefig(f'{graphic_path_base}.png', dpi=300)
+
 
 
 

@@ -76,6 +76,13 @@ class ConcreteData(Material):
     def alpha_thermal_diffusivity(self) -> float:
         return self.k / (self.rho * self.cp)
 
+    @property
+    def lame_lambda(self):
+        return self.E * self.nu / ((1 + self.nu) * (1 - 2 * self.nu))
+    @property
+    def lame_mu(self):
+        return self.E / (2 * (1 + self.nu))
+
     def C_stiffness_matrix(self):  
         factor = self.E / ((1 + self.nu) * (1 - 2 * self.nu))
         
@@ -126,6 +133,12 @@ class SandData(Material):
     @property
     def alpha_thermal_diffusivity(self) -> float:
         return self.k / (self.rho * self.cp)
+    @property
+    def lame_lambda(self):
+        return self.E * self.nu / ((1 + self.nu) * (1 - 2 * self.nu))
+    @property
+    def lame_mu(self):
+        return self.E / (2 * (1 + self.nu))
 
     def C_stiffness_matrix(self):
         # Assuming isotropic linear elasticity, plane stress

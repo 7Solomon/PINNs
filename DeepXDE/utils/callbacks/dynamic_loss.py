@@ -2,7 +2,7 @@ import deepxde as dde
 import numpy as np
 
 class SlowPdeLossWeightCallback(dde.callbacks.Callback):
-    def __init__(self, pde_indices, max_epoch=10000, final_weight=1.0):
+    def __init__(self, pde_indices, max_epoch=50000, final_weight=1.0):
         """
         Initializes a callback to slowly increase specific loss weights over time.
 

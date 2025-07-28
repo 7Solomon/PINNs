@@ -24,7 +24,9 @@ MAP = {
             'domain_vars': domain_vars.einspannung_2d_domain,
             'config': config.bernoulliBalken2DConfig,
             'scale' : process.mechanic.scale.MechanicScale,
-            'gnd_function':  process.mechanic.gnd.get_einspannung_2d_fem_points,
+            #'gnd_function':  process.mechanic.gnd.get_einspannung_2d_fem_points,
+            'gnd_function':  process.mechanic.gnd.get_near_zero_ground,
+        
             'vis' : {
                 'loss': vis.plot_loss,
                 'field': process.mechanic.vis.visualize_field_2d,
@@ -38,7 +40,6 @@ MAP = {
             'domain_vars': domain_vars.einspannung_2d_domain,
             'config': config.bernoulliBalken2DEnsembleConfig,
             'gnd_function':  process.mechanic.gnd.get_ensemble_einspannung_2d_fem_points,
-
             'scale' : process.mechanic.scale.EnsemnbleMechanicScale,
             'vis' : {
                 'loss': vis.plot_loss,
@@ -114,8 +115,8 @@ MAP = {
             'domain_vars': domain_vars.transient_heat_2d_domain,
             'config': config.transientHeatConfig,
             'scale' : process.heat.scale.Scale,
-            'gnd_function': process.heat.gnd.get_transient_fem_points,
-            #'gnd_function': process.heat.gnd.get_transient_analytical_solution,
+            #'gnd_function': process.heat.gnd.get_transient_fem_points,
+            'gnd_function': process.heat.gnd.get_transient_analytical_solution,
             'vis' : {
                 'loss': vis.plot_loss,
                 'field': process.heat.vis.visualize_transient_field,
@@ -187,10 +188,10 @@ MAP = {
             'domain_vars': domain_vars.thermal_mechanical_2d_domain,
             'config': config.thermalMechanical2DConfig,
             'scale' : process.thermal_mechanical.scale.Scale,
-            'gnd_function': process.thermal_mechanical.gnd.get_thermal_mechanical_fem_points,
+            'gnd_function': process.thermal_mechanical.gnd.get_thermal_COMSOL_points,
             'vis' : {
                 'loss': vis.plot_loss,
-                'field': process.thermal_mechanical.vis.vis_2d_multi,
+                'field': process.thermal_mechanical.vis.vis_thermo_mechanical_2d,
                 'kwargs': {
                     #'variable_indices' : [0,1,2,3],
                     #'show_displacement_comparison': True,

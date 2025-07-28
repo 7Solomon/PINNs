@@ -20,9 +20,9 @@ def get_thermal_2d_domain(domain_vars: Domain, scale: Scale):
     time = dde.geometry.TimeDomain(t_min/scale.t, t_max/scale.t)
     geomTime = dde.geometry.GeometryXTime(geom, time)
 
-    value_left = 10.0 / scale.Temperature
+    value_left = 50.0 / scale.Temperature
     value_right = 0.0 / scale.Temperature
-    initial_value = 0.5 / scale.Temperature
+    initial_value = 10.0 / scale.Temperature
 
     left_temp_boundary = dde.DirichletBC(
         geomTime, 
@@ -74,7 +74,8 @@ def get_thermal_2d_domain(domain_vars: Domain, scale: Scale):
     data = dde.data.TimePDE(
         geomTime,
         lambda x,y : residual_thermal_2d(x,y, scale),
-        [left_temp_boundary, right_temp_boundary, bottom_u_fixed, bottom_v_fixed, initial_temp, initial_u, initial_v],
+        #[left_temp_boundary, right_temp_boundary, bottom_u_fixed, bottom_v_fixed, initial_temp, initial_u, initial_v],
+        [left_temp_boundary, right_temp_boundary, bottom_u_fixed, bottom_v_fixed, initial_temp],
         num_initial=1000,
         num_domain=2000,
         num_boundary=300

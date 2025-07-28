@@ -1,12 +1,11 @@
+import os
 import deepxde as dde
+from matplotlib import animation, pyplot as plt
 import numpy as np
 import torch
 
+from process.thermal_mechanical.vis import vis_thermo_callback
 from utils.metadata import BSaver
-#from process.heat.vis import vis_transient_field_test
-from process.moisture.vis import vis_1d_saturation_test, vis_1d_head_test, vis_1d_time_plot
-from process.mechanic.vis import visualize_field_2d_test
-from domain_vars import einspannung_2d_domain
 
 class DataCollectorCallback(dde.callbacks.Callback):
     def __init__(self, points_data: dict, scale: BSaver, gnd_truth: np.ndarray):
@@ -57,6 +56,25 @@ class DataCollectorCallback(dde.callbacks.Callback):
         else:
             COLLECT = (epoch > 0 and epoch % 50 == 0)
 
+        ############## DEBUG THERMAL
+        #if epoch % 1000 == 0 or epoch == 1:
+        #    predictions = self.model.predict(self.test_points)
+        #    predictions = self.points_data['reshape_utils']['pred_to_ij'](predictions)
+        #    predictions = predictions * self.scale.value_scale_list
+        #    print(f"Epoch {epoch}: Predictions shape: {predictions.shape}, GND truth shape: {self.gnd_truth.shape}")
+        #    vis = vis_thermo_callback(predictions, self.points_data, self.gnd_truth)
+        #    for key, graphic in vis.items():
+        #        os.makedirs('test', exist_ok=True)
+        #        os.makedirs(os.path.join('test', str(epoch)), exist_ok=True)
+        #        graphic_path_base = os.path.join('test', str(epoch), key)
+        #        if isinstance(graphic, animation.Animation):
+        #            graphic.save(f'{graphic_path_base}.gif', writer='ffmpeg', fps=10)
+        #        if isinstance(graphic, plt.Figure):
+        #            graphic.savefig(f'{graphic_path_base}.png', dpi=300)
+        #        else:
+        #            print(f"Warning: Unsupported graphic type for key '{key}'")
+
+
 
         if COLLECT:
             predictions = self.model.predict(self.test_points)
@@ -66,7 +84,5 @@ class DataCollectorCallback(dde.callbacks.Callback):
             if self.gnd_truth.shape == predictions.shape:
                 mse = dde.metrics.mean_squared_error(self.gnd_truth.flatten(), predictions.flatten())
                 self.collected_data['mse_history'].append(mse)
-                if self.is_lbfgs:
-                    print(f"MSE collected: {mse:.6e}")
             else:
                 print(f"Epoch {epoch}: Shape mismatch. GND truth has {self.gnd_truth.shape}, but predictions have {predictions.shape} points. MSE not calculated.")

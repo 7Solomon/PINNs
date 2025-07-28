@@ -1,9 +1,11 @@
-from utils.MBNN import MBNN
 from utils.fourier_features import FourierFeatureTransform
+from utils.MHNN import MultiHeadNN
 
 from utils.metadata import BConfig
 import deepxde as dde
 import numpy as np
+
+
 
 
 def create_flexible_model(data, config: BConfig, output_transform=None):
@@ -70,14 +72,12 @@ def create_deeponet_model(config):
 def create_multibranch_model(config):
     """Create multi-branch network for multiphysics problems"""
     # Define branch configurations
-    branches = config.get('branches', {})
-    branch_definitions = []
-    for branch_name, branch in branches.items():
-        input_indices = branch.get('input_indices', [])
-        layer_dims = branch.get('layer_dims', [])
-        branch_definitions.append((input_indices, layer_dims))
-
-    return MBNN(branch_definitions)
+    head_definitions = config.get('head_definitions', {})
+    activation = config.get('activation', 'tanh')
+    # activation function is a string, not nn.Module so cant use
+    return MultiHeadNN(head_definitions=head_definitions,
+                       input_dim=3,
+                       activation=activation)
 
 def create_custom_model(config):
     """Create custom architecture based on config"""
@@ -130,4 +130,11 @@ def get_callbacks(config, scale, points_data=None, gnd_truth=None):
     if hasattr(config, 'callbacks') and 'dataCollector' in config.callbacks:
         from utils.callbacks.debug_callback import DataCollectorCallback
         callbacks.update({'dataCollectorCallback': DataCollectorCallback(points_data=points_data, gnd_truth=gnd_truth, scale=scale)})
+    if hasattr(config, 'callbacks') and 'seperateResidual' in config.callbacks:
+        from utils.callbacks.seperate_residual_callback import SeperateResidualCallback
+        print("Using SeperateResidualCallback with pde_indices:", config.pde_indices, "and epoch_etappen:", config.epoch_etappen)
+        callbacks.update({'seperateResidualCallback': SeperateResidualCallback(pde_indices=config.pde_indices, epoch_etappen=config.epoch_etappen)})
+    if hasattr(config, 'callbacks') and 'multiHeadScheduler' in config.callbacks:
+        from utils.callbacks.seperate_residual_callback import MultiHeadSchedulerCallback
+        callbacks.update({'multiHeadSchedulerCallback': MultiHeadSchedulerCallback(schedule=config.multi_head_schedule, head_to_pde_map=config.head_to_pde_map)})
     return callbacks

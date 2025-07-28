@@ -1,7 +1,13 @@
 import torch
 import pandas as pd
-import os
 import numpy as np
+from scipy.interpolate import interpn
+
+from utils.metadata import Domain
+
+import pyvista as pv
+import re
+
 
 def load_comsol_data_mechanic_2d(filepath):
     """Load COMSOL data from text file"""
@@ -193,41 +199,259 @@ def test_load_comsol_data(filepath):
         'header_info': header_info
     }
 
-#def analyze_transient_COMSOL_file_data(file_content):
-#    # split into raw lines
-#    raw_lines = file_content.splitlines()
-#
-#    # strip leading ‘% ’ and any extra whitespace
-#    lines = [l.lstrip('% ').strip() for l in raw_lines]
-#
-#    # 1) locate the header now that any ‘% ’ is gone
-#    header_idx = next(
-#        (i for i, l in enumerate(lines)
-#         if l.startswith('X') and 'T (K)' in l and '@' in l),
-#        None
-#    )
-#    if header_idx is None:
-#        raise ValueError("Could not find transient data header in COMSOL file.")
-#
-#    # 2) pull out the header tokens
-#    parts = lines[header_idx].split()
-#    time_tokens = parts[5::4]
-#    times = [float(tok.split('=')[1]) for tok in time_tokens]
-#
-#    # 3) parse the following data lines
-#    coords = []
-#    temps = []
-#    for row in lines[header_idx + 1:]:
-#        vals = row.split()
-#        if len(vals) != 2 + len(times):
-#            continue
-#        nums = [float(v) for v in vals]
-#        coords.append(nums[:2])
-#        temps.append(nums[2:])
-#
-#    # 4) build tensors and convert K→°C
-#    domain_tensor = torch.tensor(coords, dtype=torch.float32, device='cpu')
-#    time_tensor = torch.tensor(times, dtype=torch.float32, device='cpu')
-#    temp_tensor = torch.tensor(temps, dtype=torch.float32, device='cpu') - 273.15
-#
-#    return domain_tensor, time_tensor, temp_tensor
+
+def extract_time_series_data_thermo_mechanical(filename):
+    """
+    Extract time series data from VTU file and organize into (nx, ny, nt, 3) array
+    where the 3 components are [displacement_x, displacement_y, temperature]
+    """
+    # Loadthe VTU file
+    mesh = pv.read(filename)
+    
+    # Print mesh summary
+    #print(mesh)
+    #print("Point data:", mesh.point_data.keys())
+    #print("Cell data:", mesh.cell_data.keys())
+    
+    # Get spatial coordinates
+    coords = mesh.points  # shape: (n_points, 3)
+    n_points = coords.shape[0]
+    
+    # Extract time steps and their string representations from field names
+    time_pattern = r'@_t=([0-9.E+-]+)'
+    time_steps_raw = {}  # maps time_value -> original_string
+    
+    for key in mesh.point_data.keys():
+        match = re.search(time_pattern, key)
+        if match:
+            time_str = match.group(1)
+            time_val = float(time_str)
+            time_steps_raw[time_val] = time_str
+    
+    time_steps = sorted(list(time_steps_raw.keys()))
+    nt = len(time_steps)
+    
+    #print(f"Found {nt} time steps: {time_steps}")
+    
+    # Determine grid dimensions (assuming structured grid)
+    # You might need to adjust this based on your specific grid structure
+    x_coords = np.unique(coords[:, 0])
+    y_coords = np.unique(coords[:, 1])
+    nx = len(x_coords)
+    ny = len(y_coords)
+    
+    #print(f"Grid dimensions: nx={nx}, ny={ny}")
+    
+    # Initialize output array: (nx, ny, nt, 3)
+    # 3 components: [displacement_x, displacement_y, temperature]
+    data_array = np.zeros((nx, ny, nt, 3))
+    
+    # Create mapping from coordinates to grid indices
+    # This assumes your mesh points are on a regular grid
+    coord_to_index = {}
+    for i, point in enumerate(coords):
+        x_idx = np.argmin(np.abs(x_coords - point[0]))
+        y_idx = np.argmin(np.abs(y_coords - point[1]))
+        coord_to_index[i] = (x_idx, y_idx)
+    
+    # Extract data for each time step
+    for t_idx, time_val in enumerate(time_steps):
+        # Use the original string representation from the file
+        time_str = time_steps_raw[time_val]
+        search_pattern = f"@_t={time_str}"
+        
+        #print(f"\n--- Processing time step {t_idx}: {time_val} (using '{time_str}') ---")
+        
+        # Find field names for this time step
+        u_x_key = None
+        u_y_key = None
+        temp_key = None
+        
+        for key in mesh.point_data.keys():
+            if search_pattern in key:
+                if "Displacement_field,_X-component" in key:
+                    u_x_key = key
+                elif "Displacement_field,_Y-component" in key:
+                    u_y_key = key
+                elif "Temperature" in key:
+                    temp_key = key
+        
+        #print(f"  Found keys - ux: {u_x_key is not None}, uy: {u_y_key is not None}, T: {temp_key is not None}")
+        
+        # Extract data for this time step
+        if u_x_key:
+            u_x_data = mesh.point_data[u_x_key]
+            #print(f"  ux data range: [{np.min(u_x_data):.6e}, {np.max(u_x_data):.6e}]")
+        else:
+            u_x_data = np.zeros(n_points)
+            #print(f"  ux data: using zeros")
+            
+        if u_y_key:
+            u_y_data = mesh.point_data[u_y_key]
+            #print(f"  uy data range: [{np.min(u_y_data):.6e}, {np.max(u_y_data):.6e}]")
+        else:
+            u_y_data = np.zeros(n_points)
+            #print(f"  uy data: using zeros")
+            
+        if temp_key:
+            temp_data = mesh.point_data[temp_key]
+            #print(f"  T data range: [{np.min(temp_data):.6e}, {np.max(temp_data):.6e}]")
+        else:
+            temp_data = np.zeros(n_points)
+            #print(f"  T data: using zeros")
+        
+        # Map to grid structure
+        for point_idx in range(n_points):
+            x_idx, y_idx = coord_to_index[point_idx]
+            data_array[x_idx, y_idx, t_idx, 0] = u_x_data[point_idx]  # displacement_x
+            data_array[x_idx, y_idx, t_idx, 1] = u_y_data[point_idx]  # displacement_y
+            data_array[x_idx, y_idx, t_idx, 2] = temp_data[point_idx] - 273.15  # temperature
+
+    return data_array, coords, time_steps, x_coords, y_coords
+
+
+def extract_static_displacement_data_einspannung(filename):
+    """
+    Extract static displacement data from VTU file (no time dependence)
+    Returns data organized as (nx, ny, 2) array where 2 components are [u_x, u_y]
+    """
+    # Load the VTU file
+    mesh = pv.read(filename)
+    
+    # Print mesh summary
+    #print(mesh)
+    #print("Point data:", mesh.point_data.keys())
+    #print("Cell data:", mesh.cell_data.keys())
+    
+    # Get spatial coordinates
+    coords = mesh.points  # shape: (n_points, 3)
+    n_points = coords.shape[0]
+    
+    # Look for displacement field names (without time stamps)
+    u_x_key = None
+    u_y_key = None
+    
+    for key in mesh.point_data.keys():
+        if "Displacement_field,_X-component" in key and "@_t=" not in key:
+            u_x_key = key
+        elif "Displacement_field,_Y-component" in key and "@_t=" not in key:
+            u_y_key = key
+        # Also check for simpler naming conventions
+        elif key.lower() in ['u', 'ux', 'displacement_x', 'u_x']:
+            u_x_key = key
+        elif key.lower() in ['v', 'uy', 'displacement_y', 'u_y']:
+            u_y_key = key
+    
+    #print(f"Found displacement fields - ux: {u_x_key}, uy: {u_y_key}")
+    
+    if not u_x_key or not u_y_key:
+        print("Warning: Could not find both displacement components")
+        print("Available fields:", list(mesh.point_data.keys()))
+        return None, None, None, None
+    
+    # Extract displacement data
+    u_x_data = mesh.point_data[u_x_key]
+    u_y_data = mesh.point_data[u_y_key]
+    
+    #print(f"ux data range: [{np.min(u_x_data):.6e}, {np.max(u_x_data):.6e}]")
+    #print(f"uy data range: [{np.min(u_y_data):.6e}, {np.max(u_y_data):.6e}]")
+    
+    # Determine grid dimensions (assuming structured grid)
+    x_coords = np.unique(coords[:, 0])
+    y_coords = np.unique(coords[:, 1])
+    nx = len(x_coords)
+    ny = len(y_coords)
+    
+    #print(f"Grid dimensions: nx={nx}, ny={ny}")
+    
+    # Check if we have a structured grid
+    if nx * ny != n_points:
+        print(f"Warning: Grid may not be structured. nx*ny={nx*ny}, n_points={n_points}")
+        # For unstructured grids, return data as-is with coordinates
+        displacement_data = np.column_stack([u_x_data, u_y_data])
+        return displacement_data, coords, x_coords, y_coords
+    
+    # Initialize output array: (nx, ny, 2) for [u_x, u_y]
+    data_array = np.zeros((nx, ny, 2))
+    
+    # Create mapping from coordinates to grid indices
+    coord_to_index = {}
+    for i, point in enumerate(coords):
+        x_idx = np.argmin(np.abs(x_coords - point[0]))
+        y_idx = np.argmin(np.abs(y_coords - point[1]))
+        coord_to_index[i] = (x_idx, y_idx)
+    
+    # Map to grid structure
+    for point_idx in range(n_points):
+        x_idx, y_idx = coord_to_index[point_idx]
+        data_array[x_idx, y_idx, 0] = u_x_data[point_idx]  # displacement_x
+        data_array[x_idx, y_idx, 1] = u_y_data[point_idx]  # displacement_y
+    
+    return data_array, coords, x_coords, y_coords
+
+
+def interpolate_ground_truth(
+    ground_truth_tensor: np.ndarray,
+    domain: Domain,
+) -> np.ndarray:
+    """
+    Interpolates a low-resolution ground truth tensor onto a high-resolution grid.
+
+    This function is essential for comparing simulation data (e.g., from FEM) with
+    model predictions (e.g., from a PINN) when they are defined on different grids.
+
+    Args:
+        ground_truth_tensor (np.ndarray): The ground truth data with a shape of
+            (nx_low, ny_low, nt_low, n_vars).
+        domain (dict): A dictionary specifying the domain boundaries, for example:
+            {'x': [x_min, x_max], 'y': [y_min, y_max], 't': [t_min, t_max]}.
+        target_resolution (dict): A dictionary specifying the desired output
+            resolution, e.g., {'x': nx_high, 'y': ny_high, 't': nt_high}.
+
+    Returns:
+        np.ndarray: The interpolated ground truth data on the high-resolution
+            grid, with a shape of (nx_high, ny_high, nt_high, n_vars).
+    """
+    # 1. Define the coordinate vectors for the low-resolution source grid
+    nx_low, ny_low, nt_low, n_vars = ground_truth_tensor.shape
+
+    x_low = np.linspace(domain.spatial['x'][0], domain.spatial['x'][1], nx_low)
+    y_low = np.linspace(domain.spatial['y'][0], domain.spatial['y'][1], ny_low)
+    t_low = np.linspace(domain.temporal['t'][0], domain.temporal['t'][1], nt_low)
+
+    known_points = (x_low, y_low, t_low)
+
+    # 2. Define the high-resolution target grid where we want to find values
+    nx_high = domain.resolution['x']
+    ny_high = domain.resolution['y']
+    nt_high = domain.resolution['t']
+
+    x_high = np.linspace(domain.spatial['x'][0], domain.spatial['x'][1], nx_high)
+    y_high = np.linspace(domain.spatial['y'][0], domain.spatial['y'][1], ny_high)
+    t_high = np.linspace(domain.temporal['t'][0], domain.temporal['t'][1], nt_high)
+
+    # 3. Create a meshgrid of target points and flatten it for interpn
+    X_high, Y_high, T_high = np.meshgrid(x_high, y_high, t_high, indexing='ij')
+    target_points = np.stack([X_high.ravel(), Y_high.ravel(), T_high.ravel()], axis=-1)
+
+    # 4. Perform interpolation for each variable (u, v, T)
+    interpolated_vars = []
+    for i in range(n_vars):
+        values = ground_truth_tensor[..., i]
+        
+        # Perform 3D linear interpolation
+        interpolated_flat = interpn(
+            points=known_points,
+            values=values,
+            xi=target_points,
+            method='linear',
+            bounds_error=False, # Avoid errors for points slightly outside
+            fill_value=None      # Use None to enable extrapolation
+        )
+        interpolated_vars.append(interpolated_flat)
+
+    # 5. Stack the results and reshape to the target grid dimensions
+    interpolated_stacked = np.stack(interpolated_vars, axis=-1)
+    interpolated_tensor = interpolated_stacked.reshape(nx_high, ny_high, nt_high, n_vars)
+    
+    return interpolated_tensor

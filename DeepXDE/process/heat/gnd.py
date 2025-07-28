@@ -17,15 +17,10 @@ materialData = concreteData
 
 def get_transient_analytical_solution(domain_vars, points_data, comm, n_terms=100):
     """
-    Calculates the analytical solution for the 2D transient heat problem.
-
-    Args:
-        points (np.ndarray): A (N, 3) array of points (x, y, t) to evaluate.
-        domain_vars (dict): Dictionary with domain boundaries, e.g., domain_vars.spatial['x'].
-        n_terms (int): Number of terms to use in the series expansion.
-
-    Returns:
-        np.ndarray: A (N, 1) array of temperature values at the given points.
+    Calculates the analytical solution for the 1D heat equation with
+    BCs: T(0,t)=100, T(L,t)=0 and IC: T(x,0)=0.
+    
+    The solution is T(x,t) = T_ss(x) + T_tr(x,t).
     """
     points = points_data['spacetime_points_flat']
     x_coords = points[:, 0]
@@ -35,25 +30,25 @@ def get_transient_analytical_solution(domain_vars, points_data, comm, n_terms=10
     L = x_max - x_min
     alpha = materialData.alpha_thermal_diffusivity
     
-    # Steady-state solution
-    T_ss = 100.0 * (x_max - x_coords) / L
-
-    # Transient solution (series)
-    T_tr = np.zeros_like(x_coords)
+    # 1. Start with the steady-state solution
+    steady_state_solution = 100.0 * (1 - x_coords / L)
+    
+    # 2. Calculate the transient solution part
+    transient_solution = np.zeros_like(x_coords)
     for n in range(1, n_terms + 1):
         lambda_n = n * np.pi / L
-        # Fourier coefficient for the initial condition T_tr(x,0) = -T_ss(x)
-        Bn = (200.0 / (n * np.pi)) * ((-1)**n - 1) # This is -200/(n*pi) for n odd, 0 for n even
         
-        term = Bn * np.sin(lambda_n * (x_coords - x_min)) * np.exp(-alpha * (lambda_n**2) * t_coords)
-        T_tr += term
+        # Bn coefficient for the transient part's initial condition T_tr(x,0) = -T_ss(x)
+        Bn = -200.0 / (n * np.pi)
         
-    solution = T_ss + T_tr
-    #print('solution', solution.shape)
-    solution = points_data['reshape_utils']['pred_to_ij'](solution)    
-    #print('solution reshaped', solution.shape)
+        term = Bn * np.sin(lambda_n * x_coords) * np.exp(-alpha * (lambda_n**2) * t_coords)
+        transient_solution += term
+        
+    # 3. Combine both parts for the final solution
+    solution = steady_state_solution + transient_solution
+    
+    solution = points_data['reshape_utils']['pred_to_ij'](solution)   
     return solution
-
 
 def get_steady_fem(domain_vars):
         

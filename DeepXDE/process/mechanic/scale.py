@@ -10,17 +10,24 @@ class MechanicScale(BSaver):
         self.y_min, self.y_max = domain_variables.spatial['y']
 
         self.L = self.x_max - self.x_min
+        self.U_prescribed = 0.01 # [m]
+
+        print(f"DEBUG: MechanicScale U: {self.U}")
+        print(f"DEBUG: MechanicScale Sigma: {self.sigma}")
+
         #self.L = self.x_max - self.x_min
         #self.H = self.y_max - self.y_min
     
     @property
     def sigma(self):
-        return materialData.rho* materialData.g * self.L
+        sigma_gravity = materialData.rho* materialData.g * self.L
+        sigma_u_prescribed = materialData.E * self.U_prescribed / self.L
+        return max(sigma_gravity, sigma_u_prescribed)
     @property
     def U(self):
-        return (materialData.rho * materialData.g * self.L**2) / materialData.E   # sigma*L/E
-        #return (materialData.rho * materialData.g * self.L**4) / (materialData.E * self.H**2) # From beam theory
-
+        U_gravity = (materialData.rho * materialData.g * self.L**2) / materialData.E
+        #return U_gravity
+        return max(U_gravity, self.U_prescribed)
     @property
     def  value_scale_list(self):
         return [self.U, self.U]
@@ -35,8 +42,12 @@ class EnsemnbleMechanicScale(MechanicScale):
         super().__init__(domain_variables)
 
     @property
+    def e(self):
+        return self.U / self.L    
+
+    @property
     def value_scale_list(self):
-        return [self.U, self.U, self.sigma, self.sigma, self.sigma]
+        return [self.U, self.U, self.e, self.e, self.e, self.sigma, self.sigma, self.sigma]
     
     @property
     def input_scale_list(self):
