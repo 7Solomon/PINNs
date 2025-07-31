@@ -53,7 +53,7 @@ This repository provides a modular framework for solving physics-informed neural
    - `--vis all`: Enables all visualizations.
    - `--save`: Saves the results.
 
-3. All problems are defined in their respective folders, each containing:
+3. All problems are defined in their respective folders under "process", each containing:
    - Residual Definition
    - Domain Definition
    - Scaling
