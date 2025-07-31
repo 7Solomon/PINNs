@@ -13,7 +13,7 @@ This repository provides a modular framework for solving physics-informed neural
   - `config.py`: Configuration settings for diffrent models.
   - `domain_vars.py`: Domain-specific variables and parameters.
   - `material.py`: Material property definitions.
-  
+
   - `model.py`: PINN model architecture creation.
   - `points.py`: Point sampling/generation for training/testing.
 
@@ -44,12 +44,12 @@ This repository provides a modular framework for solving physics-informed neural
 
 2. Run the main script with arguments. Example:
    ```bash
-   python main.py add --type mechanic einspannung_2d --vis all --save
+   python main.py add --type heat transient --vis all --save
    ```
 
    - `add`: Action to perform (e.g., add a new model, load to load a existing folder).
-   - `--type mechanic`: Selects the problem type/domain.
-   - `einspannung_2d`: Specifies the particular problem/case.
+   - `--type mecheathanic`: Selects the problem type/domain.
+   - `transient`: Specifies the particular problem/case.
    - `--vis all`: Enables all visualizations.
    - `--save`: Saves the results.
 
@@ -57,7 +57,7 @@ This repository provides a modular framework for solving physics-informed neural
    - Residual Definition
    - Domain Definition
    - Scaling
-   - gnd Definition
+   - Ground Truth Definitions
    - Visualisations functions
 
 
