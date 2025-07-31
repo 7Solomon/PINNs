@@ -7,11 +7,13 @@ This repository provides a modular framework for solving physics-informed neural
 
 - `DeepXDE/`
   - `main.py`: Entry point. Parses command-line arguments and manages the workflow.
-  - `config.py`: Configuration settings for diffrent models.
-  - `domain_vars.py`: Domain-specific variables and parameters.
   - `manager.py`: Handles argument parsing and execution logic.
   - `MAP.py`: Implements a Routing logic.
+
+  - `config.py`: Configuration settings for diffrent models.
+  - `domain_vars.py`: Domain-specific variables and parameters.
   - `material.py`: Material property definitions.
+  
   - `model.py`: PINN model architecture creation.
   - `points.py`: Point sampling/generation for training/testing.
 
